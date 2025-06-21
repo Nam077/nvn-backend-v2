@@ -5,10 +5,11 @@ import { AppService } from '@/app.service';
 import { AuthModule } from '@/modules/auth/auth.module';
 import { ConfigModule } from '@/modules/config/config.module';
 import { DatabaseModule } from '@/modules/database/database.module';
+import { RedisModule } from '@/modules/redis/redis.module';
 import { UsersModule } from '@/modules/users/users.module';
 
 @Module({
-    imports: [ConfigModule, DatabaseModule, AuthModule, UsersModule],
+    imports: [ConfigModule, DatabaseModule, RedisModule, AuthModule, UsersModule],
     controllers: [AppController],
     providers: [AppService],
 })

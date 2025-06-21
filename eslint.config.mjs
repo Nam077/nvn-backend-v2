@@ -8,7 +8,7 @@ import lodashPlugin from 'eslint-plugin-lodash';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import securityPlugin from 'eslint-plugin-security';
 import sonarjsPlugin from 'eslint-plugin-sonarjs';
-import sortClassMembersPlugin from 'eslint-plugin-sort-class-members';
+
 import sortExportsPlugin from 'eslint-plugin-sort-exports';
 import unusedImportsPlugin from 'eslint-plugin-unused-imports';
 import globals from 'globals';
@@ -199,29 +199,7 @@ export default tseslint.config(
       ],
     },
   },
-  // Class Organization
-  {
-    plugins: {
-      'sort-class-members': sortClassMembersPlugin,
-    },
-    rules: {
-      'sort-class-members/sort-class-members': [
-        'error',
-        {
-          order: [
-            '[static-properties]',
-            '[static-methods]',
-            '[properties]',
-            'constructor',
-            {
-              type: 'method',
-              sort: 'alphabetical',
-            },
-          ],
-        },
-      ],
-    },
-  },
+
   // Exports Organization
   {
     plugins: {
