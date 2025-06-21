@@ -28,6 +28,27 @@ export class ConfigServiceApp {
         return this.configService.get('DB_USERNAME');
     }
 
+    // Redis Configuration
+    get redisHost(): string {
+        return this.configService.get('REDIS_HOST', 'localhost');
+    }
+
+    get redisPort(): number {
+        return this.configService.get('REDIS_PORT', 6379);
+    }
+
+    get redisPassword(): string | undefined {
+        return this.configService.get('REDIS_PASSWORD');
+    }
+
+    get redisDb(): number {
+        return this.configService.get('REDIS_DB', 0);
+    }
+
+    get redisKeyPrefix(): string {
+        return this.configService.get('REDIS_KEY_PREFIX', '');
+    }
+
     get isDevelopment(): boolean {
         return this.nodeEnv === 'development';
     }

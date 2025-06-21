@@ -8,8 +8,7 @@ import lodashPlugin from 'eslint-plugin-lodash';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import securityPlugin from 'eslint-plugin-security';
 import sonarjsPlugin from 'eslint-plugin-sonarjs';
-
-import sortExportsPlugin from 'eslint-plugin-sort-exports';
+import sortClassMembersPlugin from 'eslint-plugin-sort-class-members';
 import unusedImportsPlugin from 'eslint-plugin-unused-imports';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
@@ -199,16 +198,31 @@ export default tseslint.config(
       ],
     },
   },
-
-  // Exports Organization
+  // Class Member Organization (NestJS Friendly)
   {
     plugins: {
-      'sort-exports': sortExportsPlugin,
+      'sort-class-members': sortClassMembersPlugin,
     },
     rules: {
-      'sort-exports/sort-exports': 'error',
+      'sort-class-members/sort-class-members': [
+        'error',
+        {
+          order: [
+            '[static-properties]',
+            '[properties]',
+            '[conventional-private-properties]',
+            'constructor',
+            '[static-methods]',
+            '[methods]',
+            '[conventional-private-methods]',
+          ],
+          accessorPairPositioning: 'getThenSet',
+          stopAfterFirstProblem: false,
+        },
+      ],
     },
   },
+
   // Lodash Optimization
   {
     plugins: {

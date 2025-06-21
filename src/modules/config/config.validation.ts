@@ -20,6 +20,13 @@ export interface EnvironmentVariables {
     SWAGGER_TITLE: string;
     SWAGGER_DESCRIPTION: string;
     SWAGGER_VERSION: string;
+
+    // Redis Configuration
+    REDIS_HOST: string;
+    REDIS_PORT: number;
+    REDIS_PASSWORD: string;
+    REDIS_DB: number;
+    REDIS_KEY_PREFIX: string;
 }
 
 export const validate = (config: Record<string, unknown>): EnvironmentVariables => {
@@ -55,4 +62,11 @@ export const validationSchema = Joi.object({
     SWAGGER_TITLE: Joi.string().default('API Documentation'),
     SWAGGER_DESCRIPTION: Joi.string().default('API Documentation'),
     SWAGGER_VERSION: Joi.string().default('1.0'),
+
+    // Redis Configuration
+    REDIS_HOST: Joi.string().default('localhost'),
+    REDIS_PORT: Joi.number().port().default(6379),
+    REDIS_PASSWORD: Joi.string().allow(''),
+    REDIS_DB: Joi.number().default(0),
+    REDIS_KEY_PREFIX: Joi.string().default(''),
 });

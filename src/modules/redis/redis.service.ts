@@ -1,5 +1,4 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 
 import Redis, { ChainableCommander } from 'ioredis';
 import { forOwn } from 'lodash';
@@ -13,51 +12,17 @@ export interface ListOptions {
     end?: number;
 }
 
-export interface RedisConfig {
-    host: string;
-    port: number;
-    password?: string;
-    db?: number;
-    keyPrefix?: string;
-    connectTimeout?: number;
-    commandTimeout?: number;
-    retryDelayOnFailover?: number;
-    maxRetriesPerRequest?: number;
-}
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(RedisService.name);
-    private client: Redis;
-    private subscriber: Redis;
     private isHealthy = false;
 
-    constructor(private readonly configService: ConfigService) {}
+    constructor(
+        private readonly client: Redis,
+        private readonly subscriber: Redis,
+    ) {}
 
     async onModuleInit(): Promise<void> {
-        const config: RedisConfig = {
-            host: this.configService.get<string>('REDIS_HOST', 'localhost'),
-            port: this.configService.get<number>('REDIS_PORT', 6379),
-            password: this.configService.get<string>('REDIS_PASSWORD'),
-            db: this.configService.get<number>('REDIS_DB', 0),
-            keyPrefix: this.configService.get<string>('REDIS_KEY_PREFIX', ''),
-            connectTimeout: 10000,
-            commandTimeout: 5000,
-            retryDelayOnFailover: 100,
-            maxRetriesPerRequest: 3,
-        };
-
-        // Main client
-        this.client = new Redis({
-            ...config,
-            lazyConnect: true,
-        });
-
-        // Separate client for pub/sub
-        this.subscriber = new Redis({
-            ...config,
-            lazyConnect: true,
-        });
-
         this.setupEventHandlers();
         await this.connect();
     }
