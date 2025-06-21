@@ -31,7 +31,7 @@ services:
 
     # PostgreSQL Database
     postgres:
-        image: postgres:16-alpine
+        image: postgres:17-alpine
         container_name: nvn-postgres
         restart: unless-stopped
         env_file:
@@ -73,7 +73,7 @@ services:
 
     # RabbitMQ Message Queue
     rabbitmq:
-        image: rabbitmq:3.12-management-alpine
+        image: rabbitmq:4.1-management-alpine
         container_name: nvn-rabbitmq
         restart: unless-stopped
         env_file:

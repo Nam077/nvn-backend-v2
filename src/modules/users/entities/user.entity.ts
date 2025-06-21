@@ -24,55 +24,55 @@ export class User extends Model<User, UserCreationAttrs> {
             isEmail: true,
         },
     })
-    email: string;
+    declare email: string;
 
     @Column({
         type: DataType.STRING,
         allowNull: false,
     })
-    password: string;
+    declare password: string;
 
     @ApiProperty({ description: 'First name', example: 'John' })
     @Column({
         type: DataType.STRING,
         allowNull: true,
     })
-    firstName: string;
+    declare firstName: string;
 
     @ApiProperty({ description: 'Last name', example: 'Doe' })
     @Column({
         type: DataType.STRING,
         allowNull: true,
     })
-    lastName: string;
+    declare lastName: string;
 
     @ApiProperty({ description: 'Is user active', example: true })
     @Column({
         type: DataType.BOOLEAN,
         defaultValue: true,
     })
-    isActive: boolean;
+    declare isActive: boolean;
 
     @ApiProperty({ description: 'User role', example: 'user' })
     @Column({
         type: DataType.ENUM('admin', 'user'),
         defaultValue: 'user',
     })
-    role: 'admin' | 'user';
+    declare role: 'admin' | 'user';
 
     @ApiProperty({ description: 'Email verified status', example: false })
     @Column({
         type: DataType.BOOLEAN,
         defaultValue: false,
     })
-    emailVerified: boolean;
+    declare emailVerified: boolean;
 
     @ApiProperty({ description: 'Last login date' })
     @Column({
         type: DataType.DATE,
         allowNull: true,
     })
-    lastLoginAt: Date;
+    declare lastLoginAt: Date;
 
     @ApiProperty({ description: 'Creation date' })
     @CreatedAt
