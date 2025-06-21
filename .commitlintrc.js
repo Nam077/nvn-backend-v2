@@ -38,13 +38,11 @@ module.exports = {
                 'ci',       // CI/CD related
             ],
         ],
-        'subject-case': [2, 'always', 'lower-case'],
         'subject-empty': [2, 'never'],
         'subject-max-length': [2, 'always', 72],
         'header-max-length': [2, 'always', 100],
         'body-max-line-length': [2, 'always', 100],
         'footer-max-line-length': [2, 'always', 100],
-        'type-case': [2, 'always', 'lower-case'],
         'type-empty': [2, 'never'],
         'scope-case': [2, 'always', 'lower-case'],
     },

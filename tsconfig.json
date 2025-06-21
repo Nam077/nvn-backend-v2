@@ -19,7 +19,19 @@
         "noFallthroughCasesInSwitch": false,
         "strict": true,
         "esModuleInterop": true,
-        "resolveJsonModule": true
+        "resolveJsonModule": true,
+        "paths": {
+            "@/*": ["src/*"],
+            "@common/*": ["src/common/*"],
+            "@modules/*": ["src/modules/*"],
+            "@config/*": ["src/config/*"],
+            "@database/*": ["src/database/*"],
+            "@decorators/*": ["src/common/decorators/*"],
+            "@guards/*": ["src/common/guards/*"],
+            "@interceptors/*": ["src/common/interceptors/*"],
+            "@pipes/*": ["src/common/pipes/*"],
+            "@filters/*": ["src/common/filters/*"]
+        }
     },
     "include": ["src/**/*", "test/**/*"],
     "exclude": ["node_modules", "dist"]

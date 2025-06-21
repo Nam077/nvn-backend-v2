@@ -6,81 +6,20 @@
     "editor.trimAutoWhitespace": true,
     "editor.codeActionsOnSave": {
         "source.fixAll.eslint": "explicit",
-        "source.organizeImports": "explicit"
     },
-    "editor.formatOnSave": true,
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
-
-    // File Settings
-    "files.eol": "\n",
-    "files.trimTrailingWhitespace": true,
-    "files.insertFinalNewline": true,
-    "files.trimFinalNewlines": true,
-
+    
     // TypeScript Settings
-    "typescript.preferences.importModuleSpecifier": "relative",
-    "typescript.preferences.includePackageJsonAutoImports": "on",
+    "typescript.preferences.includePackageJsonAutoImports": "auto",
     "typescript.suggest.autoImports": true,
+    "typescript.suggest.paths": true,
+    "typescript.preferences.importModuleSpecifier": "shortest",
     "typescript.updateImportsOnFileMove.enabled": "always",
-
-    // ESLint Settings
-    "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
-    "eslint.format.enable": false,
-
-    // Prettier Settings
-    "prettier.requireConfig": true,
-    "prettier.useEditorConfig": false,
-
-    // Auto-fix on save
-    "[typescript]": {
-        "editor.defaultFormatter": "esbenp.prettier-vscode",
-        "editor.codeActionsOnSave": {
-            "source.fixAll.eslint": "explicit",
-            "source.organizeImports": "explicit"
-        }
-    },
-    "[javascript]": {
-        "editor.defaultFormatter": "esbenp.prettier-vscode",
-        "editor.codeActionsOnSave": {
-            "source.fixAll.eslint": "explicit"
-        }
-    },
-    "[json]": {
-        "editor.defaultFormatter": "esbenp.prettier-vscode"
-    },
-    "[jsonc]": {
-        "editor.defaultFormatter": "esbenp.prettier-vscode"
-    },
-    "[markdown]": {
-        "editor.defaultFormatter": "esbenp.prettier-vscode"
-    },
-
-    // Explorer Settings
-    "explorer.fileNesting.enabled": true,
-    "explorer.fileNesting.patterns": {
-        "*.ts": "${capture}.js",
-        "*.js": "${capture}.js.map, ${capture}.min.js, ${capture}.d.ts",
-        "*.tsx": "${capture}.js",
-        "*.jsx": "${capture}.js"
-    },
-
-    // Search Settings
-    "search.exclude": {
-        "**/node_modules": true,
-        "**/dist": true,
-        "**/.git": true,
-        "**/coverage": true,
-        "**/.nyc_output": true
-    },
-
-    // Git Settings
-    "git.ignoreLimitWarning": true,
-
-    // Terminal Settings
-    "terminal.integrated.defaultProfile.osx": "zsh",
-
-    // Emmet Settings
-    "emmet.includeLanguages": {
-        "typescript": "html"
-    }
+    
+    // Path Mapping Support
+    "typescript.preferences.useAliasesForRenames": true,
+    "typescript.suggest.includeAutomaticOptionalChainCompletions": true,
+    
+    // Auto-import settings
+    "typescript.suggest.completeFunctionCalls": true,
+    "editor.suggest.insertMode": "replace"
 }
