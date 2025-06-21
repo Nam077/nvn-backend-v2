@@ -8,7 +8,7 @@ services:
         container_name: nvn-api
         restart: unless-stopped
         ports:
-            - '3000:3000'
+            - '3010:3000'
         env_file:
             - .env.docker
         depends_on:
@@ -34,13 +34,10 @@ services:
         image: postgres:16-alpine
         container_name: nvn-postgres
         restart: unless-stopped
-        environment:
-            POSTGRES_DB: nvn_backend
-            POSTGRES_USER: postgres
-            POSTGRES_PASSWORD: postgres
-            PGDATA: /var/lib/postgresql/data/pgdata
+        env_file:
+            - .env.docker
         ports:
-            - '5432:5432'
+            - '5442:5432'
         volumes:
             - postgres_data:/var/lib/postgresql/data
             - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -58,9 +55,11 @@ services:
         image: redis:7-alpine
         container_name: nvn-redis
         restart: unless-stopped
+        env_file:
+            - .env.docker
         command: redis-server --appendonly yes --requirepass redis123
         ports:
-            - '6379:6379'
+            - '6389:6379'
         volumes:
             - redis_data:/data
         networks:
@@ -77,13 +76,11 @@ services:
         image: rabbitmq:3.12-management-alpine
         container_name: nvn-rabbitmq
         restart: unless-stopped
-        environment:
-            RABBITMQ_DEFAULT_USER: rabbitmq
-            RABBITMQ_DEFAULT_PASS: rabbitmq
-            RABBITMQ_DEFAULT_VHOST: /
+        env_file:
+            - .env.docker
         ports:
-            - '5672:5672' # AMQP port
-            - '15672:15672' # Management UI
+            - '5682:5672' # AMQP port
+            - '15682:15672' # Management UI
         volumes:
             - rabbitmq_data:/var/lib/rabbitmq
         networks:

@@ -65,17 +65,6 @@ services:
         depends_on:
             - postgres
 
-    # Mailhog - Email Testing
-    mailhog:
-        image: mailhog/mailhog:latest
-        container_name: nvn-mailhog
-        restart: unless-stopped
-        ports:
-            - '1025:1025' # SMTP
-            - '8025:8025' # Web UI
-        networks:
-            - nvn-network
-
 volumes:
     postgres_dev_data:
         driver: local

@@ -220,7 +220,6 @@ docker exec nvn-api nslookup redis
 - **RabbitMQ AMQP**: localhost:5672
 - **RabbitMQ Management**: http://localhost:15672
 - **PgAdmin**: http://localhost:8080
-- **Mailhog**: http://localhost:8025
 
 ### Production Environment
 

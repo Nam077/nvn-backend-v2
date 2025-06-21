@@ -30,6 +30,7 @@ RUN npm install -g pnpm
 COPY package.json pnpm-lock.yaml ./
 
 # Install only production dependencies
+ENV SKIP_HUSKY=1
 RUN pnpm install --frozen-lockfile --prod
 
 # Copy built application from builder stage
