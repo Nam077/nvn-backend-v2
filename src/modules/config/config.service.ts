@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService as NestConfigService } from '@nestjs/config';
 
-import { EnvironmentVariables } from './config.validation';
+import { EnvironmentVariables } from '@/modules/config/config.validation';
 
 @Injectable()
-export class ConfigService {
+export class ConfigServiceApp {
     constructor(private readonly configService: NestConfigService<EnvironmentVariables>) {}
 
     // Database Configuration

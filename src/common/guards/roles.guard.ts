@@ -3,9 +3,8 @@ import { Reflector } from '@nestjs/core';
 
 import { some } from 'lodash';
 
+import { ROLES_KEY } from '@/common/decorators/roles.decorator';
 import { User } from '@/modules/users/entities/user.entity';
-
-import { ROLES_KEY } from '../decorators/roles.decorator';
 
 interface RequestWithUser extends Request {
     user: User;

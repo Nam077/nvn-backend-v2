@@ -1,1 +1,1 @@
-export { ROLES_KEY, Roles } from '../../../common/decorators/roles.decorator';
+export { ROLES_KEY, Roles } from '@common/decorators/roles.decorator';

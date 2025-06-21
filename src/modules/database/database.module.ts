@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 
-import { ConfigService } from '../config/config.service';
+import { ConfigServiceApp } from '@/modules/config/config.service';
 
 @Module({
     imports: [
         SequelizeModule.forRootAsync({
-            useFactory: (configService: ConfigService) => ({
+            useFactory: (configService: ConfigServiceApp) => ({
                 dialect: 'postgres',
                 host: configService.dbHost,
                 port: configService.dbPort,
@@ -24,7 +24,7 @@ import { ConfigService } from '../config/config.service';
                     idle: 10000,
                 },
             }),
-            inject: [ConfigService],
+            inject: [ConfigServiceApp],
         }),
     ],
 })

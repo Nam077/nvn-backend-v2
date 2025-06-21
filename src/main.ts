@@ -1,9 +1,10 @@
+/* eslint-disable no-console */
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
-import { AppModule } from './app.module';
-import { ConfigService } from './modules/config/config.service';
+import { AppModule } from '@/app.module';
+import { ConfigServiceApp } from '@/modules/config/config.service';
 
 /**
  * Bootstrap the NestJS application
@@ -12,7 +13,7 @@ const bootstrap = async (): Promise<void> => {
     const app = await NestFactory.create(AppModule);
 
     // Get config service
-    const configService = app.get(ConfigService);
+    const configService = app.get(ConfigServiceApp);
 
     // Enable CORS
     app.enableCors({
@@ -55,6 +56,8 @@ const bootstrap = async (): Promise<void> => {
     }
 
     await app.listen(configService.port);
+    console.log(`Server is running on port ${configService.port}`);
+    console.log(`Environment: ${configService.nodeEnv}`);
 };
 
 void bootstrap();

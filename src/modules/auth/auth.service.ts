@@ -3,12 +3,12 @@ import { JwtService } from '@nestjs/jwt';
 
 import { omit } from 'lodash';
 
-import { AuthResponseDto } from './dto/auth-response.dto';
-import { LoginDto } from './dto/login.dto';
-import { JwtPayload } from './strategies/jwt.strategy';
-import { CreateUserDto } from '../users/dto/create-user.dto';
-import { User } from '../users/entities/user.entity';
-import { UsersService } from '../users/users.service';
+import { AuthResponseDto } from '@/modules/auth/dto/auth-response.dto';
+import { LoginDto } from '@/modules/auth/dto/login.dto';
+import { JwtPayload } from '@/modules/auth/strategies/jwt.strategy';
+import { CreateUserDto } from '@/modules/users/dto/create-user.dto';
+import { User } from '@/modules/users/entities/user.entity';
+import { UsersService } from '@/modules/users/users.service';
 
 @Injectable()
 export class AuthService {
