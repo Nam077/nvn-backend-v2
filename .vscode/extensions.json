@@ -1,0 +1,53 @@
+{
+    "recommendations": [
+        // Essential for TypeScript/JavaScript development
+        "ms-vscode.vscode-typescript-next",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+
+        // NestJS specific
+        "nestjs.nestjs-snippets",
+
+        // General productivity
+        "ms-vscode.vscode-json",
+        "bradlc.vscode-tailwindcss",
+        "ms-vscode.vscode-npm-scripts",
+        "christian-kohler.npm-intellisense",
+        "christian-kohler.path-intellisense",
+
+        // Git integration
+        "eamodio.gitlens",
+        "mhutchie.git-graph",
+
+        // Testing
+        "firsttris.vscode-jest-runner",
+        "orta.vscode-jest",
+
+        // File management
+        "ms-vscode.vscode-file-watcher",
+        "alefragnani.project-manager",
+
+        // Markdown support
+        "yzhang.markdown-all-in-one",
+
+        // REST API testing
+        "humao.rest-client",
+
+        // Docker support (if needed)
+        "ms-azuretools.vscode-docker",
+
+        // Database tools (if needed)
+        "ms-mssql.mssql",
+
+        // Theme and icons
+        "vscode-icons-team.vscode-icons",
+        "ms-vscode.Theme-MaterialKit",
+
+        // Utilities
+        "formulahendry.auto-rename-tag",
+        "naumovs.color-highlight",
+        "aaron-bond.better-comments",
+        "wayou.vscode-todo-highlight"
+    ],
+    "unwantedRecommendations": ["ms-vscode.vscode-typescript-tslint-plugin"]
+}

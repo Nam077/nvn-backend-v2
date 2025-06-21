@@ -1,0 +1,2 @@
+echo "🧪 Running tests and build before push..."
+npm run pre-push 
