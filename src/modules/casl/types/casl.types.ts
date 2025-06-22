@@ -74,4 +74,5 @@ export interface UserWithRoles {
     lastName?: string;
     isActive: boolean;
     roles?: Role[];
+    permissions?: string[];
 }

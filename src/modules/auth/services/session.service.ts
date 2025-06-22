@@ -56,7 +56,47 @@ export class SessionService {
     async getSessionBySid(sessionId: string): Promise<SessionData | null> {
         const sessionKey = `${CACHE_KEYS.SESSION_DATA}:${sessionId}`;
         const cached = await this.redisService.get(sessionKey);
-        return cached ? (JSON.parse(cached) as SessionData) : null;
+        if (!cached) return null;
+        return JSON.parse(cached) as SessionData;
+    }
+
+    async validateSession({
+        sessionId,
+        jti,
+        type,
+        userId,
+    }: {
+        sessionId: string;
+        jti: string;
+        type: 'access' | 'refresh';
+        userId: string;
+    }): Promise<SessionData | null> {
+        const cleanupAndReturnNull = async (): Promise<null> => {
+            await this.removeSessionFromCache(sessionId, userId);
+            return null;
+        };
+
+        if (!(await this.isChildUserSessionId(sessionId, userId))) {
+            return cleanupAndReturnNull();
+        }
+
+        const sessionData = await this.getSessionBySid(sessionId);
+        if (!sessionData) return null;
+
+        if (await this.isSessionBlacklisted(sessionId)) {
+            return cleanupAndReturnNull();
+        }
+
+        if (new Date() > sessionData.accessTokenExpiry) {
+            return cleanupAndReturnNull();
+        }
+
+        const expectedJti = type === 'access' ? sessionData.accessTokenJti : sessionData.refreshTokenJti;
+        if (expectedJti !== jti) {
+            return cleanupAndReturnNull();
+        }
+
+        return sessionData;
     }
 
     // 🔥 BACKWARD COMPATIBILITY: For JTI-based access (fallback method)
@@ -84,6 +124,11 @@ export class SessionService {
         await this.redisService.set(sessionKey, JSON.stringify(sessionData), {
             ttl: refreshTokenConfig.seconds,
         });
+    }
+    async isChildUserSessionId(sessionId: string, userId: string): Promise<boolean> {
+        const userSessionsKey = `${CACHE_KEYS.USER_SESSIONS}:${userId}`;
+        const isMember = await this.redisService.sismember(userSessionsKey, sessionId);
+        return isMember === 1;
     }
 
     // Track user session
@@ -144,16 +189,6 @@ export class SessionService {
         return userData as CachedUserData;
     }
 
-    async getCachedPermissionsBySid(sessionId: string): Promise<string[]> {
-        const sessionData = await this.getSessionBySid(sessionId);
-        return sessionData?.permissions || [];
-    }
-
-    async getCachedRolesBySid(sessionId: string): Promise<Array<{ id: string; name: string; displayName?: string }>> {
-        const sessionData = await this.getSessionBySid(sessionId);
-        return sessionData?.roles || [];
-    }
-
     // 🔥 BACKWARD COMPATIBILITY: JTI-based methods
     async getCachedUserByJti(jti: string): Promise<CachedUserData | null> {
         const sessionData = await this.getSessionByJti(jti);
@@ -196,5 +231,13 @@ export class SessionService {
         // Clear the user sessions set
         const userSessionsKey = `${CACHE_KEYS.USER_SESSIONS}:${userId}`;
         await this.redisService.del(userSessionsKey);
+    }
+
+    async removeSessionFromCache(sessionId: string, userId: string): Promise<void> {
+        const sessionKey = `${CACHE_KEYS.SESSION_DATA}:${sessionId}`;
+        await this.redisService.del(sessionKey);
+
+        const userSessionsKey = `${CACHE_KEYS.USER_SESSIONS}:${userId}`;
+        await this.redisService.srem(userSessionsKey, sessionId);
     }
 }

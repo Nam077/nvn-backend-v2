@@ -83,25 +83,13 @@ export class JwtAccessStrategy extends PassportStrategy(Strategy, 'jwt-access') 
         }
 
         // 2. Session validation using SID from JWT
-        const sessionData = await this.sessionService.getSessionBySid(payload.sid);
-        if (isEmpty(sessionData)) {
-            throw new UnauthorizedException('Session not found or expired');
-        }
-
-        // 3. Validate JTI matches current access token
-        if (get(sessionData, 'accessTokenJti') !== get(payload, 'jti')) {
-            throw new UnauthorizedException('Invalid access token - JTI mismatch');
-        }
-
-        // 4. Check if session is blacklisted
-        if (await this.sessionService.isSessionBlacklisted(sessionData.sid)) {
-            throw new UnauthorizedException('Session has been revoked');
-        }
-
-        // 5. Check if access token is still valid (not expired)
-        if (new Date() > sessionData.accessTokenExpiry) {
-            throw new UnauthorizedException('Access token expired');
-        }
+        const sessionData = await this.sessionService.validateSession({
+            sessionId: get(payload, 'sid'),
+            jti: get(payload, 'jti'),
+            type: 'access',
+            userId: get(payload, 'sub'),
+        });
+        if (!sessionData) throw new UnauthorizedException('Session not found or expired');
 
         return {
             id: get(payload, 'sub'),

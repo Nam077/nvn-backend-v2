@@ -6,9 +6,8 @@ import { Request } from 'express';
 import { get, isEmpty } from 'lodash';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
+import { SessionService } from '@/modules/auth/services/session.service';
 import { KeyManagerService } from '@/modules/security/services/key-manager.service';
-
-import { AuthService } from '../auth.service';
 
 interface JwtPayload {
     sub: string;
@@ -29,7 +28,6 @@ export interface RefreshTokenUser {
     role?: string;
     jti: string;
     sid: string;
-    refreshToken: string;
     sessionData: {
         sid: string;
         id: string;
@@ -57,7 +55,7 @@ const JWT_AUDIENCE = 'nvn-users';
 export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
     constructor(
         private readonly keyManagerService: KeyManagerService,
-        private readonly authService: AuthService,
+        private readonly sessionService: SessionService,
         private readonly jwtService: JwtService,
     ) {
         super({
@@ -111,31 +109,13 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
         }
 
         // 2. Session validation using SID from JWT
-        const sessionData = await this.authService.getSessionBySid(get(payload, 'sid'));
-        if (isEmpty(sessionData)) {
-            throw new UnauthorizedException('Session not found or expired');
-        }
-
-        // 3. Validate JTI matches stored refresh token JTI
-        if (get(sessionData, 'refreshTokenJti') !== get(payload, 'jti')) {
-            throw new UnauthorizedException('Invalid refresh token - JTI mismatch');
-        }
-
-        // 4. Check if session is blacklisted
-        if (await this.authService.isSessionBlacklisted(get(sessionData, 'sid'))) {
-            throw new UnauthorizedException('Session has been revoked');
-        }
-
-        // 5. Check if refresh token is still valid (not expired)
-        if (new Date() > get(sessionData, 'refreshTokenExpiry')) {
-            throw new UnauthorizedException('Refresh token expired');
-        }
-
-        // 6. Get refresh token from request
-        const refreshToken = get(request, ['cookies', REFRESH_TOKEN_COOKIE_NAME]) as string;
-        if (!refreshToken) {
-            throw new UnauthorizedException('Refresh token not found in cookies');
-        }
+        const sessionData = await this.sessionService.validateSession({
+            sessionId: get(payload, 'sid'),
+            jti: get(payload, 'jti'),
+            type: 'refresh',
+            userId: get(payload, 'sub'),
+        });
+        if (!sessionData) throw new UnauthorizedException('Session not found or expired');
 
         return {
             id: get(payload, 'sub'),
@@ -143,7 +123,6 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
             role: get(payload, 'role'),
             jti: get(payload, 'jti'),
             sid: get(payload, 'sid'),
-            refreshToken,
             sessionData, // ✅ Return session data directly from strategy
         };
     }

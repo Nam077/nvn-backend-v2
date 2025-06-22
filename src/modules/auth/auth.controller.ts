@@ -55,7 +55,7 @@ const REFRESH_TOKEN_COOKIE_CONFIG = {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict' as const,
-        path: '/api/auth',
+        path: '/',
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     },
 };

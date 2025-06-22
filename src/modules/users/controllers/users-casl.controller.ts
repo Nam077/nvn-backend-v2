@@ -12,14 +12,12 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 
-import { includes, map } from 'lodash';
-
 import { GetUser } from '@/modules/auth/decorators/get-user.decorator';
 import { JwtAuthGuard } from '@/modules/auth/guards/auth.guard';
+import { SessionService } from '@/modules/auth/services/session.service';
 import { Can, CommonAbilities } from '@/modules/casl/decorators/check-abilities.decorator';
 import { AbilityFactory } from '@/modules/casl/factories/ability.factory';
 import { CaslGuard } from '@/modules/casl/guards/casl.guard';
-import { PermissionCacheService } from '@/modules/casl/services/permission-cache.service';
 import { Subjects } from '@/modules/casl/types/casl.types';
 
 import { CreateUserDto } from '../dto/create-user.dto';
@@ -40,7 +38,7 @@ export class UsersCaslController {
         private readonly usersService: UsersService,
         private readonly rbacService: RbacService,
         private readonly abilityFactory: AbilityFactory,
-        private readonly permissionCacheService: PermissionCacheService,
+        private readonly sessionService: SessionService,
     ) {}
 
     // ✅ Only users with 'read User' ability can access
@@ -171,92 +169,6 @@ export class UsersCaslController {
         return {
             message: `✅ SUCCESS: Updated active user ${id}`,
             user: updatedUser,
-        };
-    }
-
-    @Get('debug/cache-test')
-    @ApiOperation({ summary: 'DEBUG: Test cached permissions vs database' })
-    async debugCacheTest(@GetUser('id') currentUserId: string, @GetUser('jti') jti: string): Promise<any> {
-        if (!jti) {
-            return { error: 'JTI not found in token' };
-        }
-
-        // Get permissions from cache (fast)
-        const startCache = Date.now();
-        const cachedPermissions = await this.permissionCacheService.getCachedPermissionsByJti(jti);
-        const cacheTime = Date.now() - startCache;
-
-        // Get permissions from database (slow)
-        const startDb = Date.now();
-        const dbPermissions = await this.rbacService.getUserPermissions(currentUserId);
-        const dbTime = Date.now() - startDb;
-
-        return {
-            performance: {
-                cache: `${cacheTime}ms`,
-                database: `${dbTime}ms`,
-                improvement: `${Math.round(((dbTime - cacheTime) / dbTime) * 100)}% faster`,
-            },
-            permissions: {
-                fromCache: cachedPermissions,
-                fromDatabase: dbPermissions,
-                match: JSON.stringify(cachedPermissions.sort()) === JSON.stringify(dbPermissions.sort()),
-            },
-            recommendation:
-                cachedPermissions.length > 0
-                    ? '✅ Using cache for stateless performance'
-                    : '❌ Cache miss - using database fallback',
-        };
-    }
-
-    @Get('demo/conditions-test')
-    @ApiOperation({ summary: 'DEMO: Test CASL permission-based system' })
-    async testConditions(@GetUser('id') currentUserId: string): Promise<any> {
-        const userWithRoles = await this.rbacService.getUserWithRoles(currentUserId);
-        const ability = this.abilityFactory.createForUser(userWithRoles);
-
-        // 🎯 Get user permissions from database
-        const userPermissions = await this.rbacService.getUserPermissions(currentUserId);
-
-        return {
-            user: currentUserId,
-            userInfo: {
-                roles: map(userWithRoles.roles, (role) => ({
-                    name: role.name,
-                    permissions: map(role.permissions, (p) => p.name),
-                })),
-                allPermissions: userPermissions,
-            },
-            caslTests: {
-                // ✅ CASL checks actual permissions from DB, not hardcoded roles!
-                canReadUsers: this.abilityFactory.canRead(ability, Subjects.User, { id: currentUserId }),
-                canReadOtherUsers: this.abilityFactory.canRead(ability, Subjects.User, { id: 'other-user-id' }),
-                canUpdateUsers: this.abilityFactory.canUpdate(ability, Subjects.User, { id: currentUserId }),
-                canDeleteUsers: this.abilityFactory.canDelete(ability, Subjects.User, { id: currentUserId }),
-                canManageUsers: this.abilityFactory.canManage(ability, Subjects.User),
-                canCreateRoles: this.abilityFactory.canRead(ability, Subjects.Role),
-                canReadPermissions: this.abilityFactory.canRead(ability, Subjects.Permission),
-                canAdminSystem: this.abilityFactory.canWithConditions(ability, 'admin', Subjects.System, {}),
-            },
-            permissionBreakdown: {
-                // 🔍 Show which permissions enable which abilities
-                explanation: 'CASL now maps database permissions to abilities:',
-                examples: {
-                    'users:read': "→ can('read', User)",
-                    'users:write': "→ can('create', User) + can('update', User)",
-                    'users:admin': "→ can('admin', User) + can('manage', User)",
-                    'roles:read': "→ can('read', Role)",
-                    'system:admin': "→ can('admin', System)",
-                },
-            },
-            directPermissionChecks: {
-                // 🎯 Compare with direct permission checks
-                hasUsersRead: includes(userPermissions, 'users:read'),
-                hasUsersWrite: includes(userPermissions, 'users:write'),
-                hasUsersAdmin: includes(userPermissions, 'users:admin'),
-                hasRolesRead: includes(userPermissions, 'roles:read'),
-                hasSystemAdmin: includes(userPermissions, 'system:admin'),
-            },
         };
     }
 }

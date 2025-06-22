@@ -6,12 +6,11 @@ import { UsersModule } from '@/modules/users/users.module';
 
 import { AbilityFactory } from './factories/ability.factory';
 import { CaslGuard } from './guards/casl.guard';
-import { PermissionCacheService } from './services/permission-cache.service';
 
 @Global()
 @Module({
     imports: [UsersModule, AuthModule],
-    providers: [AbilityFactory, CaslGuard, PermissionCacheService, SessionService],
-    exports: [AbilityFactory, CaslGuard, PermissionCacheService],
+    providers: [AbilityFactory, CaslGuard, SessionService],
+    exports: [AbilityFactory, CaslGuard, SessionService],
 })
 export class CaslModule {}

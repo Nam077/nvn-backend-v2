@@ -12,7 +12,7 @@ import { UsersService } from '@/modules/users/users.service';
 
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
-import { SessionService, SessionData, CachedUserData } from './services/session.service';
+import { SessionService, SessionData } from './services/session.service';
 
 interface JwtPayload {
     sub: string;
@@ -174,22 +174,30 @@ export class AuthService {
 
     async refreshTokenWithSessionData(userData: RefreshTokenUserData): Promise<AuthResponseDto> {
         // ✅ NO DUPLICATE VALIDATION - Strategy already did all the work!
-        const { sessionData, refreshToken } = userData;
+        const { sessionData } = userData;
 
-        // Generate new access token (keep same session)
-        const newAccessToken = await this.generateAccessToken(sessionData, sessionData.sid);
+        // Generate new access token AND new refresh token (token rotation)
+        const [newAccessToken, newRefreshToken] = await Promise.all([
+            this.generateAccessToken(sessionData, sessionData.sid),
+            this.generateRefreshToken(sessionData, sessionData.sid),
+        ]);
+
+        // Decode tokens to get new JTIs
         const newAccessPayload = this.jwtService.decode<JwtPayload>(newAccessToken);
+        const newRefreshPayload = this.jwtService.decode<JwtPayload>(newRefreshToken);
 
-        if (!isValidJwtPayload(newAccessPayload)) {
-            throw new BadRequestException('Failed to generate valid access token');
+        if (!isValidJwtPayload(newAccessPayload) || !isValidJwtPayload(newRefreshPayload)) {
+            throw new BadRequestException('Failed to generate valid tokens');
         }
 
-        // Update session with new access token JTI and timestamps
+        // Update session with new JTIs and timestamps
         sessionData.accessTokenJti = newAccessPayload.jti;
+        sessionData.refreshTokenJti = newRefreshPayload.jti;
         sessionData.accessTokenExpiry = new Date(Date.now() + getTokenConfig(KEY_TYPES.ACCESS_TOKEN).seconds * 1000);
+        sessionData.refreshTokenExpiry = new Date(Date.now() + getTokenConfig(KEY_TYPES.REFRESH_TOKEN).seconds * 1000);
         sessionData.lastUsedAt = new Date();
 
-        // 🔥 DELEGATED: Update session cache
+        // 🔥 DELEGATED: Update session cache with new JTIs
         await this.sessionService.cacheSessionData(sessionData.sid, sessionData);
 
         const accessTokenConfig = getTokenConfig(KEY_TYPES.ACCESS_TOKEN);
@@ -197,7 +205,7 @@ export class AuthService {
 
         return {
             accessToken: newAccessToken,
-            refreshToken, // Keep the same refresh token from strategy
+            refreshToken: newRefreshToken, // 🔥 FIXED: Return new refresh token
             user: {
                 id: sessionData.id,
                 email: sessionData.email,
@@ -291,39 +299,6 @@ export class AuthService {
             audience: JWT_AUDIENCE,
             keyid: activeKeyId, // ✅ Set kid in header for standard compliance
         });
-    }
-
-    // 🔥 DELEGATED: Public delegation methods for backward compatibility
-    async getSessionBySid(sessionId: string): Promise<SessionData | null> {
-        return this.sessionService.getSessionBySid(sessionId);
-    }
-
-    async isSessionBlacklisted(sessionId: string): Promise<boolean> {
-        return this.sessionService.isSessionBlacklisted(sessionId);
-    }
-
-    async getCachedUserBySid(sessionId: string): Promise<CachedUserData | null> {
-        return this.sessionService.getCachedUserBySid(sessionId);
-    }
-
-    async getCachedUserByJti(jti: string): Promise<CachedUserData | null> {
-        return this.sessionService.getCachedUserByJti(jti);
-    }
-
-    async getCachedPermissionsBySid(sessionId: string): Promise<string[]> {
-        return this.sessionService.getCachedPermissionsBySid(sessionId);
-    }
-
-    async getCachedPermissionsByJti(jti: string): Promise<string[]> {
-        return this.sessionService.getCachedPermissionsByJti(jti);
-    }
-
-    async getCachedRolesBySid(sessionId: string): Promise<Array<{ id: string; name: string; displayName?: string }>> {
-        return this.sessionService.getCachedRolesBySid(sessionId);
-    }
-
-    async getCachedRolesByJti(jti: string): Promise<Array<{ id: string; name: string; displayName?: string }>> {
-        return this.sessionService.getCachedRolesByJti(jti);
     }
 }
 

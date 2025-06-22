@@ -1,34 +1,26 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Injectable } from '@nestjs/common';
 
-import { forEach, includes, map, split, toLower } from 'lodash';
+import { forEach, get, includes, isEmpty, map, split, toLower } from 'lodash';
 
+import { CachedUserData } from '@/modules/auth/services/session.service';
 import { AbilityBuilder, createMongoAbility } from '@casl/ability';
 
 import { AppAbility, Actions, Subjects, UserWithRoles, Action, Subject } from '../types/casl.types';
 
 @Injectable()
 export class AbilityFactory {
-    createForUser(user: UserWithRoles): AppAbility {
+    createForUser(user: CachedUserData): AppAbility {
         const { can, cannot, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
 
-        if (!user.roles || user.roles.length === 0) {
+        if (isEmpty(get(user, 'roles', []))) {
             // No roles = basic read access only to own profile
             can(Actions.read, Subjects.User, { id: user.id });
             return build();
         }
 
         // 🎯 NEW: Get all permissions from user's roles
-        const userPermissions: string[] = [];
-        forEach(user.roles, (role) => {
-            if (role.permissions) {
-                forEach(role.permissions, (permission) => {
-                    if (permission.isActive) {
-                        userPermissions.push(permission.name);
-                    }
-                });
-            }
-        });
+        const userPermissions: string[] = get(user, 'permissions', []) as string[];
 
         // 🚀 Convert permissions to CASL abilities
         forEach(userPermissions, (permission) => {
@@ -129,14 +121,14 @@ export class AbilityFactory {
     createForUserLegacy(user: UserWithRoles): AppAbility {
         const { can, cannot, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
 
-        if (!user.roles || user.roles.length === 0) {
+        if (isEmpty(get(user, 'roles', []))) {
             // No roles = basic read access only
             can(Actions.read, Subjects.User, { id: user.id }); // Can only read own profile
             return build();
         }
 
         // Check for specific roles
-        const roleNames = map(user.roles, (role) => toLower(role.name));
+        const roleNames = map(get(user, 'roles', []), (role) => toLower(get(role, 'name', '')));
 
         // Super Admin - can do everything
         if (includes(roleNames, 'super_admin')) {
@@ -185,13 +177,13 @@ export class AbilityFactory {
     }
 
     // Helper method for checking if user can perform action
-    canUserPerform(user: UserWithRoles, action: string, subject: string): boolean {
+    canUserPerform(user: CachedUserData, action: string, subject: string): boolean {
         const ability = this.createForUser(user);
         return ability.can(action as any, subject as any);
     }
 
     // Helper method for checking with conditions
-    canUserPerformWithConditions(user: UserWithRoles, action: string, subject: string, conditions?: any): boolean {
+    canUserPerformWithConditions(user: CachedUserData, action: string, subject: string, conditions?: any): boolean {
         const ability = this.createForUser(user);
         return ability.can(action as any, subject as any, conditions);
     }
