@@ -142,6 +142,52 @@ export class UsersService {
             unverified: total - verified,
         };
     }
+
+    /**
+     * Count total users
+     * @returns {Promise<number>} - Total number of users
+     */
+    async count(): Promise<number> {
+        return this.userModel.count();
+    }
+
+    /**
+     * Count active users
+     * @returns {Promise<number>} - Number of active users
+     */
+    async countActive(): Promise<number> {
+        return this.userModel.count({ where: { isActive: true } });
+    }
+
+    /**
+     * Ban user (set isActive to false)
+     * @param {string} id - The ID of the user to ban
+     * @returns {Promise<User>} - The banned user
+     */
+    async banUser(id: string): Promise<User> {
+        const user = await this.findOne(id);
+        await user.update({ isActive: false });
+
+        // Xóa cache
+        await this.redisService.del(`user:${id}`);
+
+        return this.findOne(id);
+    }
+
+    /**
+     * Promote user (example: could upgrade role, here just activates)
+     * @param {string} id - The ID of the user to promote
+     * @returns {Promise<User>} - The promoted user
+     */
+    async promoteUser(id: string): Promise<User> {
+        const user = await this.findOne(id);
+        await user.update({ isActive: true });
+
+        // Xóa cache
+        await this.redisService.del(`user:${id}`);
+
+        return this.findOne(id);
+    }
     /**
      * Soft delete user (deactivate)
      * @param {string} id - The ID of the user to soft delete

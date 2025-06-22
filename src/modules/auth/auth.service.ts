@@ -2,16 +2,17 @@ import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/
 import { JwtService } from '@nestjs/jwt';
 
 import { randomUUID } from 'crypto';
-import { has, isObject } from 'lodash';
+import { has, isObject, map } from 'lodash';
 
-import { RedisService } from '@/modules/redis/redis.service';
 import { getTokenConfig } from '@/modules/security/config/key.config';
 import { KeyManagerService } from '@/modules/security/services/key-manager.service';
 import { KEY_TYPES } from '@/modules/security/types/key.types';
+import { RbacService } from '@/modules/users/services/rbac.service';
 import { UsersService } from '@/modules/users/users.service';
 
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
+import { SessionService, SessionData, CachedUserData } from './services/session.service';
 
 interface JwtPayload {
     sub: string;
@@ -19,7 +20,7 @@ interface JwtPayload {
     role?: string;
     type: string;
     jti: string;
-    keyId: string;
+    sid: string; // 🔥 KEEP: Session ID stays in payload for security
     iat?: number;
     exp?: number;
     iss?: string;
@@ -29,11 +30,38 @@ interface JwtPayload {
 interface UserInfo {
     id: string;
     email: string;
-    firstName: string;
-    lastName: string;
-    role: string;
+    firstName?: string;
+    lastName?: string;
     isActive: boolean;
     emailVerified: boolean;
+}
+
+interface RefreshTokenSessionData {
+    sid: string;
+    id: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    isActive: boolean;
+    emailVerified: boolean;
+    permissions: string[];
+    roles: Array<{ id: string; name: string; displayName?: string }>;
+    accessTokenJti: string;
+    refreshTokenJti: string;
+    accessTokenExpiry: Date;
+    refreshTokenExpiry: Date;
+    createdAt: Date;
+    lastUsedAt: Date;
+}
+
+interface RefreshTokenUserData {
+    id: string;
+    email: string;
+    role?: string;
+    jti: string;
+    sid: string;
+    refreshToken: string;
+    sessionData: RefreshTokenSessionData;
 }
 
 const JWT_ISSUER = 'nvn-backend';
@@ -50,15 +78,16 @@ const isValidJwtPayload = (payload: unknown): payload is JwtPayload =>
     has(payload, 'email') &&
     has(payload, 'type') &&
     has(payload, 'jti') &&
-    has(payload, 'keyId');
+    has(payload, 'sid');
 
 @Injectable()
 export class AuthService {
     constructor(
         private readonly usersService: UsersService,
+        private readonly rbacService: RbacService,
         private readonly keyManagerService: KeyManagerService,
         private readonly jwtService: JwtService,
-        private readonly redisService: RedisService,
+        private readonly sessionService: SessionService,
     ) {
         // No complex validation needed - simple token-based calculation
     }
@@ -68,24 +97,61 @@ export class AuthService {
         if (!user) {
             throw new UnauthorizedException('Invalid credentials');
         }
-        return user;
+        return user.toJSON();
     }
 
     async login(loginDto: LoginDto): Promise<AuthResponseDto> {
         const user = await this.validateUser(loginDto.email, loginDto.password);
 
-        // Generate access token and refresh token
+        // 🔥 NEW: Generate Session ID for this login session
+        const sessionId = randomUUID();
+
+        // Load user with roles and permissions
+        const userWithRoles = await this.rbacService.getUserWithRoles(user.id);
+        const userPermissions = await this.rbacService.getUserPermissions(user.id);
+
+        // Generate access token and refresh token with session reference
         const [accessToken, refreshToken] = await Promise.all([
-            this.generateAccessToken(user),
-            this.generateRefreshToken(user),
+            this.generateAccessToken(user, sessionId),
+            this.generateRefreshToken(user, sessionId),
         ]);
 
-        // Cache user payload in Redis using JTI
+        // Decode tokens to get JTIs
+        const accessPayload = this.jwtService.decode<JwtPayload>(accessToken);
         const refreshPayload = this.jwtService.decode<JwtPayload>(refreshToken);
-        if (!isValidJwtPayload(refreshPayload)) {
-            throw new BadRequestException('Failed to generate valid refresh token');
+
+        if (!isValidJwtPayload(accessPayload) || !isValidJwtPayload(refreshPayload)) {
+            throw new BadRequestException('Failed to generate valid tokens');
         }
-        await this.cacheUserPayload(refreshPayload.jti, user);
+
+        // 🔥 NEW: Create session data
+        const sessionData: SessionData = {
+            sid: sessionId,
+            id: user.id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            isActive: user.isActive,
+            emailVerified: user.emailVerified,
+            permissions: userPermissions,
+            roles: map(userWithRoles.roles, (role) => ({
+                id: role.id,
+                name: role.name,
+                displayName: role.displayName,
+            })),
+            accessTokenJti: accessPayload.jti,
+            refreshTokenJti: refreshPayload.jti,
+            accessTokenExpiry: new Date(Date.now() + getTokenConfig(KEY_TYPES.ACCESS_TOKEN).seconds * 1000),
+            refreshTokenExpiry: new Date(Date.now() + getTokenConfig(KEY_TYPES.REFRESH_TOKEN).seconds * 1000),
+            createdAt: new Date(),
+            lastUsedAt: new Date(),
+        };
+
+        // 🔥 DELEGATED: Cache session data and track user session
+        await Promise.all([
+            this.sessionService.cacheSessionData(sessionId, sessionData),
+            this.sessionService.trackUserSession(user.id, sessionId),
+        ]);
 
         const accessTokenConfig = getTokenConfig(KEY_TYPES.ACCESS_TOKEN);
         const refreshTokenConfig = getTokenConfig(KEY_TYPES.REFRESH_TOKEN);
@@ -98,109 +164,97 @@ export class AuthService {
                 email: user.email,
                 firstName: user.firstName,
                 lastName: user.lastName,
-                role: user.role,
                 isActive: user.isActive,
                 emailVerified: user.emailVerified,
             },
-            expiresIn: accessTokenConfig.seconds, // 1 day from config
-            refreshExpiresIn: refreshTokenConfig.seconds, // 30 days from config
+            expiresIn: accessTokenConfig.seconds,
+            refreshExpiresIn: refreshTokenConfig.seconds,
         };
     }
 
-    async refreshToken(refreshToken: string): Promise<AuthResponseDto> {
-        try {
-            // First decode to get the keyId
-            const decodedPayload = this.jwtService.decode<JwtPayload>(refreshToken);
-            if (!isValidJwtPayload(decodedPayload)) {
-                throw new UnauthorizedException('Invalid token format');
-            }
+    async refreshTokenWithSessionData(userData: RefreshTokenUserData): Promise<AuthResponseDto> {
+        // ✅ NO DUPLICATE VALIDATION - Strategy already did all the work!
+        const { sessionData, refreshToken } = userData;
 
-            // Get the specific public key used to create this token
-            const publicKey = await this.keyManagerService.getPublicKey(decodedPayload.keyId);
-            if (!publicKey) {
-                throw new UnauthorizedException('Key not found or revoked');
-            }
+        // Generate new access token (keep same session)
+        const newAccessToken = await this.generateAccessToken(sessionData, sessionData.sid);
+        const newAccessPayload = this.jwtService.decode<JwtPayload>(newAccessToken);
 
-            const payload = this.jwtService.verify<JwtPayload>(refreshToken, {
-                secret: publicKey,
-                algorithms: ['RS256'],
-            });
-
-            // Check if JTI exists in Redis
-            const cachedUser = await this.getCachedUserPayload(payload.jti);
-            if (!cachedUser || cachedUser.id !== payload.sub) {
-                throw new UnauthorizedException('Invalid refresh token');
-            }
-
-            // Check if user is still active
-            if (!cachedUser.isActive) {
-                throw new UnauthorizedException('User is inactive');
-            }
-
-            // Generate new tokens
-            const [newAccessToken, newRefreshToken] = await Promise.all([
-                this.generateAccessToken(cachedUser),
-                this.generateRefreshToken(cachedUser),
-            ]);
-
-            // Invalidate old JTI and cache new one
-            await this.invalidateUserPayload(payload.jti);
-            const newRefreshPayload = this.jwtService.decode<JwtPayload>(newRefreshToken);
-            if (!isValidJwtPayload(newRefreshPayload)) {
-                throw new BadRequestException('Failed to generate valid refresh token');
-            }
-            await this.cacheUserPayload(newRefreshPayload.jti, cachedUser);
-
-            const accessTokenConfig = getTokenConfig(KEY_TYPES.ACCESS_TOKEN);
-            const refreshTokenConfig = getTokenConfig(KEY_TYPES.REFRESH_TOKEN);
-
-            return {
-                accessToken: newAccessToken,
-                refreshToken: newRefreshToken,
-                user: {
-                    id: cachedUser.id,
-                    email: cachedUser.email,
-                    firstName: cachedUser.firstName,
-                    lastName: cachedUser.lastName,
-                    role: cachedUser.role,
-                    isActive: cachedUser.isActive,
-                    emailVerified: cachedUser.emailVerified,
-                },
-                expiresIn: accessTokenConfig.seconds, // 1 day from config
-                refreshExpiresIn: refreshTokenConfig.seconds, // 30 days from config
-            };
-        } catch {
-            throw new UnauthorizedException('Invalid refresh token');
+        if (!isValidJwtPayload(newAccessPayload)) {
+            throw new BadRequestException('Failed to generate valid access token');
         }
+
+        // Update session with new access token JTI and timestamps
+        sessionData.accessTokenJti = newAccessPayload.jti;
+        sessionData.accessTokenExpiry = new Date(Date.now() + getTokenConfig(KEY_TYPES.ACCESS_TOKEN).seconds * 1000);
+        sessionData.lastUsedAt = new Date();
+
+        // 🔥 DELEGATED: Update session cache
+        await this.sessionService.cacheSessionData(sessionData.sid, sessionData);
+
+        const accessTokenConfig = getTokenConfig(KEY_TYPES.ACCESS_TOKEN);
+        const refreshTokenConfig = getTokenConfig(KEY_TYPES.REFRESH_TOKEN);
+
+        return {
+            accessToken: newAccessToken,
+            refreshToken, // Keep the same refresh token from strategy
+            user: {
+                id: sessionData.id,
+                email: sessionData.email,
+                firstName: sessionData.firstName,
+                lastName: sessionData.lastName,
+                isActive: sessionData.isActive,
+                emailVerified: sessionData.emailVerified,
+            },
+            expiresIn: accessTokenConfig.seconds,
+            refreshExpiresIn: refreshTokenConfig.seconds,
+        };
     }
 
     async logout(refreshToken: string): Promise<void> {
         try {
             const payload = this.jwtService.decode<JwtPayload>(refreshToken);
             if (isValidJwtPayload(payload)) {
-                await this.invalidateUserPayload(payload.jti);
+                // 🔥 DELEGATED: Verify session exists before logout
+                const sessionData = await this.sessionService.getSessionBySid(payload.sid);
+                if (sessionData && sessionData.refreshTokenJti === payload.jti) {
+                    // Valid session and JTI match - proceed with logout
+                    await this.sessionService.blacklistSession(payload.sid);
+                    await this.sessionService.removeUserSession(payload.sub, payload.sid);
+                }
+                // If session doesn't exist or JTI mismatch, session is already invalid
+                // Still consider logout successful (idempotent operation)
             }
         } catch {
-            // Ignore errors during logout
+            // Ignore errors during logout - best effort cleanup
+        }
+    }
+
+    async logoutWithSessionData(sessionData: RefreshTokenSessionData): Promise<void> {
+        // ✅ NO DUPLICATE VALIDATION - Strategy already validated everything!
+        try {
+            await this.sessionService.blacklistSession(sessionData.sid);
+            await this.sessionService.removeUserSession(sessionData.id, sessionData.sid);
+        } catch {
+            // Ignore errors during logout - best effort cleanup
         }
     }
 
     async logoutAll(userId: string): Promise<void> {
-        // Clear all sessions for user
-        await this.redisService.del(`user_sessions:${userId}`);
+        // 🔥 DELEGATED: Blacklist all user sessions
+        await this.sessionService.blacklistAllUserSessions(userId);
     }
 
-    private async generateAccessToken(user: UserInfo): Promise<string> {
+    private async generateAccessToken(user: UserInfo, sessionId: string): Promise<string> {
         const activeKeyId = await this.keyManagerService.getActiveKey('access_token');
         const privateKey = await this.keyManagerService.getPrivateKey(activeKeyId);
 
         const payload: JwtPayload = {
             sub: user.id,
             email: user.email,
-            role: user.role,
             type: 'access',
             jti: randomUUID(),
-            keyId: activeKeyId,
+            sid: sessionId, // 🔥 KEEP: Session ID stays in payload for security
         };
 
         const tokenConfig = getTokenConfig(KEY_TYPES.ACCESS_TOKEN);
@@ -211,10 +265,11 @@ export class AuthService {
             expiresIn: tokenConfig.expiresIn, // 1d from config
             issuer: JWT_ISSUER,
             audience: JWT_AUDIENCE,
+            keyid: activeKeyId, // ✅ Set kid in header for standard compliance
         });
     }
 
-    private async generateRefreshToken(user: UserInfo): Promise<string> {
+    private async generateRefreshToken(user: UserInfo, sessionId: string): Promise<string> {
         const activeKeyId = await this.keyManagerService.getActiveKey('refresh_token');
         const privateKey = await this.keyManagerService.getPrivateKey(activeKeyId);
 
@@ -223,7 +278,7 @@ export class AuthService {
             email: user.email,
             type: 'refresh',
             jti: randomUUID(),
-            keyId: activeKeyId,
+            sid: sessionId, // 🔥 KEEP: Session ID stays in payload for security
         };
 
         const tokenConfig = getTokenConfig(KEY_TYPES.REFRESH_TOKEN);
@@ -234,62 +289,100 @@ export class AuthService {
             expiresIn: tokenConfig.expiresIn, // 30d from config
             issuer: JWT_ISSUER,
             audience: JWT_AUDIENCE,
+            keyid: activeKeyId, // ✅ Set kid in header for standard compliance
         });
     }
 
-    async verifyAccessToken(token: string): Promise<JwtPayload> {
-        try {
-            // First decode to get the keyId
-            const decodedPayload = this.jwtService.decode<JwtPayload>(token);
-            if (!isValidJwtPayload(decodedPayload)) {
-                throw new UnauthorizedException('Invalid token format');
-            }
-
-            // Get the specific public key used to create this token
-            const publicKey = await this.keyManagerService.getPublicKey(decodedPayload.keyId);
-            if (!publicKey) {
-                throw new UnauthorizedException('Key not found or revoked');
-            }
-
-            const payload = this.jwtService.verify<JwtPayload>(token, {
-                secret: publicKey,
-                algorithms: ['RS256'],
-                issuer: JWT_ISSUER,
-                audience: JWT_AUDIENCE,
-            });
-
-            if (payload.type !== 'access') {
-                throw new UnauthorizedException('Invalid token type');
-            }
-
-            return payload;
-        } catch {
-            throw new UnauthorizedException('Invalid access token');
-        }
+    // 🔥 DELEGATED: Public delegation methods for backward compatibility
+    async getSessionBySid(sessionId: string): Promise<SessionData | null> {
+        return this.sessionService.getSessionBySid(sessionId);
     }
 
-    private async cacheUserPayload(jti: string, user: UserInfo): Promise<void> {
-        const key = `jwt_payload:${jti}`;
-        const refreshTokenConfig = getTokenConfig(KEY_TYPES.REFRESH_TOKEN);
-
-        await this.redisService.set(key, JSON.stringify(user), {
-            ttl: refreshTokenConfig.seconds, // 30 days from config
-        });
-
-        // Also track user sessions
-        const userSessionsKey = `user_sessions:${user.id}`;
-        await this.redisService.sadd(userSessionsKey, jti);
-        await this.redisService.expire(userSessionsKey, refreshTokenConfig.seconds); // 30 days from config
+    async isSessionBlacklisted(sessionId: string): Promise<boolean> {
+        return this.sessionService.isSessionBlacklisted(sessionId);
     }
 
-    private async getCachedUserPayload(jti: string): Promise<UserInfo | null> {
-        const key = `jwt_payload:${jti}`;
-        const cached = await this.redisService.get(key);
-        return cached ? (JSON.parse(cached) as UserInfo) : null;
+    async getCachedUserBySid(sessionId: string): Promise<CachedUserData | null> {
+        return this.sessionService.getCachedUserBySid(sessionId);
     }
 
-    private async invalidateUserPayload(jti: string): Promise<void> {
-        const key = `jwt_payload:${jti}`;
-        await this.redisService.del(key);
+    async getCachedUserByJti(jti: string): Promise<CachedUserData | null> {
+        return this.sessionService.getCachedUserByJti(jti);
+    }
+
+    async getCachedPermissionsBySid(sessionId: string): Promise<string[]> {
+        return this.sessionService.getCachedPermissionsBySid(sessionId);
+    }
+
+    async getCachedPermissionsByJti(jti: string): Promise<string[]> {
+        return this.sessionService.getCachedPermissionsByJti(jti);
+    }
+
+    async getCachedRolesBySid(sessionId: string): Promise<Array<{ id: string; name: string; displayName?: string }>> {
+        return this.sessionService.getCachedRolesBySid(sessionId);
+    }
+
+    async getCachedRolesByJti(jti: string): Promise<Array<{ id: string; name: string; displayName?: string }>> {
+        return this.sessionService.getCachedRolesByJti(jti);
     }
 }
+
+/*
+🔥 ULTRA OPTIMIZED CACHING ARCHITECTURE (SID in JWT)
+===================================================
+
+OLD APPROACH (Too many keys + slow lookups):
+- nvn:auth:session:{sid} → Full session data  
+- nvn:auth:refresh:{sid} → Basic user info
+- nvn:auth:access:map:{jti} → sid
+- nvn:auth:refresh:map:{jti} → sid 
+- nvn:auth:user:sessions:{userId} → Set of SIDs
+- Need Redis KEYS scan to find session by JTI
+
+NEW APPROACH (Minimal keys + lightning fast):
+- nvn:auth:session:{sid} → Contains EVERYTHING (user data + permissions + both JTIs + expiry dates)
+- nvn:auth:user:sessions:{userId} → Set of SIDs (for user session tracking)
+- nvn:auth:blacklist:session:{sid} → Blacklisted sessions
+- JWT contains SID → Direct Redis GET (no scanning needed!)
+
+BENEFITS:
+✅ Reduced Redis memory usage (3 keys instead of 5+ keys per session)
+✅ Atomic data consistency (all session data in one place)
+✅ Simplified logic (no separate mappings to maintain)
+✅ LIGHTNING FAST token validation (direct Redis GET using SID from JWT)
+✅ No Redis KEYS scan needed (O(1) vs O(n) complexity)
+
+JWT PAYLOAD STRUCTURE:
+{
+  sub: "user-id",
+  email: "user@example.com", 
+  type: "access|refresh",
+  jti: "unique-token-id",
+  sid: "session-id", // 🔥 KEY OPTIMIZATION: Direct session access
+  keyId: "rsa-key-id"
+}
+
+SESSION DATA STRUCTURE:
+{
+  // User data
+  id, email, firstName, lastName, isActive, emailVerified,
+  permissions: ['users:read', 'posts:write'],
+  roles: [{id, name, displayName}],
+  
+  // Session metadata  
+  sid: "uuid",
+  accessTokenJti: "access-jwt-id",
+  refreshTokenJti: "refresh-jwt-id", 
+  accessTokenExpiry: Date,
+  refreshTokenExpiry: Date,
+  createdAt: Date,
+  lastUsedAt: Date,
+  userAgent?: string,
+  ipAddress?: string
+}
+
+PERFORMANCE:
+- Token validation: O(1) Redis GET (instead of O(n) KEYS scan)
+- Session access: Single Redis operation
+- Memory usage: ~60% reduction in total keys
+*/

@@ -8,7 +8,6 @@ export class HashSetDto {
     @IsNotEmpty()
     fields: Record<string, string>;
 
-    // eslint-disable-next-line sonarjs/no-duplicate-string
     @ApiPropertyOptional({ description: 'TTL in seconds', example: 3600 })
     @IsOptional()
     @IsNumber()

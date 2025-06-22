@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { AppController } from '@/app.controller';
 import { AppService } from '@/app.service';
 import { AuthModule } from '@/modules/auth/auth.module';
+import { CaslModule } from '@/modules/casl/casl.module';
 import { ConfigModule } from '@/modules/config/config.module';
 import { ConfigServiceApp } from '@/modules/config/config.service';
 import { DatabaseModule } from '@/modules/database/database.module';
@@ -13,6 +14,7 @@ import { UsersModule } from '@/modules/users/users.module';
 @Module({
     imports: [
         AuthModule,
+        CaslModule,
         ConfigModule,
         DatabaseModule,
         RedisModule.forRootAsync({

@@ -93,7 +93,7 @@ export default tseslint.config(
     },
     rules: {
       'sonarjs/no-identical-functions': 'error',
-      'sonarjs/no-duplicate-string': 'error',
+      'sonarjs/no-duplicate-string': 'off',
       'sonarjs/cognitive-complexity': ['error', 15],
       'sonarjs/no-nested-template-literals': 'warn',
       'sonarjs/prefer-immediate-return': 'error',

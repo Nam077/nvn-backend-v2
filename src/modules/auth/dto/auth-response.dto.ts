@@ -13,9 +13,6 @@ export class UserDto {
     @ApiProperty({ description: 'User last name' })
     lastName: string;
 
-    @ApiProperty({ description: 'User role', enum: ['admin', 'user'] })
-    role: string;
-
     @ApiProperty({ description: 'User active status' })
     isActive: boolean;
 

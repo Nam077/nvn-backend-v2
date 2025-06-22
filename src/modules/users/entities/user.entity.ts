@@ -1,6 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import { Column, CreatedAt, DataType, Model, PrimaryKey, Table, UpdatedAt } from 'sequelize-typescript';
+import { BelongsToMany, Column, CreatedAt, DataType, Model, PrimaryKey, Table, UpdatedAt } from 'sequelize-typescript';
+
+import { Role } from './role.entity';
+import { UserRole } from './user-role.entity';
 
 @Table({
     tableName: 'users',
@@ -53,13 +56,6 @@ export class User extends Model<User, UserCreationAttrs> {
     })
     declare isActive: boolean;
 
-    @ApiProperty({ description: 'User role', example: 'user' })
-    @Column({
-        type: DataType.ENUM('admin', 'user'),
-        defaultValue: 'user',
-    })
-    declare role: 'admin' | 'user';
-
     @ApiProperty({ description: 'Email verified status', example: false })
     @Column({
         type: DataType.BOOLEAN,
@@ -81,6 +77,10 @@ export class User extends Model<User, UserCreationAttrs> {
     @ApiProperty({ description: 'Last update date' })
     @UpdatedAt
     declare updatedAt: Date;
+
+    // Associations
+    @BelongsToMany(() => Role, () => UserRole)
+    declare roles: Role[];
 
     // Virtual properties
     @ApiProperty({ description: 'Full name', example: 'John Doe' })
