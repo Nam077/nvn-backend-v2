@@ -7,17 +7,26 @@ import { EnvironmentVariables } from '@/modules/config/config.validation';
 export class ConfigServiceApp {
     constructor(private readonly configService: NestConfigService<EnvironmentVariables>) {}
 
+    // Application Configuration
+    get nodeEnv(): string {
+        return this.configService.get('NODE_ENV');
+    }
+
+    get port(): number {
+        return this.configService.get('PORT');
+    }
+
+    get isDevelopment(): boolean {
+        return this.nodeEnv === 'development';
+    }
+
+    get isProduction(): boolean {
+        return this.nodeEnv === 'production';
+    }
+
     // Database Configuration
     get dbHost(): string {
         return this.configService.get('DB_HOST');
-    }
-
-    get dbName(): string {
-        return this.configService.get('DB_NAME');
-    }
-
-    get dbPassword(): string {
-        return this.configService.get('DB_PASSWORD');
     }
 
     get dbPort(): number {
@@ -26,6 +35,32 @@ export class ConfigServiceApp {
 
     get dbUsername(): string {
         return this.configService.get('DB_USERNAME');
+    }
+
+    get dbPassword(): string {
+        return this.configService.get('DB_PASSWORD');
+    }
+
+    get dbName(): string {
+        return this.configService.get('DB_NAME');
+    }
+
+    get databaseUrl(): string | undefined {
+        return this.configService.get('DATABASE_URL');
+    }
+
+    // JWT Configuration
+    get jwtSecret(): string {
+        return this.configService.get('JWT_SECRET');
+    }
+
+    get jwtExpiresIn(): string {
+        return this.configService.get('JWT_EXPIRES_IN');
+    }
+
+    // Security Keys Configuration (Simple)
+    get securityMasterKey(): string {
+        return this.configService.get('SECURITY_MASTER_KEY');
     }
 
     // Redis Configuration
@@ -49,37 +84,13 @@ export class ConfigServiceApp {
         return this.configService.get('REDIS_KEY_PREFIX', '');
     }
 
-    get isDevelopment(): boolean {
-        return this.nodeEnv === 'development';
-    }
-    get isProduction(): boolean {
-        return this.nodeEnv === 'production';
-    }
-    get jwtExpiresIn(): string {
-        return this.configService.get('JWT_EXPIRES_IN');
-    }
-
-    // JWT Configuration
-    get jwtSecret(): string {
-        return this.configService.get('JWT_SECRET');
-    }
-
-    get nodeEnv(): string {
-        return this.configService.get('NODE_ENV');
-    }
-
-    // Application Configuration
-    get port(): number {
-        return this.configService.get('PORT');
+    // Swagger Configuration
+    get swaggerTitle(): string {
+        return this.configService.get('SWAGGER_TITLE');
     }
 
     get swaggerDescription(): string {
         return this.configService.get('SWAGGER_DESCRIPTION');
-    }
-
-    // Swagger Configuration
-    get swaggerTitle(): string {
-        return this.configService.get('SWAGGER_TITLE');
     }
 
     get swaggerVersion(): string {

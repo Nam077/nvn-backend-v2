@@ -11,10 +11,14 @@ export interface EnvironmentVariables {
     DB_USERNAME: string;
     DB_PASSWORD: string;
     DB_NAME: string;
+    DATABASE_URL?: string;
 
     // JWT Configuration
     JWT_SECRET: string;
     JWT_EXPIRES_IN: string;
+
+    // Security Keys Configuration (Simple)
+    SECURITY_MASTER_KEY: string;
 
     // Swagger Configuration
     SWAGGER_TITLE: string;
@@ -53,10 +57,14 @@ export const validationSchema = Joi.object({
     DB_USERNAME: Joi.string().required(),
     DB_PASSWORD: Joi.string().required(),
     DB_NAME: Joi.string().required(),
+    DATABASE_URL: Joi.string().optional(),
 
     // JWT Configuration
     JWT_SECRET: Joi.string().min(32).required(),
     JWT_EXPIRES_IN: Joi.string().default('7d'),
+
+    // Security Keys Configuration (Simple)
+    SECURITY_MASTER_KEY: Joi.string().min(64).required().description('Master encryption key'),
 
     // Swagger Configuration
     SWAGGER_TITLE: Joi.string().default('API Documentation'),

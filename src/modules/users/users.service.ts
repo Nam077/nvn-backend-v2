@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/sequelize';
 
 import * as bcrypt from 'bcryptjs';
 
+import { RedisService } from '@/modules/redis/redis.service';
 import { CreateUserDto } from '@/modules/users/dto/create-user.dto';
 import { UpdateUserDto } from '@/modules/users/dto/update-user.dto';
 import { User } from '@/modules/users/entities/user.entity';
@@ -12,6 +13,7 @@ export class UsersService {
     constructor(
         @InjectModel(User)
         private readonly userModel: typeof User,
+        private readonly redisService: RedisService,
     ) {}
 
     /**
@@ -30,10 +32,17 @@ export class UsersService {
         const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
 
         // Create user
-        return await this.userModel.create({
+        const newUser = await this.userModel.create({
             ...createUserDto,
             password: hashedPassword,
         });
+
+        // Cache user sau khi tạo
+        await this.redisService.set(`user:${newUser.id}`, JSON.stringify(newUser), {
+            ttl: 3600,
+        }); // Cache 1 giờ
+
+        return newUser;
     }
 
     /**
@@ -43,6 +52,9 @@ export class UsersService {
     async delete(id: string): Promise<void> {
         const user = await this.findOne(id);
         await user.destroy();
+
+        // Xóa cache
+        await this.redisService.del(`user:${id}`);
     }
     /**
      * Find all users with pagination
@@ -83,6 +95,12 @@ export class UsersService {
      * @returns {Promise<User>} - The user if found, otherwise throws NotFoundException
      */
     async findOne(id: string): Promise<User> {
+        // Kiểm tra cache trước
+        const cachedUser = await this.redisService.getJson<User>(`user:${id}`);
+        if (cachedUser) {
+            return cachedUser;
+        }
+
         const user = await this.userModel.findByPk(id, {
             attributes: { exclude: ['password'] },
         });
@@ -90,6 +108,11 @@ export class UsersService {
         if (!user) {
             throw new NotFoundException('User not found');
         }
+
+        // Cache user
+        await this.redisService.set(`user:${id}`, JSON.stringify(user), {
+            ttl: 36,
+        });
 
         return user;
     }
@@ -126,6 +149,9 @@ export class UsersService {
     async remove(id: string): Promise<void> {
         const user = await this.findOne(id);
         await user.update({ isActive: false });
+
+        // Xóa cache
+        await this.redisService.del(`user:${id}`);
     }
     /**
      * Update user
@@ -150,6 +176,9 @@ export class UsersService {
         }
 
         await user.update(updateUserDto);
+
+        // Xóa cache cũ
+        await this.redisService.del(`user:${id}`);
 
         // Return updated user without password
         return this.findOne(id);
@@ -176,5 +205,91 @@ export class UsersService {
         await user.update({ lastLoginAt: new Date() });
 
         return user;
+    }
+
+    /**
+     * Cache user session in Redis
+     * @param {string} userId - The user ID
+     * @param {string} sessionToken - The session token
+     * @param {number} ttl - Time to live in seconds (default: 7 days)
+     */
+    async cacheUserSession(userId: string, sessionToken: string, ttl = 604800): Promise<void> {
+        await this.redisService.set(`session:${sessionToken}`, userId, {
+            ttl,
+        });
+        await this.redisService.set(`user:${userId}:session`, sessionToken, {
+            ttl,
+        });
+    }
+
+    /**
+     * Get user ID from session token
+     * @param {string} sessionToken - The session token
+     * @returns {Promise<string | null>} - The user ID if session exists
+     */
+    async getUserFromSession(sessionToken: string): Promise<string | null> {
+        return await this.redisService.get(`session:${sessionToken}`);
+    }
+
+    /**
+     * Invalidate user session
+     * @param {string} sessionToken - The session token to invalidate
+     */
+    async invalidateSession(sessionToken: string): Promise<void> {
+        const userId = await this.redisService.get(`session:${sessionToken}`);
+        if (userId) {
+            await this.redisService.del(`session:${sessionToken}`);
+            await this.redisService.del(`user:${userId}:session`);
+        }
+    }
+
+    /**
+     * Check rate limit for user actions (VD: login attempts)
+     * @param {string} key - The rate limit key (VD: `login:${email}`)
+     * @param {number} limit - Maximum number of attempts
+     * @param {number} window - Time window in seconds
+     * @returns {Promise<{allowed: boolean, remaining: number}>} - The rate limit status
+     */
+    async checkRateLimit(key: string, limit: number, window: number): Promise<{ allowed: boolean; remaining: number }> {
+        const current = await this.redisService.get(key);
+        const count = current ? parseInt(current) : 0;
+
+        if (count >= limit) {
+            return { allowed: false, remaining: 0 };
+        }
+
+        const newCount = count + 1;
+        if (count === 0) {
+            // Set with expiration
+            await this.redisService.set(key, newCount.toString(), {
+                ttl: window,
+            });
+        } else {
+            // Increment existing key
+            await this.redisService.set(key, newCount.toString());
+        }
+
+        return { allowed: true, remaining: limit - newCount };
+    }
+
+    /**
+     * Cache user stats for performance
+     * @returns {Promise<any>} - Cached or fresh user stats
+     */
+    async getCachedStats(): Promise<any> {
+        const cacheKey = 'users:stats';
+        const cached = await this.redisService.get(cacheKey);
+
+        if (cached) {
+            return JSON.parse(cached);
+        }
+
+        const stats = await this.getStats();
+        // Cache for 5 minutes
+        await this.redisService.set(cacheKey, JSON.stringify(stats), {
+            ttl: 300,
+        });
+
+        return stats;
     }
 }

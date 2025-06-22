@@ -34,6 +34,9 @@ importers:
             '@types/bcryptjs':
                 specifier: ^3.0.0
                 version: 3.0.0
+            argon2:
+                specifier: ^0.43.0
+                version: 0.43.0
             bcryptjs:
                 specifier: ^3.0.2
                 version: 3.0.2
@@ -43,6 +46,9 @@ importers:
             class-validator:
                 specifier: ^0.14.2
                 version: 0.14.2
+            crypto-js:
+                specifier: ^4.2.0
+                version: 4.2.0
             ioredis:
                 specifier: ^5.6.1
                 version: 5.6.1
@@ -104,6 +110,9 @@ importers:
             '@swc/core':
                 specifier: ^1.10.7
                 version: 1.12.5
+            '@types/crypto-js':
+                specifier: ^4.2.2
+                version: 4.2.2
             '@types/express':
                 specifier: ^5.0.0
                 version: 5.0.3
@@ -1547,6 +1556,13 @@ packages:
                 integrity: sha512-ZOBkgDwEdoYVlSeRbYYXs0S9MejQofiVYoTbKzy/6GQa39/q5tQU2IX46+shYnUkpEl3wc+J6wRlar7r2EK2xA==,
             }
 
+    '@phc/format@1.0.0':
+        resolution:
+            {
+                integrity: sha512-m7X9U6BG2+J+R1lSOdCiITLLrxm+cWlNI3HUFA92oLO77ObGNzaKdh8pMLqdZcshtkKuV84olNNXDfMc4FezBQ==,
+            }
+        engines: { node: '>=10' }
+
     '@pkgr/core@0.2.7':
         resolution:
             {
@@ -1840,6 +1856,12 @@ packages:
         resolution:
             {
                 integrity: sha512-he+DHOWReW0nghN24E1WUqM0efK4kI9oTqDm6XmK8ZPe2djZ90BSNdGnIyCLzCPw7/pogPlGbzI2wHGGmi4O/Q==,
+            }
+
+    '@types/crypto-js@4.2.2':
+        resolution:
+            {
+                integrity: sha512-sDOLlVbHhXpAUAL0YHDUUwDZf3iN4Bwi4W6a0W0b+QcAezUbRtH4FVb+9J4h+XFPW7l/gQ9F8qC7P+Ec4k8QVQ==,
             }
 
     '@types/debug@4.1.12':
@@ -2647,6 +2669,13 @@ packages:
                 integrity: sha512-58S9QDqG0Xx27YwPSt9fJxivjYl432YCwfDMfZ+71RAqUrZef7LrKQZ3LHLOwCS4FLNBplP533Zx895SeOCHvA==,
             }
 
+    argon2@0.43.0:
+        resolution:
+            {
+                integrity: sha512-u/HKLcbWShVDhkfwI4hWyiUf3qyX8QhTfaIv2cWE18uqhXCmR5hb6Ed7oqYi2KCQegeAnRhiFzbjzm7i5yl1GA==,
+            }
+        engines: { node: '>=16.17.0' }
+
     argparse@1.0.10:
         resolution:
             {
@@ -3361,6 +3390,12 @@ packages:
                 integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==,
             }
         engines: { node: '>= 8' }
+
+    crypto-js@4.2.0:
+        resolution:
+            {
+                integrity: sha512-KALDyEYgpY+Rlob/iriUtjV6d5Eq+Y191A5g4UqLAi8CyGP9N1+FdVbkc1SxKc2r4YAYqG8JzO2KGL+AizD70Q==,
+            }
 
     dargs@8.1.0:
         resolution:
@@ -5960,11 +5995,25 @@ packages:
                 integrity: sha512-AGK2yQKIjRuqnc6VkX2Xj5d+QW8xZ87pa1UK6yA6ouUyuxfHuMP6umE5QK7UmTeOAymo+Zx1Fxiuw9rVx8taHQ==,
             }
 
+    node-addon-api@8.4.0:
+        resolution:
+            {
+                integrity: sha512-D9DI/gXHvVmjHS08SVch0Em8G5S1P+QWtU31appcKT/8wFSPRcdHadIFSAntdMMVM5zz+/DL+bL/gz3UDppqtg==,
+            }
+        engines: { node: ^18 || ^20 || >= 21 }
+
     node-emoji@1.11.0:
         resolution:
             {
                 integrity: sha512-wo2DpQkQp7Sjm2A0cq+sN7EHKO6Sl0ctXeBdFZrL9T9+UywORbufTcTZxom8YqpLQt/FqNMUkOpkZrJVYSKD3A==,
             }
+
+    node-gyp-build@4.8.4:
+        resolution:
+            {
+                integrity: sha512-LA4ZjwlnUblHVgq0oBF3Jl/6h/Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH+F6ewcIB/q4jQ4UzPyid+CQ==,
+            }
+        hasBin: true
 
     node-int64@0.4.0:
         resolution:
@@ -9020,6 +9069,8 @@ snapshots:
         dependencies:
             '@noble/hashes': 1.8.0
 
+    '@phc/format@1.0.0': {}
+
     '@pkgr/core@0.2.7': {}
 
     '@scarf/scarf@1.4.0': {}
@@ -9179,6 +9230,8 @@ snapshots:
             '@types/node': 22.15.32
 
     '@types/cookiejar@2.1.5': {}
+
+    '@types/crypto-js@4.2.2': {}
 
     '@types/debug@4.1.12':
         dependencies:
@@ -9700,6 +9753,12 @@ snapshots:
 
     arg@4.1.3: {}
 
+    argon2@0.43.0:
+        dependencies:
+            '@phc/format': 1.0.0
+            node-addon-api: 8.4.0
+            node-gyp-build: 4.8.4
+
     argparse@1.0.10:
         dependencies:
             sprintf-js: 1.0.3
@@ -10139,6 +10198,8 @@ snapshots:
             path-key: 3.1.1
             shebang-command: 2.0.0
             which: 2.0.2
+
+    crypto-js@4.2.0: {}
 
     dargs@8.1.0: {}
 
@@ -11880,9 +11941,13 @@ snapshots:
 
     node-abort-controller@3.1.1: {}
 
+    node-addon-api@8.4.0: {}
+
     node-emoji@1.11.0:
         dependencies:
             lodash: 4.17.21
+
+    node-gyp-build@4.8.4: {}
 
     node-int64@0.4.0: {}
 
