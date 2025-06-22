@@ -10,10 +10,11 @@ import { KeyType, KeyAlgorithm, KeyStatus } from '../types/key.types';
     indexes: [{ fields: ['key_type', 'status'] }, { fields: ['status', 'expires_at'] }, { fields: ['created_at'] }],
 })
 export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
-    @ApiProperty({ description: 'Key ID', example: 'jwt_1640995200_abc123def' })
+    @ApiProperty({ description: 'Key ID (UUID)', example: '550e8400-e29b-41d4-a716-446655440000' })
     @PrimaryKey
     @Column({
-        type: DataType.STRING(128),
+        type: DataType.UUID,
+        defaultValue: DataType.UUIDV4,
         allowNull: false,
     })
     declare keyId: string;
@@ -179,7 +180,6 @@ export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
 }
 
 export interface SecurityKeyCreationAttrs {
-    keyId: string;
     keyType: KeyType;
     algorithm: KeyAlgorithm;
     encryptedPrivateKey: string;

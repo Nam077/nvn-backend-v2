@@ -2,13 +2,20 @@
 import { Controller, Post, Get, Body, Param, Query, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 
+import { isEmpty, isString, defaultTo, toNumber, clamp } from 'lodash';
+
 import { KeyManagerService } from '../services/key-manager.service';
-import { KeyType, KeyStatus } from '../types/key.types';
+import { KeyRotationSchedulerService } from '../services/key-rotation-scheduler.service';
+import { KeyTimeCalculator } from '../config/key.config';
+import { KeyType, KeyStatus, RotationStatusData, TimingAnalysisResult } from '../types/key.types';
 
 @ApiTags('Security')
 @Controller('security')
 export class SecurityController {
-    constructor(private readonly keyManagerService: KeyManagerService) {}
+    constructor(
+        private readonly keyManagerService: KeyManagerService,
+        private readonly keyRotationSchedulerService: KeyRotationSchedulerService,
+    ) {}
 
     @Post('keys/generate')
     @HttpCode(HttpStatus.CREATED)
@@ -231,7 +238,6 @@ export class SecurityController {
                 status: 'revoked',
                 reason: body.reason,
                 revokedBy: body.revokedBy || 'system',
-                revokedAt: new Date().toISOString(),
             },
         };
     }
@@ -423,6 +429,118 @@ export class SecurityController {
                     statistics: 'GET /security/keys/statistics',
                     revoke: 'POST /security/keys/:keyId/revoke',
                 },
+            },
+        };
+    }
+
+    @Post('keys/rotation/:keyType')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Manually rotate keys for specific type' })
+    @ApiParam({
+        name: 'keyType',
+        description: 'Key type to rotate',
+        enum: [
+            'access_token',
+            'refresh_token',
+            'email_verification',
+            'password_reset',
+            'api_key',
+            'webhook_signature',
+            'file_encryption',
+            'database_encryption',
+            'session_encryption',
+        ],
+    })
+    @ApiResponse({ status: 200, description: 'Key rotation completed successfully' })
+    @ApiResponse({ status: 404, description: 'No active key found for rotation' })
+    async rotateKeyType(@Param('keyType') keyType: KeyType, @Body() body: { reason?: string } = {}) {
+        const newKeyId = await this.keyRotationSchedulerService.rotateKeyType(keyType);
+
+        return {
+            success: true,
+            message: `${keyType} key rotation completed successfully`,
+            data: {
+                keyType,
+                newActiveKeyId: newKeyId,
+                rotationReason: body.reason || 'manual-rotation',
+                rotatedAt: new Date().toISOString(),
+            },
+        };
+    }
+
+    @Get('rotation/status')
+    @ApiOperation({ summary: 'Get rotation status for all key types' })
+    @ApiResponse({ status: 200, description: 'Rotation status retrieved successfully' })
+    async getRotationStatus(): Promise<{
+        success: boolean;
+        message: string;
+        data: Record<string, RotationStatusData | { error: string }>;
+    }> {
+        const status = await this.keyRotationSchedulerService.getRotationStatus();
+
+        return {
+            success: true,
+            message: 'Rotation status retrieved successfully',
+            data: status,
+        };
+    }
+
+    @Get('timing/analysis')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Get comprehensive timing analysis for all keys' })
+    @ApiResponse({ status: 200, description: 'Timing analysis retrieved successfully' })
+    async getTimingAnalysis(): Promise<{
+        success: boolean;
+        message: string;
+        data: TimingAnalysisResult;
+    }> {
+        const analysis = await this.keyRotationSchedulerService.getTimingAnalysis();
+
+        return {
+            success: true,
+            message: 'Timing analysis retrieved successfully',
+            data: analysis,
+        };
+    }
+
+    @Get('keys/:keyId/timing')
+    @ApiOperation({ summary: 'Get timing information for a specific key' })
+    @ApiParam({ name: 'keyId', description: 'Key ID' })
+    @ApiResponse({ status: 200, description: 'Key timing information retrieved successfully' })
+    @ApiResponse({ status: 404, description: 'Key not found' })
+    async getKeyTiming(@Param('keyId') keyId: string) {
+        // Validate input with lodash
+        if (isEmpty(keyId) || !isString(keyId)) {
+            return {
+                success: false,
+                message: 'Invalid key ID provided',
+                data: null,
+            };
+        }
+
+        // This would require finding the key first to get its type and creation date
+        // For now, return a placeholder response
+        return {
+            success: false,
+            message: 'Key timing analysis endpoint needs implementation with key lookup',
+            data: null,
+        };
+    }
+
+    @Post('rotation/trigger')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Trigger manual key rotation check' })
+    @ApiResponse({ status: 200, description: 'Rotation check triggered successfully' })
+    async triggerRotationCheck() {
+        // Trigger the rotation check manually
+        await this.keyRotationSchedulerService.checkKeyRotation();
+
+        return {
+            success: true,
+            message: 'Manual rotation check completed successfully',
+            data: {
+                triggeredAt: new Date(),
+                type: 'manual',
             },
         };
     }

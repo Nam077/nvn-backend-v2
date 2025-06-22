@@ -12,8 +12,6 @@ import { randomBytes, generateKeyPairSync, createHmac, pbkdf2Sync, createCipheri
 import { split, join, startsWith, get } from 'lodash';
 import { Op } from 'sequelize';
 
-import { RedisService } from '@/modules/redis/redis.service';
-
 import { EnvironmentKeyLoaderService } from './environment-key-loader.service';
 import { KEY_CONFIGURATIONS, CRYPTO_CONFIG } from '../config/key.config';
 import { KeyRotationHistory } from '../entities/key-rotation-history.entity';
@@ -23,7 +21,16 @@ import { KeyType, KeyAlgorithm, KeyStatus, KEY_STATUSES, KeyDerivationContext } 
 @Injectable()
 export class KeyManagerService {
     private readonly logger = new Logger(KeyManagerService.name);
-    private readonly memoryCache = new Map<string, { key: string; expires: number }>();
+
+    /**
+     * ZERO-CACHE SECURITY DESIGN:
+     * - NEVER cache private keys (obvious security risk)
+     * - NEVER cache public keys (key rotation bypass, verification bypass)
+     * - NEVER cache metadata (even keyId mappings can be sensitive)
+     * - ALWAYS fetch everything fresh from database
+     * - Performance trade-off for maximum security
+     * - Every key operation is fully validated and fresh
+     */
 
     constructor(
         @InjectModel(SecurityKey)
@@ -31,13 +38,7 @@ export class KeyManagerService {
         @InjectModel(KeyRotationHistory)
         private readonly keyRotationHistoryModel: typeof KeyRotationHistory,
         private readonly envKeyLoader: EnvironmentKeyLoaderService,
-        private readonly redisService: RedisService,
-    ) {
-        // Auto-clear memory cache every 5 minutes
-        setInterval(() => this.clearExpiredCache(), 5 * 60 * 1000);
-
-        this.logger.log('✅ KeyManager initialized');
-    }
+    ) {}
 
     async generateKeyPair(keyType: KeyType, createdBy?: string): Promise<string> {
         const config = get(KEY_CONFIGURATIONS, keyType);
@@ -55,32 +56,24 @@ export class KeyManagerService {
             );
 
             // 2. Create unique context
-            const keyId = this.generateKeyId(keyType);
             const creationTimestamp = Date.now();
             const randomSalt = randomBytes(32);
 
             // 3. Generate context-dependent encryption key
             const encryptionKey = await this.generateEncryptionKey({
-                keyId,
                 keyType,
                 creationTimestamp,
                 randomSalt,
             });
 
             // 4. Encrypt keys with context binding
-            const encryptedPrivateKey = await this.encryptWithBinding(
-                privateKey,
-                encryptionKey,
-                keyId,
-                creationTimestamp,
-            );
+            const encryptedPrivateKey = await this.encryptWithBinding(privateKey, encryptionKey, creationTimestamp);
             const encryptedPublicKey = get(config, 'requiresAsymmetric')
-                ? await this.encryptWithBinding(publicKey, encryptionKey, keyId, creationTimestamp)
+                ? await this.encryptWithBinding(publicKey, encryptionKey, creationTimestamp)
                 : undefined;
 
             // 5. Create integrity signature
             const integritySignature = await this.createIntegritySignature(
-                keyId,
                 creationTimestamp,
                 encryptedPrivateKey,
                 encryptedPublicKey || '',
@@ -90,8 +83,7 @@ export class KeyManagerService {
             // 6. Store in database
             const expiresAt = new Date(Date.now() + get(config, 'expirationDays', 30) * 24 * 60 * 60 * 1000);
 
-            await this.securityKeyModel.create({
-                keyId,
+            const newKey = await this.securityKeyModel.create({
                 keyType,
                 algorithm: get(config, 'algorithm'),
                 encryptedPrivateKey,
@@ -109,11 +101,10 @@ export class KeyManagerService {
                 },
             });
 
-            // 7. Cache public key info in Redis
-            await this.cacheKeyInfo(keyId, keyType, get(config, 'algorithm'), !!encryptedPublicKey);
+            // REMOVED: No caching for maximum security
 
-            this.logger.log(`✅ Generated ${keyType} key: ${keyId}`);
-            return keyId;
+            this.logger.log(`✅ Generated ${keyType} key: ${newKey.keyId}`);
+            return newKey.keyId;
         } catch (error) {
             this.logger.error(`Failed to generate ${keyType} key pair:`, error);
             throw new InternalServerErrorException(`Failed to generate ${keyType} key pair`);
@@ -121,26 +112,9 @@ export class KeyManagerService {
     }
 
     async getPrivateKey(keyId: string): Promise<string> {
-        // 1. Check memory cache first
-        const cached = this.memoryCache.get(keyId);
-        if (cached && cached.expires > Date.now()) {
-            await this.updateKeyUsage(keyId);
-            return cached.key;
-        }
+        const startTime = Date.now();
 
-        // 2. Get from Redis cache
-        const redisCached = await this.redisService.get(`security_key:${keyId}`);
-        if (redisCached) {
-            const keyData = JSON.parse(redisCached) as { privateKey: string };
-            const privateKey = get(keyData, 'privateKey');
-            if (privateKey) {
-                this.cacheInMemory(keyId, privateKey, 5 * 60 * 1000); // 5 minutes
-                await this.updateKeyUsage(keyId);
-                return privateKey;
-            }
-        }
-
-        // 3. Get encrypted key from database
+        // Always fetch from database for security - NEVER cache private keys
         const keyRecord = await this.securityKeyModel.findOne({
             where: { keyId, status: { [Op.in]: [KEY_STATUSES.ACTIVE, KEY_STATUSES.ROTATING] } },
         });
@@ -149,53 +123,49 @@ export class KeyManagerService {
             throw new NotFoundException(`Active key not found: ${keyId}`);
         }
 
-        // 4. Security validations
+        // Security validations
         await this.validateKeyAccess(keyRecord);
 
-        // 5. Decrypt private key
+        // Decrypt private key (always fresh from DB)
         const privateKey = await this.decryptPrivateKey(keyRecord);
 
-        // 6. Cache in Redis and memory
-        await this.cacheDecryptedKey(keyId, privateKey, keyRecord.keyType);
-        this.cacheInMemory(keyId, privateKey, 5 * 60 * 1000);
+        // REMOVED: No caching at all for maximum security
 
-        // 7. Update usage statistics
+        // Update usage statistics
         await this.updateKeyUsage(keyId);
 
+        const duration = Date.now() - startTime;
+        this.logger.debug(`🔑 Retrieved private key from database: ${keyId} (${duration}ms)`);
         return privateKey;
     }
 
     async getPublicKey(keyId: string): Promise<string | null> {
-        // Check cache first
-        const cached = await this.redisService.get(`public_key:${keyId}`);
-        if (cached) {
-            return cached;
-        }
+        const startTime = Date.now();
 
+        // Always fetch from database for security - NEVER cache public keys
         const keyRecord = await this.securityKeyModel.findOne({
             where: { keyId, status: { [Op.in]: [KEY_STATUSES.ACTIVE, KEY_STATUSES.ROTATING] } },
         });
 
         if (!keyRecord || !keyRecord.encryptedPublicKey) {
+            this.logger.debug(`🔍 Public key not found: ${keyId}`);
             return null;
         }
 
-        // Decrypt public key
+        // Security validations
+        await this.validateKeyAccess(keyRecord);
+
+        // Decrypt public key (always fresh from DB)
         const publicKey = await this.decryptPublicKey(keyRecord);
 
-        // Cache public key (longer TTL since it's safe to cache)
-        await this.redisService.set(`public_key:${keyId}`, publicKey, { ttl: 3600 });
-
+        const duration = Date.now() - startTime;
+        this.logger.debug(`🔑 Retrieved public key from database: ${keyId} (${duration}ms)`);
         return publicKey;
     }
 
-    async getActiveKey(keyType: KeyType): Promise<string | null> {
-        const cached = await this.redisService.get(`active_key:${keyType}`);
-        if (cached) {
-            return cached;
-        }
-
-        const activeKey = await this.securityKeyModel.findOne({
+    async getActiveKey(keyType: KeyType): Promise<string> {
+        // Always fetch from database - NO CACHE for maximum security
+        let activeKey = await this.securityKeyModel.findOne({
             where: {
                 keyType,
                 status: KEY_STATUSES.ACTIVE,
@@ -204,13 +174,22 @@ export class KeyManagerService {
             order: [['createdAt', 'DESC']],
         });
 
+        // If no active key exists, create a new one
         if (!activeKey) {
-            return null;
+            const newKeyId = await this.generateKeyPair(keyType);
+            await this.activateKey(newKeyId);
+
+            // Fetch the newly created and activated key
+            activeKey = await this.securityKeyModel.findOne({
+                where: { keyId: newKeyId },
+            });
+
+            if (!activeKey) {
+                throw new Error(`Failed to create and retrieve new key for type: ${keyType}`);
+            }
         }
 
-        // Cache for 5 minutes
-        await this.redisService.set(`active_key:${keyType}`, activeKey.keyId, { ttl: 300 });
-
+        this.logger.debug(`🔍 Retrieved active key from database: ${keyType} -> ${activeKey.keyId}`);
         return activeKey.keyId;
     }
 
@@ -233,7 +212,7 @@ export class KeyManagerService {
             },
         });
 
-        await this.clearKeyCache(keyId, keyRecord.keyType);
+        // REMOVED: No cache to clear
         this.logger.log(`✅ Activated key: ${keyId}`);
     }
 
@@ -253,9 +232,7 @@ export class KeyManagerService {
             },
         });
 
-        // Clear all caches
-        await this.clearKeyCache(keyId, keyRecord.keyType);
-        this.memoryCache.delete(keyId);
+        // REMOVED: No cache to clear
 
         this.logger.log(`🚫 Revoked key: ${keyId} - Reason: ${reason}`);
     }
@@ -282,13 +259,7 @@ export class KeyManagerService {
     }
 
     async getKeyStatistics(): Promise<Record<string, Record<string, number>>> {
-        const cacheKey = 'key_statistics';
-        const cached = await this.redisService.get(cacheKey);
-
-        if (cached) {
-            return JSON.parse(cached) as Record<string, Record<string, number>>;
-        }
-
+        // Always fetch fresh from database - NO CACHE
         const rawStats = await this.securityKeyModel.findAll({
             attributes: [
                 'keyType',
@@ -300,14 +271,9 @@ export class KeyManagerService {
             raw: true,
         });
 
-        const stats = this.formatKeyStatistics(
+        return this.formatKeyStatistics(
             rawStats as unknown as Array<{ keyType: string; status: string; count: number; total: number }>,
         );
-
-        // Cache for 5 minutes
-        await this.redisService.set(cacheKey, JSON.stringify(stats), { ttl: 300 });
-
-        return stats;
     }
 
     private generateCryptographicKeyPair(algorithm: KeyAlgorithm, keySize?: number) {
@@ -350,10 +316,6 @@ export class KeyManagerService {
         return { privateKey: symmetricKey, publicKey: '' };
     }
 
-    private generateKeyId(keyType: KeyType): string {
-        return `${keyType}_${Date.now()}_${randomBytes(8).toString('hex')}`;
-    }
-
     private async generateEncryptionKey(context: KeyDerivationContext): Promise<Buffer> {
         const envKeys = this.envKeyLoader.getEnvironmentKeys();
 
@@ -362,7 +324,7 @@ export class KeyManagerService {
             [
                 envKeys.masterKey,
                 context.creationTimestamp.toString(),
-                context.keyId,
+                context.keyType,
                 context.randomSalt.toString('hex'),
             ],
             '|',
@@ -391,12 +353,12 @@ export class KeyManagerService {
         return Buffer.from(finalKey);
     }
 
-    private encryptWithBinding(data: string, key: Buffer, keyId: string, timestamp: number): Promise<string> {
+    private encryptWithBinding(data: string, key: Buffer, timestamp: number): Promise<string> {
         // Generate random IV for AES-GCM (12 bytes is standard for GCM)
         const iv = randomBytes(12);
 
         // Additional authenticated data for context binding (without machineId)
-        const aad = Buffer.from(`${keyId}:${timestamp}:nvn-backend`, 'utf8');
+        const aad = Buffer.from(`${timestamp}:nvn-backend`, 'utf8');
 
         // Create cipher for AES-256-GCM
         const cipher = createCipheriv('aes-256-gcm', key, iv);
@@ -413,7 +375,7 @@ export class KeyManagerService {
         return Promise.resolve(`${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted.toString('hex')}`);
     }
 
-    private decryptWithBinding(encryptedData: string, key: Buffer, keyId: string, timestamp: number): Promise<string> {
+    private decryptWithBinding(encryptedData: string, key: Buffer, timestamp: number): Promise<string> {
         const parts = split(encryptedData, ':');
         const [ivHex, authTagHex, ciphertextHex] = parts;
 
@@ -423,7 +385,7 @@ export class KeyManagerService {
         const ciphertext = Buffer.from(ciphertextHex, 'hex');
 
         // Additional authenticated data for context binding (without machineId)
-        const aad = Buffer.from(`${keyId}:${timestamp}:nvn-backend`, 'utf8');
+        const aad = Buffer.from(`${timestamp}:nvn-backend`, 'utf8');
 
         // Create decipher for AES-256-GCM
         const decipher = createDecipheriv('aes-256-gcm', key, iv);
@@ -438,14 +400,13 @@ export class KeyManagerService {
     }
 
     private createIntegritySignature(
-        keyId: string,
         timestamp: number,
         encryptedPrivateKey: string,
         encryptedPublicKey: string,
         salt: Buffer,
     ): Promise<string> {
         const envKeys = this.envKeyLoader.getEnvironmentKeys();
-        const data = join([keyId, timestamp, encryptedPrivateKey, encryptedPublicKey, salt.toString('hex')], ':');
+        const data = join([timestamp, encryptedPrivateKey, encryptedPublicKey, salt.toString('hex')], ':');
 
         // Use master key for HMAC (simple approach)
         const signature = createHmac('sha256', envKeys.masterKey).update(data).digest('hex');
@@ -458,7 +419,6 @@ export class KeyManagerService {
         }
 
         const expectedSignature = await this.createIntegritySignature(
-            keyRecord.keyId,
             keyRecord.creationTimestamp,
             keyRecord.encryptedPrivateKey,
             keyRecord.encryptedPublicKey || '',
@@ -472,18 +432,12 @@ export class KeyManagerService {
 
     private async decryptPrivateKey(keyRecord: SecurityKey): Promise<string> {
         const encryptionKey = await this.generateEncryptionKey({
-            keyId: keyRecord.keyId,
             keyType: keyRecord.keyType,
             creationTimestamp: keyRecord.creationTimestamp,
             randomSalt: keyRecord.randomSalt,
         });
 
-        return this.decryptWithBinding(
-            keyRecord.encryptedPrivateKey,
-            encryptionKey,
-            keyRecord.keyId,
-            keyRecord.creationTimestamp,
-        );
+        return this.decryptWithBinding(keyRecord.encryptedPrivateKey, encryptionKey, keyRecord.creationTimestamp);
     }
 
     private async decryptPublicKey(keyRecord: SecurityKey): Promise<string> {
@@ -492,72 +446,22 @@ export class KeyManagerService {
         }
 
         const encryptionKey = await this.generateEncryptionKey({
-            keyId: keyRecord.keyId,
             keyType: keyRecord.keyType,
             creationTimestamp: keyRecord.creationTimestamp,
             randomSalt: keyRecord.randomSalt,
         });
 
-        return this.decryptWithBinding(
-            keyRecord.encryptedPublicKey,
-            encryptionKey,
-            keyRecord.keyId,
-            keyRecord.creationTimestamp,
-        );
+        return this.decryptWithBinding(keyRecord.encryptedPublicKey, encryptionKey, keyRecord.creationTimestamp);
     }
 
-    private async cacheKeyInfo(
-        keyId: string,
-        keyType: KeyType,
-        algorithm: KeyAlgorithm,
-        hasPublicKey: boolean,
-    ): Promise<void> {
-        const keyInfo = {
-            keyId,
-            keyType,
-            algorithm,
-            hasPublicKey,
-            cachedAt: Date.now(),
-        };
+    // REMOVED: All cache methods for maximum security
+    // - cacheKeyInfo: Even metadata can be sensitive
+    // - cacheDecryptedKey: Never cache private keys
+    // - cacheInMemory: Never cache private keys
+    // - clearKeyCache: No cache to clear
 
-        await this.redisService.set(`key_info:${keyId}`, JSON.stringify(keyInfo), { ttl: 3600 });
-    }
-
-    private async cacheDecryptedKey(keyId: string, privateKey: string, keyType: KeyType): Promise<void> {
-        const keyData = {
-            privateKey,
-            keyType,
-            cachedAt: Date.now(),
-        };
-
-        // Cache with shorter TTL for security
-        await this.redisService.set(`security_key:${keyId}`, JSON.stringify(keyData), { ttl: 300 });
-    }
-
-    private cacheInMemory(keyId: string, privateKey: string, ttl: number): void {
-        this.memoryCache.set(keyId, {
-            key: privateKey,
-            expires: Date.now() + ttl,
-        });
-    }
-
-    private async clearKeyCache(keyId: string, keyType: KeyType): Promise<void> {
-        await Promise.all([
-            this.redisService.del(`security_key:${keyId}`),
-            this.redisService.del(`public_key:${keyId}`),
-            this.redisService.del(`key_info:${keyId}`),
-            this.redisService.del(`active_key:${keyType}`),
-        ]);
-    }
-
-    private clearExpiredCache(): void {
-        const now = Date.now();
-        for (const [keyId, cached] of this.memoryCache.entries()) {
-            if (cached.expires <= now) {
-                this.memoryCache.delete(keyId);
-            }
-        }
-    }
+    // REMOVED: clearExpiredCache - No longer using memory cache for security
+    // REMOVED: getPerformanceMetrics - Unnecessary placeholder method
 
     private updateKeyUsage(keyId: string): Promise<void> {
         return this.securityKeyModel

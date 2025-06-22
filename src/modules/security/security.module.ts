@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { SequelizeModule } from '@nestjs/sequelize';
 
 import { ConfigModule } from '@/modules/config/config.module';
 import { RedisModule } from '@/modules/redis/redis.module';
+import { KeyRotationSchedulerService } from '@/modules/security/services/key-rotation-scheduler.service';
 
 import { SecurityController } from './controllers/security.controller';
 import { KeyRotationHistory } from './entities/key-rotation-history.entity';
@@ -11,9 +13,14 @@ import { EnvironmentKeyLoaderService } from './services/environment-key-loader.s
 import { KeyManagerService } from './services/key-manager.service';
 
 @Module({
-    imports: [SequelizeModule.forFeature([SecurityKey, KeyRotationHistory]), ConfigModule, RedisModule],
+    imports: [
+        SequelizeModule.forFeature([SecurityKey, KeyRotationHistory]),
+        ConfigModule,
+        RedisModule,
+        ScheduleModule.forRoot(),
+    ],
     controllers: [SecurityController],
-    providers: [EnvironmentKeyLoaderService, KeyManagerService],
+    providers: [EnvironmentKeyLoaderService, KeyManagerService, KeyRotationSchedulerService],
     exports: [EnvironmentKeyLoaderService, KeyManagerService],
 })
 export class SecurityModule {}

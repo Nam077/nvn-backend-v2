@@ -12,6 +12,7 @@ import { UsersModule } from '@/modules/users/users.module';
 
 @Module({
     imports: [
+        AuthModule,
         ConfigModule,
         DatabaseModule,
         RedisModule.forRootAsync({
@@ -30,7 +31,6 @@ import { UsersModule } from '@/modules/users/users.module';
             inject: [ConfigServiceApp],
         }),
         SecurityModule,
-        AuthModule,
         UsersModule,
     ],
     controllers: [AppController],

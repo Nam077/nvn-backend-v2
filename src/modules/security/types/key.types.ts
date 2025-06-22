@@ -72,7 +72,6 @@ export interface EncryptedKeyRecord {
 }
 
 export interface KeyDerivationContext {
-    keyId: string;
     keyType: KeyType;
     creationTimestamp: number;
     randomSalt: Buffer;
@@ -87,4 +86,44 @@ export interface KeyRotationHistory {
     rotationReason: string;
     rotatedAt: Date;
     rotatedBy?: string;
+}
+
+export interface KeyTimingInfo {
+    keyId: string;
+    createdAt: Date;
+    ageInDays: number;
+    needsRotation: boolean;
+    isExpired: boolean;
+    daysUntilExpiration: number;
+    nextRotationDate: Date;
+    expirationDate: Date;
+}
+
+export interface RotationStatusData {
+    totalActiveKeys: number;
+    keysNeedingRotation: number;
+    nextRotationDue: Date | null;
+    rotationThresholdDays: number;
+    expirationDays: number;
+    gracePeriodMs: number;
+    keys: KeyTimingInfo[];
+}
+
+export interface TimingAnalysisResult {
+    generatedAt: Date;
+    summary: {
+        totalKeyTypes: number;
+        totalActiveKeys: number;
+        keysNeedingRotation: number;
+        expiredKeys: number;
+    };
+    keyTypes: Record<
+        string,
+        {
+            totalKeys: number;
+            needsRotation: number;
+            expired: number;
+            analysis: any[];
+        }
+    >;
 }

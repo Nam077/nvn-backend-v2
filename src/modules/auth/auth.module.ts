@@ -2,15 +2,31 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 
-import { AuthController } from '@/modules/auth/auth.controller';
-import { AuthService } from '@/modules/auth/auth.service';
-import { JwtStrategy } from '@/modules/auth/strategies/jwt.strategy';
+import { RedisModule } from '@/modules/redis/redis.module';
+import { SecurityModule } from '@/modules/security/security.module';
 import { UsersModule } from '@/modules/users/users.module';
 
+import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
+import { DynamicJwtAuthGuard } from './guards/dynamic-jwt-auth.guard';
+import { DynamicJwtStrategy } from './strategies/dynamic-jwt.strategy';
+
 @Module({
-    imports: [UsersModule, PassportModule, JwtModule.register({})],
+    imports: [
+        UsersModule,
+        SecurityModule,
+        RedisModule,
+        PassportModule,
+        JwtModule.register({
+            // JWT module sẽ được cấu hình động trong AuthService
+            signOptions: {
+                issuer: 'nvn-backend',
+                audience: 'nvn-users',
+            },
+        }),
+    ],
     controllers: [AuthController],
-    providers: [AuthService, JwtStrategy],
-    exports: [AuthService],
+    providers: [AuthService, DynamicJwtStrategy, DynamicJwtAuthGuard],
+    exports: [AuthService, DynamicJwtAuthGuard],
 })
 export class AuthModule {}
