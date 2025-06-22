@@ -2,6 +2,7 @@ import { Logger, Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 
 import { RedisModule } from '@/modules/redis/redis.module';
+import { RbacController } from '@/modules/users/controllers/rbac.controller';
 import { UsersCaslController } from '@/modules/users/controllers/users-casl.controller';
 import { Permission } from '@/modules/users/entities/permission.entity';
 import { RolePermission } from '@/modules/users/entities/role-permission.entity';
@@ -15,7 +16,7 @@ import { UsersService } from '@/modules/users/users.service';
 
 @Module({
     imports: [SequelizeModule.forFeature([User, Role, Permission, UserRole, RolePermission]), RedisModule],
-    controllers: [UsersController, UsersCaslController],
+    controllers: [UsersController, UsersCaslController, RbacController],
     providers: [UsersService, RbacService, RbacSeederService, Logger],
     exports: [UsersService, RbacService],
 })

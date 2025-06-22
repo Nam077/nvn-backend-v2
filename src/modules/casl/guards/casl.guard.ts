@@ -2,7 +2,7 @@ import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@
 import { Reflector } from '@nestjs/core';
 
 import { Request } from 'express';
-import { get } from 'lodash';
+import { get, isFunction, isObject, isString } from 'lodash';
 
 import { CachedUserData, SessionService } from '@/modules/auth/services/session.service';
 import { RequiredRule, CHECK_ABILITY_KEY } from '@/modules/casl/decorators/check-abilities.decorator';
@@ -85,12 +85,41 @@ export class CaslGuard implements CanActivate {
         const allowed: boolean = inverted ? !canPerform : canPerform;
 
         if (!allowed) {
-            const subjectStr = typeof subject === 'object' ? JSON.stringify(subject) : String(subject);
-            throw new ForbiddenException(
-                `User cannot ${action} ${subjectStr}${conditions ? ' with given conditions' : ''}`,
-            );
+            // Custom error message formatting
+            const subjectName = this.getSubjectDisplayName(subject);
+            const actionStr = String(action);
+            const conditionsStr = conditions ? ' with given conditions' : '';
+
+            throw new ForbiddenException(`Access denied: Cannot ${actionStr} ${subjectName}${conditionsStr}`);
         }
 
         return true;
+    }
+
+    /**
+     * Get user-friendly display name for subjects
+     * @param {unknown} subject - The subject to get the display name for
+     * @returns {string} The display name for the subject
+     */
+    private getSubjectDisplayName(subject: unknown): string {
+        // Handle class constructors
+        if (isFunction(subject)) {
+            return get(subject, 'name', 'Resource') as string;
+        }
+
+        // Handle string subjects
+        if (isString(subject)) {
+            return subject;
+        }
+
+        // Handle objects with constructor name
+        if (isObject(subject) && subject !== null) {
+            const constructorName = get(subject, 'constructor.name');
+            if (constructorName && isString(constructorName)) {
+                return constructorName;
+            }
+        }
+
+        return 'Resource';
     }
 }

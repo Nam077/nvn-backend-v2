@@ -24,7 +24,7 @@ export class AbilityFactory {
 
         // 🚀 Convert permissions to CASL abilities
         forEach(userPermissions, (permission) => {
-            const [action, resource] = split(permission, ':');
+            const [resource, action] = split(permission, ':');
             if (action && resource) {
                 this.mapPermissionToAbility(can, action, resource);
             }
@@ -40,16 +40,16 @@ export class AbilityFactory {
     private mapPermissionToAbility(can: (action: any, subject: any) => void, action: string, resource: string): void {
         let caslSubject: any;
 
-        // Map resource to CASL subject
+        // Map resource to CASL subject - use class constructors for explicitness
         switch (resource) {
             case 'users':
-                caslSubject = Subjects.User;
+                caslSubject = Subjects.User; // Class constructor
                 break;
             case 'roles':
-                caslSubject = Subjects.Role;
+                caslSubject = Subjects.Role; // Class constructor
                 break;
             case 'permissions':
-                caslSubject = Subjects.Permission;
+                caslSubject = Subjects.Permission; // Class constructor
                 break;
             case 'system':
                 caslSubject = Subjects.System;
@@ -66,7 +66,6 @@ export class AbilityFactory {
             case 'read':
                 if (resource === 'users') {
                     // Users can read own profile by default, admins can read all
-
                     can(Actions.read, caslSubject); // Admin level
                 } else {
                     can(Actions.read, caslSubject);
@@ -80,7 +79,6 @@ export class AbilityFactory {
             case 'update':
                 if (resource === 'users') {
                     // Users can update own profile, admins can update all
-
                     can(Actions.update, caslSubject); // Admin level
                 } else {
                     can(Actions.update, caslSubject);
@@ -93,7 +91,6 @@ export class AbilityFactory {
 
             case 'admin':
                 can(Actions.admin, caslSubject);
-
                 can(Actions.manage, caslSubject); // Admin includes manage
                 break;
 
@@ -103,15 +100,12 @@ export class AbilityFactory {
 
             case 'write':
                 // Write = create + update
-
                 can(Actions.create, caslSubject);
-
                 can(Actions.update, caslSubject);
                 break;
 
             default:
                 // For any custom actions, map directly
-
                 can(action as any, caslSubject);
                 break;
         }

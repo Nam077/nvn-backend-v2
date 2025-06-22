@@ -11,7 +11,6 @@ import { KeyManagerService } from '@/modules/security/services/key-manager.servi
 interface JwtPayload {
     sub: string;
     email: string;
-    role?: string;
     type: string;
     jti: string;
     sid: string;
@@ -24,7 +23,6 @@ interface JwtPayload {
 export interface AuthenticatedUser {
     id: string;
     email: string;
-    role?: string;
     jti: string;
     sid: string;
 }
@@ -88,7 +86,6 @@ export class JwtAccessStrategy extends PassportStrategy(Strategy, 'jwt-access') 
         return {
             id: get(payload, 'sub'),
             email: get(payload, 'email'),
-            role: get(payload, 'role'),
             jti: get(payload, 'jti'),
             sid: get(payload, 'sid'),
         };

@@ -7,16 +7,16 @@ import {
     Body,
     Param,
     Query,
-    UseGuards,
     ParseUUIDPipe,
     HttpCode,
     HttpStatus,
+    UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiQuery } from '@nestjs/swagger';
 
 import { GetUser } from '@/modules/auth/decorators/get-user.decorator';
-import { CommonAbilities } from '@/modules/casl/decorators/check-abilities.decorator';
+import { JwtAuthGuard } from '@/modules/auth/guards/auth.guard';
+import { CommonAbilities, CheckAbilities } from '@/modules/casl/decorators/check-abilities.decorator';
 import { CaslGuard } from '@/modules/casl/guards/casl.guard';
 
 import { AssignPermissionDto, AssignSinglePermissionDto } from '../dto/assign-permission.dto';
@@ -38,7 +38,7 @@ interface AuthUser {
 @ApiTags('RBAC Management')
 @ApiBearerAuth()
 @Controller('rbac')
-@UseGuards(AuthGuard, CaslGuard)
+@UseGuards(JwtAuthGuard, CaslGuard)
 export class RbacController {
     constructor(private readonly rbacService: RbacService) {}
 
@@ -268,5 +268,42 @@ export class RbacController {
     @ApiResponse({ status: 201, description: 'Permissions created successfully', type: [PermissionEntity] })
     async bulkCreatePermissions(@Body() permissions: CreatePermissionDto[]): Promise<PermissionEntity[]> {
         return this.rbacService.bulkCreatePermissions(permissions);
+    }
+
+    // Test endpoint without CASL guard
+    @Get('test')
+    @UseGuards(JwtAuthGuard)
+    @ApiOperation({ summary: 'Test endpoint without CASL guard' })
+    @ApiResponse({ status: 200, description: 'Test successful' })
+    testEndpoint(@GetUser() user: AuthUser): { message: string; user: AuthUser } {
+        return {
+            message: 'Authentication successful',
+            user,
+        };
+    }
+
+    // Test endpoint with string-based CASL check
+    @Get('test-casl')
+    @UseGuards(JwtAuthGuard, CaslGuard)
+    @CheckAbilities({ action: 'read', subject: Role })
+    @ApiOperation({ summary: 'Test endpoint with class-based CASL guard' })
+    @ApiResponse({ status: 200, description: 'CASL test successful' })
+    testCaslEndpoint(@GetUser() user: AuthUser): { message: string; user: AuthUser } {
+        return {
+            message: 'CASL permission check successful with Role class',
+            user,
+        };
+    }
+
+    // Test endpoint that will fail for demonstration
+    @Get('test-fail')
+    @UseGuards(JwtAuthGuard, CaslGuard)
+    @CheckAbilities({ action: 'delete', subject: Role }) // This should fail for most users
+    @ApiOperation({ summary: 'Test endpoint that should fail with better error message' })
+    @ApiResponse({ status: 403, description: 'Access denied with custom message' })
+    testFailEndpoint(): { message: string } {
+        return {
+            message: 'This should not be reached',
+        };
     }
 }

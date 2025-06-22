@@ -2,6 +2,9 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
 import { filter, includes, map } from 'lodash';
 
+import { CreateUserDto } from '@/modules/users/dto/create-user.dto';
+import { UsersService } from '@/modules/users/users.service';
+
 import { CreatePermissionDto } from '../dto/create-permission.dto';
 import { RbacService } from '../services/rbac.service';
 
@@ -38,6 +41,7 @@ const CaslPermissions = {
 export class RbacSeederService implements OnModuleInit {
     constructor(
         private readonly rbacService: RbacService,
+        private readonly usersService: UsersService,
         private readonly logger: Logger,
     ) {}
 
@@ -46,6 +50,7 @@ export class RbacSeederService implements OnModuleInit {
         await this.initializeDefaultPermissions();
         await this.rbacService.initializeDefaultRoles();
         await this.assignPermissionsToDefaultRoles();
+        await this.createSysAdminUser();
     }
 
     private async initializeDefaultPermissions(): Promise<void> {
@@ -268,6 +273,57 @@ export class RbacSeederService implements OnModuleInit {
             this.logger.log('🎊 CASL permissions assigned to default roles successfully');
         } catch (error) {
             this.logger.error('❌ Error assigning permissions to default roles:', error);
+        }
+    }
+
+    /**
+     * Create system admin user and assign super_admin role
+     */
+    private async createSysAdminUser(): Promise<void> {
+        try {
+            const sysAdminEmail = 'sysadmin@nvn.com';
+            const sysAdminPassword = 'SysAdmin123!';
+
+            // Check if sysadmin user already exists
+            const existingUser = await this.usersService.findByEmail(sysAdminEmail);
+            if (existingUser) {
+                this.logger.log('🔒 System admin user already exists, skipping creation');
+                return;
+            }
+
+            this.logger.log('👤 Creating system admin user...');
+
+            // Create sysadmin user
+            const sysAdminDto: CreateUserDto = {
+                email: sysAdminEmail,
+                password: sysAdminPassword,
+                firstName: 'System',
+                lastName: 'Administrator',
+            };
+
+            const sysAdminUser = await this.usersService.create(sysAdminDto);
+            this.logger.log(`✅ System admin user created with ID: ${sysAdminUser.id}`);
+
+            // Get super_admin role
+            const roles = await this.rbacService.getAllRoles(true);
+            const superAdminRole = roles.find((role) => role.name === 'super_admin');
+
+            if (!superAdminRole) {
+                this.logger.error('❌ Super admin role not found!');
+                return;
+            }
+
+            // Assign super_admin role to sysadmin user
+            await this.rbacService.assignSingleRoleToUser(
+                sysAdminUser.id,
+                { roleId: superAdminRole.id },
+                sysAdminUser.id, // assignedBy
+            );
+
+            this.logger.log('🔐 Super admin role assigned to sysadmin user successfully');
+            this.logger.log(`📧 Login with: ${sysAdminEmail} / ${sysAdminPassword}`);
+        } catch (error) {
+            this.logger.error('❌ Error creating system admin user:', error);
         }
     }
 }
