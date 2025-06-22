@@ -5,7 +5,9 @@ import { randomUUID } from 'crypto';
 import { has, isObject } from 'lodash';
 
 import { RedisService } from '@/modules/redis/redis.service';
+import { getTokenConfig } from '@/modules/security/config/key.config';
 import { KeyManagerService } from '@/modules/security/services/key-manager.service';
+import { KEY_TYPES } from '@/modules/security/types/key.types';
 import { UsersService } from '@/modules/users/users.service';
 
 import { AuthResponseDto } from './dto/auth-response.dto';
@@ -57,7 +59,9 @@ export class AuthService {
         private readonly keyManagerService: KeyManagerService,
         private readonly jwtService: JwtService,
         private readonly redisService: RedisService,
-    ) {}
+    ) {
+        // No complex validation needed - simple token-based calculation
+    }
 
     async validateUser(email: string, password: string): Promise<UserInfo> {
         const user = await this.usersService.validatePassword(email, password);
@@ -83,6 +87,9 @@ export class AuthService {
         }
         await this.cacheUserPayload(refreshPayload.jti, user);
 
+        const accessTokenConfig = getTokenConfig(KEY_TYPES.ACCESS_TOKEN);
+        const refreshTokenConfig = getTokenConfig(KEY_TYPES.REFRESH_TOKEN);
+
         return {
             accessToken,
             refreshToken,
@@ -95,8 +102,8 @@ export class AuthService {
                 isActive: user.isActive,
                 emailVerified: user.emailVerified,
             },
-            expiresIn: 15 * 60, // 15 minutes
-            refreshExpiresIn: 7 * 24 * 60 * 60, // 7 days
+            expiresIn: accessTokenConfig.seconds, // 1 day from config
+            refreshExpiresIn: refreshTokenConfig.seconds, // 30 days from config
         };
     }
 
@@ -144,6 +151,9 @@ export class AuthService {
             }
             await this.cacheUserPayload(newRefreshPayload.jti, cachedUser);
 
+            const accessTokenConfig = getTokenConfig(KEY_TYPES.ACCESS_TOKEN);
+            const refreshTokenConfig = getTokenConfig(KEY_TYPES.REFRESH_TOKEN);
+
             return {
                 accessToken: newAccessToken,
                 refreshToken: newRefreshToken,
@@ -156,8 +166,8 @@ export class AuthService {
                     isActive: cachedUser.isActive,
                     emailVerified: cachedUser.emailVerified,
                 },
-                expiresIn: 15 * 60,
-                refreshExpiresIn: 7 * 24 * 60 * 60,
+                expiresIn: accessTokenConfig.seconds, // 1 day from config
+                refreshExpiresIn: refreshTokenConfig.seconds, // 30 days from config
             };
         } catch {
             throw new UnauthorizedException('Invalid refresh token');
@@ -193,10 +203,12 @@ export class AuthService {
             keyId: activeKeyId,
         };
 
+        const tokenConfig = getTokenConfig(KEY_TYPES.ACCESS_TOKEN);
+
         return this.jwtService.sign(payload, {
             secret: privateKey,
             algorithm: 'RS256',
-            expiresIn: '15m',
+            expiresIn: tokenConfig.expiresIn, // 1d from config
             issuer: JWT_ISSUER,
             audience: JWT_AUDIENCE,
         });
@@ -214,10 +226,12 @@ export class AuthService {
             keyId: activeKeyId,
         };
 
+        const tokenConfig = getTokenConfig(KEY_TYPES.REFRESH_TOKEN);
+
         return this.jwtService.sign(payload, {
             secret: privateKey,
             algorithm: 'RS256',
-            expiresIn: '7d',
+            expiresIn: tokenConfig.expiresIn, // 30d from config
             issuer: JWT_ISSUER,
             audience: JWT_AUDIENCE,
         });
@@ -256,14 +270,16 @@ export class AuthService {
 
     private async cacheUserPayload(jti: string, user: UserInfo): Promise<void> {
         const key = `jwt_payload:${jti}`;
+        const refreshTokenConfig = getTokenConfig(KEY_TYPES.REFRESH_TOKEN);
+
         await this.redisService.set(key, JSON.stringify(user), {
-            ttl: 7 * 24 * 60 * 60, // 7 days
+            ttl: refreshTokenConfig.seconds, // 30 days from config
         });
 
         // Also track user sessions
         const userSessionsKey = `user_sessions:${user.id}`;
         await this.redisService.sadd(userSessionsKey, jti);
-        await this.redisService.expire(userSessionsKey, 7 * 24 * 60 * 60);
+        await this.redisService.expire(userSessionsKey, refreshTokenConfig.seconds); // 30 days from config
     }
 
     private async getCachedUserPayload(jti: string): Promise<UserInfo | null> {

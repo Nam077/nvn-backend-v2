@@ -1,27 +1,22 @@
+/* eslint-disable security/detect-object-injection */
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectModel } from '@nestjs/sequelize';
 
-import { values, get, filter, isEmpty, isString, isObject, defaultTo, map, set } from 'lodash';
-import { Op } from 'sequelize';
+import { get, map, filter, reduce, forEach, toUpper } from 'lodash';
+import { Op, Transaction } from 'sequelize';
 
 import { KeyManagerService } from './key-manager.service';
-import { KEY_CONFIGURATIONS, KeyTimeCalculator, KeyTimingValidator } from '../config/key.config';
+import { TOKEN_KEY_CONFIG, KEY_CONFIGURATIONS, DateHelper } from '../config/key.config';
 import { KeyRotationHistory } from '../entities/key-rotation-history.entity';
 import { SecurityKey } from '../entities/security-key.entity';
-import {
-    KeyType,
-    KEY_STATUSES,
-    KEY_TYPES,
-    KeyConfiguration,
-    RotationStatusData,
-    TimingAnalysisResult,
-    KeyTimingInfo,
-} from '../types/key.types';
+import { KeyType, KEY_STATUSES } from '../types/key.types';
 
 @Injectable()
 export class KeyRotationSchedulerService {
     private readonly logger = new Logger(KeyRotationSchedulerService.name);
+    private readonly BATCH_SIZE = 10; // Process keys in batches
+    private readonly MAX_PARALLEL_OPERATIONS = 5; // Limit concurrent operations
 
     constructor(
         @InjectModel(SecurityKey)
@@ -29,32 +24,26 @@ export class KeyRotationSchedulerService {
         @InjectModel(KeyRotationHistory)
         private readonly keyRotationHistoryModel: typeof KeyRotationHistory,
         private readonly keyManagerService: KeyManagerService,
-    ) {
-        // Validate all key configurations on startup
-        try {
-            KeyTimingValidator.validateAllConfigurations();
-            this.logger.log('✅ All key configurations validated successfully');
-        } catch (error) {
-            this.logger.error('❌ Key configuration validation failed:', error);
-            throw error;
-        }
-    }
+    ) {}
 
     /**
-     * Check for key rotation every day at noon
-     * Runs daily instead of hourly for better performance
+     * Check for key rotation every day at midnight
+     * Staggered from cleanup to avoid resource contention
      */
-    @Cron(CronExpression.EVERY_DAY_AT_NOON)
+    @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
     async checkKeyRotation(): Promise<void> {
         this.logger.log('🔄 Starting scheduled key rotation check...');
 
         try {
-            // Check all key types for rotation needs
-            const keyTypes = values(KEY_TYPES);
-
-            for (const keyType of keyTypes) {
-                await this.processKeyTypeRotation(keyType);
-            }
+            // Process all key types in parallel with controlled concurrency
+            const keyTypeEntries = Object.entries(TOKEN_KEY_CONFIG);
+            await this.processConcurrently(
+                keyTypeEntries,
+                async ([keyType, config]) => {
+                    await this.rotateKeysIfNeeded(keyType as KeyType, config.rotationDays);
+                },
+                this.MAX_PARALLEL_OPERATIONS,
+            );
 
             this.logger.log('✅ Scheduled key rotation check completed');
         } catch (error) {
@@ -63,173 +52,274 @@ export class KeyRotationSchedulerService {
     }
 
     /**
-     * Process rotation for a specific key type
-     * @param keyType - The type of key to process for rotation
+     * Cleanup expired keys (runs daily at 2 AM)
+     * Staggered from rotation to avoid resource contention
      */
-    private async processKeyTypeRotation(keyType: KeyType): Promise<void> {
-        // Validate input
-        if (isEmpty(keyType) || !isString(keyType)) {
-            this.logger.warn(`⚠️ Invalid key type: ${String(keyType)}`);
-            return;
-        }
-
-        const config = get(KEY_CONFIGURATIONS, keyType);
-        if (!isObject(config) || isEmpty(config)) {
-            this.logger.warn(`⚠️ No configuration found for key type: ${keyType}`);
-            return;
-        }
+    @Cron('0 2 * * *') // 2 AM instead of midnight
+    async cleanupExpiredKeys(): Promise<void> {
+        this.logger.log('🧹 Starting cleanup of expired keys...');
 
         try {
-            // Use centralized time calculation from config
-            const rotationThreshold = KeyTimeCalculator.getRotationThreshold(keyType);
+            // Process all key types in parallel with controlled concurrency
+            const keyTypeEntries = Object.entries(TOKEN_KEY_CONFIG);
+            await this.processConcurrently(
+                keyTypeEntries,
+                async ([keyType, config]) => {
+                    await this.cleanupExpiredKeysForType(keyType as KeyType, config.keyExpirationDays);
+                },
+                this.MAX_PARALLEL_OPERATIONS,
+            );
 
-            const keysNeedingRotation = await this.securityKeyModel.findAll({
+            this.logger.log('✅ Expired keys cleanup completed');
+        } catch (error) {
+            this.logger.error('❌ Error during expired keys cleanup:', error);
+        }
+    }
+
+    /**
+     * Process items concurrently with controlled parallelism
+     * @param items Array of items to process
+     * @param processor Function to process each item
+     * @param maxConcurrency Maximum number of concurrent operations
+     */
+    private async processConcurrently<T>(
+        items: T[],
+        processor: (item: T) => Promise<void>,
+        maxConcurrency: number,
+    ): Promise<void> {
+        const semaphore: Promise<void>[] = Array.from({ length: maxConcurrency }, () => Promise.resolve());
+        let semaphoreIndex = 0;
+
+        const tasks = map(items, async (item) => {
+            // Wait for available slot
+            await semaphore[semaphoreIndex];
+
+            // Process item and update semaphore
+            semaphore[semaphoreIndex] = processor(item).catch((error) => {
+                this.logger.error('Error processing item:', error);
+                // Don't throw to avoid stopping other processes
+            });
+
+            semaphoreIndex = (semaphoreIndex + 1) % maxConcurrency;
+        });
+
+        await Promise.all(tasks);
+        // Wait for all semaphore slots to complete
+        await Promise.all(semaphore);
+    }
+
+    private async rotateKeysIfNeeded(keyType: KeyType, rotationDays: number): Promise<void> {
+        try {
+            // Single query to get all keys that might need rotation
+            const keysToCheck = await this.securityKeyModel.findAll({
                 where: {
                     keyType,
                     status: KEY_STATUSES.ACTIVE,
-                    createdAt: { [Op.lt]: rotationThreshold },
                 },
-                order: [['createdAt', 'ASC']],
+                attributes: ['keyId', 'createdAt'], // Only fetch needed columns for initial check
+                order: [['createdAt', 'ASC']], // Oldest first for consistent processing
             });
+
+            if (keysToCheck.length === 0) {
+                this.logger.debug(`✅ No ${keyType} keys found`);
+                return;
+            }
+
+            // Filter keys that need rotation using lodash filter
+            const keysNeedingRotation = filter(keysToCheck, (key) =>
+                DateHelper.needsRotation(key.createdAt, rotationDays),
+            );
 
             if (keysNeedingRotation.length === 0) {
                 this.logger.debug(`✅ No ${keyType} keys need rotation`);
                 return;
             }
 
-            this.logger.log(`🔑 Found ${keysNeedingRotation.length} ${keyType} keys needing rotation`);
+            // Process in batches to avoid memory issues and database overload
+            let rotatedCount = 0;
+            for (let i = 0; i < keysNeedingRotation.length; i += this.BATCH_SIZE) {
+                const batch = keysNeedingRotation.slice(i, i + this.BATCH_SIZE);
 
-            for (const oldKey of keysNeedingRotation) {
-                await this.rotateKey(oldKey, config);
+                // Fetch full key objects for the batch
+                const fullKeys = await this.securityKeyModel.findAll({
+                    where: {
+                        keyId: { [Op.in]: map(batch, (k) => k.keyId) },
+                    },
+                });
+
+                // Process batch in parallel
+                const batchResults = await Promise.allSettled(map(fullKeys, (key) => this.rotateKey(key)));
+
+                // Count successful rotations
+                const batchSuccessCount = reduce(
+                    batchResults,
+                    (count, result) => {
+                        if (result.status === 'fulfilled') {
+                            return count + 1;
+                        }
+                        this.logger.error('Failed to rotate key in batch:', result.reason);
+                        return count;
+                    },
+                    0,
+                );
+
+                rotatedCount += batchSuccessCount;
+            }
+
+            if (rotatedCount > 0) {
+                this.logger.log(`🔑 Rotated ${rotatedCount} ${keyType} keys`);
             }
         } catch (error) {
-            this.logger.error(`❌ Error processing rotation for ${keyType}:`, error);
+            this.logger.error(`❌ Error rotating ${keyType} keys:`, error);
         }
     }
 
-    /**
-     * Rotate a specific key
-     * @param oldKey - The key to be rotated
-     * @param config - The configuration for this key type
-     */
-    private async rotateKey(oldKey: SecurityKey, config: KeyConfiguration): Promise<void> {
-        // Validate inputs
-        if (!isObject(oldKey) || isEmpty(get(oldKey, 'keyId'))) {
-            this.logger.error('❌ Invalid old key provided for rotation');
-            return;
-        }
+    private async cleanupExpiredKeysForType(keyType: KeyType, expirationDays: number): Promise<void> {
+        try {
+            // Optimize query to only get potentially expired keys
+            const cutoffDate = new Date(Date.now() - expirationDays * 24 * 60 * 60 * 1000);
 
-        if (!isObject(config)) {
-            this.logger.error('❌ Invalid config provided for rotation');
-            return;
+            const expiredKeys = await this.securityKeyModel.findAll({
+                where: {
+                    keyType,
+                    status: { [Op.in]: [KEY_STATUSES.ACTIVE, KEY_STATUSES.ROTATING] },
+                    createdAt: { [Op.lt]: cutoffDate }, // Pre-filter by creation date
+                },
+                attributes: ['keyId', 'createdAt'], // Only fetch needed columns
+            });
+
+            if (expiredKeys.length === 0) {
+                this.logger.debug(`✅ No expired ${keyType} keys to clean up`);
+                return;
+            }
+
+            // Double-check expiration using DateHelper
+            const actuallyExpiredKeys = filter(expiredKeys, (key) =>
+                DateHelper.isExpired(key.createdAt, expirationDays),
+            );
+
+            if (actuallyExpiredKeys.length === 0) {
+                this.logger.debug(`✅ No ${keyType} keys actually expired after validation`);
+                return;
+            }
+
+            // Process in batches
+            let revokedCount = 0;
+            for (let i = 0; i < actuallyExpiredKeys.length; i += this.BATCH_SIZE) {
+                const batch = actuallyExpiredKeys.slice(i, i + this.BATCH_SIZE);
+
+                // Process batch in parallel
+                const batchResults = await Promise.allSettled(
+                    map(batch, async (key) => {
+                        await this.keyManagerService.revokeKey(
+                            key.keyId,
+                            'Automatic revocation - key expired',
+                            'expired-key-cleanup',
+                        );
+
+                        const ageInDays = DateHelper.daysDiff(new Date(), key.createdAt);
+                        this.logger.log(`🚫 Revoked expired key: ${key.keyId} (age: ${ageInDays} days)`);
+                        return key;
+                    }),
+                );
+
+                // Count successful revocations
+                const batchSuccessCount = reduce(
+                    batchResults,
+                    (count, result) => {
+                        if (result.status === 'fulfilled') {
+                            return count + 1;
+                        }
+                        this.logger.error('Failed to revoke key in batch:', result.reason);
+                        return count;
+                    },
+                    0,
+                );
+
+                revokedCount += batchSuccessCount;
+            }
+
+            if (revokedCount > 0) {
+                this.logger.log(`🧹 Cleaned up ${revokedCount} expired ${keyType} keys`);
+            }
+        } catch (error) {
+            this.logger.error(`❌ Error cleaning up expired keys for ${keyType}:`, error);
         }
+    }
+
+    private async rotateKey(oldKey: SecurityKey): Promise<void> {
+        // Use database transaction for atomicity
+        const transaction: Transaction = await this.securityKeyModel.sequelize.transaction();
 
         try {
             this.logger.log(`🔄 Starting rotation for key: ${oldKey.keyId}`);
 
-            // Step 1: Generate new key
+            // Generate new key
             const newKeyId = await this.keyManagerService.generateKeyPair(oldKey.keyType, 'automatic-rotation');
 
-            // Step 2: Activate new key
+            // Activate new key
             await this.keyManagerService.activateKey(newKeyId, 'scheduler');
 
-            // Step 3: Mark old key as rotating (keep for grace period)
-            await oldKey.update({
-                status: KEY_STATUSES.ROTATING,
-                metadata: {
-                    ...defaultTo(oldKey.metadata, {}),
-                    rotationStarted: new Date().toISOString(),
-                    replacedBy: newKeyId,
-                },
-            });
-
-            // Step 4: Record rotation history with timing info
-            const timingInfo = KeyTimeCalculator.getKeyTimingInfo(oldKey.keyType, oldKey.createdAt);
-
-            await this.keyRotationHistoryModel.create({
-                oldKeyId: oldKey.keyId,
-                newKeyId: newKeyId,
-                keyType: oldKey.keyType,
-                rotationType: 'scheduled',
-                rotationReason: 'scheduled-rotation',
-                rotatedBy: 'scheduler',
-                rotatedFromMachine: 'auto-scheduler',
-                metadata: {
-                    scheduledRotation: true,
-                    oldKeyAge: timingInfo.ageInDays,
-                    rotationThresholdDays: get(config, 'rotationDays'),
-                    timingInfo: {
-                        ...timingInfo,
-                        // Remove circular references
-                        createdAt: timingInfo.createdAt.toISOString(),
-                        referenceDate: timingInfo.referenceDate.toISOString(),
-                        nextRotationDate: timingInfo.nextRotationDate.toISOString(),
-                        expirationDate: timingInfo.expirationDate.toISOString(),
+            // Mark old key as rotating (will live until expiration)
+            await oldKey.update(
+                {
+                    status: KEY_STATUSES.ROTATING,
+                    metadata: {
+                        ...oldKey.metadata,
+                        rotationStarted: new Date().toISOString(),
+                        replacedBy: newKeyId,
                     },
                 },
-            });
+                { transaction },
+            );
 
-            // Step 5: Schedule old key for revocation after grace period
-            // Use centralized grace period calculation
-            const gracePeriodMs = KeyTimeCalculator.getGracePeriodMs(oldKey.keyType);
-            const gracePeriodHours = Math.round(gracePeriodMs / 1000 / 60 / 60);
+            // Prepare rotation history data
+            const config = get(KEY_CONFIGURATIONS, oldKey.keyType);
+            const ageInDays = DateHelper.daysDiff(new Date(), oldKey.createdAt);
+            const expirationDate = DateHelper.addDays(oldKey.createdAt, get(config, 'expirationDays', 90));
+            const daysUntilExpiration = DateHelper.daysDiff(expirationDate, new Date());
 
-            // Note: In production, use a proper job queue instead of setTimeout
-            setTimeout(() => {
-                void this.revokeOldKey(oldKey.keyId, newKeyId);
-            }, gracePeriodMs);
+            // Record rotation history
+            await this.keyRotationHistoryModel.create(
+                {
+                    oldKeyId: oldKey.keyId,
+                    newKeyId: newKeyId,
+                    keyType: oldKey.keyType,
+                    rotationType: 'scheduled',
+                    rotationReason: 'scheduled-rotation',
+                    rotatedBy: 'scheduler',
+                    rotatedFromMachine: 'auto-scheduler',
+                    metadata: {
+                        scheduledRotation: true,
+                        oldKeyAge: ageInDays,
+                        rotationThresholdDays: get(config, 'rotationDays'),
+                        willExpireInDays: daysUntilExpiration,
+                    },
+                },
+                { transaction },
+            );
+
+            await transaction.commit();
 
             this.logger.log(
-                `✅ Key rotation completed: ${oldKey.keyId} → ${newKeyId} (grace period: ${gracePeriodHours}h)`,
+                `✅ Key rotation completed: ${oldKey.keyId} → ${newKeyId} (old key expires in ${daysUntilExpiration} days)`,
             );
         } catch (error) {
+            await transaction.rollback();
             this.logger.error(`❌ Failed to rotate key ${oldKey.keyId}:`, error);
+            throw error; // Re-throw for batch error handling
         }
     }
 
-    /**
-     * Revoke old key after grace period
-     * @param oldKeyId - The ID of the old key to revoke
-     * @param newKeyId - The ID of the new key that replaced it
-     */
-    private async revokeOldKey(oldKeyId: string, newKeyId: string): Promise<void> {
-        // Validate inputs
-        if (isEmpty(oldKeyId) || !isString(oldKeyId)) {
-            this.logger.error('❌ Invalid old key ID for revocation');
-            return;
-        }
-        if (isEmpty(newKeyId) || !isString(newKeyId)) {
-            this.logger.error('❌ Invalid new key ID for revocation');
-            return;
-        }
-
-        try {
-            await this.keyManagerService.revokeKey(
-                oldKeyId,
-                `Automatic revocation after rotation to ${newKeyId}`,
-                'scheduler',
-            );
-            this.logger.log(`🚫 Revoked old key after grace period: ${oldKeyId}`);
-        } catch (error) {
-            this.logger.error(`❌ Failed to revoke old key ${oldKeyId}:`, error);
-        }
-    }
-
-    /**
-     * Manual key rotation for specific key type
-     * @param keyType - The type of key to rotate
-     * @returns The ID of the new active key
-     */
     async rotateKeyType(keyType: KeyType): Promise<string> {
-        // Validate input
-        if (isEmpty(keyType) || !isString(keyType)) {
+        if (!keyType || typeof keyType !== 'string') {
             throw new Error('Invalid key type provided');
         }
 
         this.logger.log(`🔄 Manual rotation requested for key type: ${keyType}`);
 
         const config = get(KEY_CONFIGURATIONS, keyType);
-        if (!isObject(config) || isEmpty(config)) {
+        if (!config) {
             throw new Error(`No configuration found for key type: ${keyType}`);
         }
 
@@ -247,138 +337,53 @@ export class KeyRotationSchedulerService {
         }
 
         // Perform rotation
-        await this.rotateKey(currentKey, config);
+        await this.rotateKey(currentKey);
 
         // Return new active key ID
         return await this.keyManagerService.getActiveKey(keyType);
     }
 
-    /**
-     * Get rotation status for all key types using centralized time calculations
-     * @returns Object containing rotation status for each key type
-     */
-    async getRotationStatus(): Promise<Record<string, RotationStatusData | { error: string }>> {
-        const status: Record<string, RotationStatusData | { error: string }> = {};
-        const keyTypes = values(KEY_TYPES);
+    async getRotationStatus(): Promise<Record<string, any>> {
+        const status: Record<string, any> = {};
 
-        for (const keyType of keyTypes) {
-            try {
-                const config = get(KEY_CONFIGURATIONS, keyType);
-                if (!isObject(config)) {
-                    this.logger.warn(`⚠️ Skipping status for invalid key type: ${keyType}`);
-                    continue;
-                }
+        // Use Promise.all to fetch all key type statuses in parallel
+        const keyTypeEntries = Object.entries(TOKEN_KEY_CONFIG);
+        const statusPromises = map(keyTypeEntries, async ([keyType, config]) => {
+            const keys = await this.getKeysStatus(keyType as KeyType);
 
-                const activeKeys = await this.securityKeyModel.findAll({
-                    where: {
-                        keyType,
-                        status: KEY_STATUSES.ACTIVE,
-                    },
-                    order: [['createdAt', 'DESC']],
-                });
+            // Use lodash filter
+            const keysNeedingRotation = filter(keys, (k) => DateHelper.needsRotation(k.createdAt, config.rotationDays));
 
-                // Use centralized time calculation utilities
-                const keysNeedingRotation = filter(activeKeys, (key) =>
-                    KeyTimeCalculator.needsRotation(keyType, key.createdAt),
-                );
-
-                // Enhanced status with timing information
-                const keyTypeStatus: RotationStatusData = {
-                    totalActiveKeys: activeKeys.length,
+            return {
+                keyType: toUpper(keyType), // Use lodash toUpper
+                data: {
+                    totalActiveKeys: keys.length,
                     keysNeedingRotation: keysNeedingRotation.length,
-                    nextRotationDue:
-                        activeKeys.length > 0
-                            ? KeyTimeCalculator.getNextRotationDate(keyType, activeKeys[0].createdAt)
-                            : null,
-                    rotationThresholdDays: get(config, 'rotationDays', 0),
-                    expirationDays: get(config, 'expirationDays', 0),
-                    gracePeriodMs: KeyTimeCalculator.getGracePeriodMs(keyType),
+                    oldestKeyAge: keys.length > 0 ? DateHelper.daysDiff(new Date(), keys[0].createdAt) : 0,
+                    rotationDays: config.rotationDays,
+                    expirationDays: config.keyExpirationDays,
+                },
+            };
+        });
 
-                    // Additional timing info for monitoring - map to KeyTimingInfo interface
-                    keys: map(activeKeys, (key): KeyTimingInfo => {
-                        const timingInfo = KeyTimeCalculator.getKeyTimingInfo(keyType, key.createdAt);
-                        return {
-                            keyId: key.keyId,
-                            createdAt: key.createdAt,
-                            ageInDays: timingInfo.ageInDays,
-                            needsRotation: timingInfo.needsRotation,
-                            isExpired: timingInfo.isExpired,
-                            daysUntilExpiration: timingInfo.daysUntilExpiration,
-                            nextRotationDate: timingInfo.nextRotationDate,
-                            expirationDate: timingInfo.expirationDate,
-                        };
-                    }),
-                };
+        const results = await Promise.all(statusPromises);
 
-                // Use safe property assignment with lodash set
-                set(status, keyType, keyTypeStatus);
-            } catch (error) {
-                this.logger.error(`❌ Error getting status for ${keyType}:`, error);
-                // Use safe property assignment with lodash set
-                set(status, keyType, {
-                    error: error instanceof Error ? error.message : 'Unknown error',
-                });
-            }
-        }
+        // Convert results back to object using lodash forEach
+        forEach(results, (result) => {
+            status[result.keyType] = result.data;
+        });
 
         return status;
     }
 
-    /**
-     * Get detailed timing analysis for all keys
-     * @returns Comprehensive timing analysis
-     */
-    async getTimingAnalysis(): Promise<TimingAnalysisResult> {
-        const analysis: TimingAnalysisResult = {
-            generatedAt: new Date(),
-            summary: {
-                totalKeyTypes: 0,
-                totalActiveKeys: 0,
-                keysNeedingRotation: 0,
-                expiredKeys: 0,
+    private async getKeysStatus(keyType: KeyType) {
+        return await this.securityKeyModel.findAll({
+            where: {
+                keyType,
+                status: KEY_STATUSES.ACTIVE,
             },
-            keyTypes: {},
-        };
-
-        const keyTypes = values(KEY_TYPES);
-
-        for (const keyType of keyTypes) {
-            try {
-                const activeKeys = await this.securityKeyModel.findAll({
-                    where: {
-                        keyType,
-                        status: { [Op.in]: [KEY_STATUSES.ACTIVE, KEY_STATUSES.ROTATING] },
-                    },
-                    order: [['createdAt', 'DESC']],
-                });
-
-                const timingAnalysis = map(activeKeys, (key) =>
-                    KeyTimeCalculator.getKeyTimingInfo(keyType, key.createdAt),
-                );
-
-                const needsRotation = filter(timingAnalysis, (t) => t.needsRotation).length;
-                const expired = filter(timingAnalysis, (t) => t.isExpired).length;
-
-                const keyTypeAnalysis = {
-                    totalKeys: activeKeys.length,
-                    needsRotation,
-                    expired,
-                    analysis: timingAnalysis,
-                };
-
-                // Use safe property assignment with lodash set
-                set(analysis.keyTypes, keyType, keyTypeAnalysis);
-
-                // Update summary
-                analysis.summary.totalKeyTypes += 1;
-                analysis.summary.totalActiveKeys += activeKeys.length;
-                analysis.summary.keysNeedingRotation += needsRotation;
-                analysis.summary.expiredKeys += expired;
-            } catch (error) {
-                this.logger.error(`❌ Error in timing analysis for ${keyType}:`, error);
-            }
-        }
-
-        return analysis;
+            attributes: ['keyId', 'createdAt'], // Only fetch needed columns
+            order: [['createdAt', 'ASC']],
+        });
     }
 }

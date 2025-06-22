@@ -6,8 +6,7 @@ import { isEmpty, isString, defaultTo, toNumber, clamp } from 'lodash';
 
 import { KeyManagerService } from '../services/key-manager.service';
 import { KeyRotationSchedulerService } from '../services/key-rotation-scheduler.service';
-import { KeyTimeCalculator } from '../config/key.config';
-import { KeyType, KeyStatus, RotationStatusData, TimingAnalysisResult } from '../types/key.types';
+import { KeyType, KeyStatus, RotationStatusData } from '../types/key.types';
 
 @ApiTags('Security')
 @Controller('security')
@@ -487,19 +486,19 @@ export class SecurityController {
 
     @Get('timing/analysis')
     @HttpCode(HttpStatus.OK)
-    @ApiOperation({ summary: 'Get comprehensive timing analysis for all keys' })
-    @ApiResponse({ status: 200, description: 'Timing analysis retrieved successfully' })
+    @ApiOperation({ summary: 'Get basic rotation status for all keys' })
+    @ApiResponse({ status: 200, description: 'Rotation status retrieved successfully' })
     async getTimingAnalysis(): Promise<{
         success: boolean;
         message: string;
-        data: TimingAnalysisResult;
+        data: Record<string, RotationStatusData | { error: string }>;
     }> {
-        const analysis = await this.keyRotationSchedulerService.getTimingAnalysis();
+        const status = await this.keyRotationSchedulerService.getRotationStatus();
 
         return {
             success: true,
-            message: 'Timing analysis retrieved successfully',
-            data: analysis,
+            message: 'Basic rotation status retrieved successfully',
+            data: status,
         };
     }
 
