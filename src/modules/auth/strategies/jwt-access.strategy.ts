@@ -77,12 +77,6 @@ export class JwtAccessStrategy extends PassportStrategy(Strategy, 'jwt-access') 
     }
 
     async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
-        // 1. Verify token type
-        if (get(payload, 'type') !== 'access') {
-            throw new UnauthorizedException('Invalid token type - expected access token');
-        }
-
-        // 2. Session validation using SID from JWT
         const sessionData = await this.sessionService.validateSession({
             sessionId: get(payload, 'sid'),
             jti: get(payload, 'jti'),

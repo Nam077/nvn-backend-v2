@@ -103,12 +103,6 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
     }
 
     async validate(request: Request, payload: JwtPayload): Promise<RefreshTokenUser> {
-        // 1. Verify token type
-        if (get(payload, 'type') !== 'refresh') {
-            throw new UnauthorizedException('Invalid token type - expected refresh token');
-        }
-
-        // 2. Session validation using SID from JWT
         const sessionData = await this.sessionService.validateSession({
             sessionId: get(payload, 'sid'),
             jti: get(payload, 'jti'),

@@ -233,6 +233,24 @@ export class SessionService {
         await this.redisService.del(userSessionsKey);
     }
 
+    // Delete all user sessions instead of blacklisting
+    async deleteAllUserSessions(userId: string): Promise<void> {
+        const sessions = await this.getUserSessions(userId);
+
+        if (sessions.length > 0) {
+            // Delete all session data from cache
+            const deletePromises = map(sessions, (sessionId) => {
+                const sessionKey = `${CACHE_KEYS.SESSION_DATA}:${sessionId}`;
+                return this.redisService.del(sessionKey);
+            });
+            await Promise.all(deletePromises);
+        }
+
+        // Clear the user sessions set
+        const userSessionsKey = `${CACHE_KEYS.USER_SESSIONS}:${userId}`;
+        await this.redisService.del(userSessionsKey);
+    }
+
     async removeSessionFromCache(sessionId: string, userId: string): Promise<void> {
         const sessionKey = `${CACHE_KEYS.SESSION_DATA}:${sessionId}`;
         await this.redisService.del(sessionKey);
