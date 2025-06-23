@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 
 import { forEach, get, includes, isEmpty, map, split, toLower } from 'lodash';
 
-import { CachedUserData } from '@/modules/auth/services/session.service';
+import { CachedUserData } from '@/common/interfaces';
 import { AbilityBuilder, createMongoAbility } from '@casl/ability';
 
 import { AppAbility, Actions, Subjects, UserWithRoles, Action, Subject } from '../types/casl.types';

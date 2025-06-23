@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiQuery } from '@nestjs/swagger';
 
+import { AuthenticatedUser } from '@/common/interfaces';
 import { GetUser } from '@/modules/auth/decorators/get-user.decorator';
 import { JwtAuthGuard } from '@/modules/auth/guards/auth.guard';
 import { CommonAbilities, CheckAbilities } from '@/modules/casl/decorators/check-abilities.decorator';
@@ -29,12 +30,6 @@ import { Role } from '../entities/role.entity';
 import { User } from '../entities/user.entity';
 import { RbacService } from '../services/rbac.service';
 
-interface AuthUser {
-    id: string;
-    email: string;
-    role?: string;
-}
-
 @ApiTags('RBAC Management')
 @ApiBearerAuth()
 @Controller('rbac')
@@ -49,7 +44,7 @@ export class RbacController {
     @ApiOperation({ summary: 'Create a new role with permissions' })
     @ApiResponse({ status: 201, description: 'Role created successfully', type: Role })
     @ApiResponse({ status: 409, description: 'Role name already exists' })
-    async createRole(@Body() createRoleDto: CreateRoleDto, @GetUser() user: AuthUser): Promise<Role> {
+    async createRole(@Body() createRoleDto: CreateRoleDto, @GetUser() user: AuthenticatedUser): Promise<Role> {
         return this.rbacService.createRole(createRoleDto, user.id);
     }
 
@@ -140,7 +135,7 @@ export class RbacController {
     @ApiOperation({ summary: 'Assign roles to user' })
     @ApiResponse({ status: 200, description: 'Roles assigned successfully', type: User })
     @ApiResponse({ status: 404, description: 'User or role not found' })
-    async assignRolesToUser(@Body() assignRoleDto: AssignRoleDto, @GetUser() user: AuthUser): Promise<User> {
+    async assignRolesToUser(@Body() assignRoleDto: AssignRoleDto, @GetUser() user: AuthenticatedUser): Promise<User> {
         return this.rbacService.assignRolesToUser(assignRoleDto, user.id);
     }
 
@@ -152,7 +147,7 @@ export class RbacController {
     async assignSingleRoleToUser(
         @Param('userId', ParseUUIDPipe) userId: string,
         @Body() assignRoleDto: AssignSingleRoleDto,
-        @GetUser() user: AuthUser,
+        @GetUser() user: AuthenticatedUser,
     ): Promise<User> {
         return this.rbacService.assignSingleRoleToUser(userId, assignRoleDto, user.id);
     }
@@ -189,7 +184,7 @@ export class RbacController {
     async assignSinglePermissionToRole(
         @Param('roleId', ParseUUIDPipe) roleId: string,
         @Body() assignPermissionDto: AssignSinglePermissionDto,
-        @GetUser() user: AuthUser,
+        @GetUser() user: AuthenticatedUser,
     ): Promise<Role> {
         return this.rbacService.assignSinglePermissionToRole(roleId, assignPermissionDto, user.id);
     }
@@ -202,7 +197,7 @@ export class RbacController {
     async assignPermissionsToRole(
         @Param('roleId', ParseUUIDPipe) roleId: string,
         @Body() assignPermissionDto: AssignPermissionDto,
-        @GetUser() user: AuthUser,
+        @GetUser() user: AuthenticatedUser,
     ): Promise<Role> {
         return this.rbacService.assignPermissionsToRole(roleId, assignPermissionDto.permissionIds, user.id);
     }
@@ -275,7 +270,7 @@ export class RbacController {
     @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Test endpoint without CASL guard' })
     @ApiResponse({ status: 200, description: 'Test successful' })
-    testEndpoint(@GetUser() user: AuthUser): { message: string; user: AuthUser } {
+    testEndpoint(@GetUser() user: AuthenticatedUser): { message: string; user: AuthenticatedUser } {
         return {
             message: 'Authentication successful',
             user,
@@ -288,7 +283,7 @@ export class RbacController {
     @CheckAbilities({ action: 'read', subject: Role })
     @ApiOperation({ summary: 'Test endpoint with class-based CASL guard' })
     @ApiResponse({ status: 200, description: 'CASL test successful' })
-    testCaslEndpoint(@GetUser() user: AuthUser): { message: string; user: AuthUser } {
+    testCaslEndpoint(@GetUser() user: AuthenticatedUser): { message: string; user: AuthenticatedUser } {
         return {
             message: 'CASL permission check successful with Role class',
             user,

@@ -4,20 +4,14 @@ import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { get, isFunction, isObject, isString } from 'lodash';
 
-import { CachedUserData, SessionService } from '@/modules/auth/services/session.service';
+import { AuthenticatedUser, CachedUserData } from '@/common/interfaces';
+import { SessionService } from '@/modules/auth/services/session.service';
 import { RequiredRule, CHECK_ABILITY_KEY } from '@/modules/casl/decorators/check-abilities.decorator';
 import { AbilityFactory } from '@/modules/casl/factories/ability.factory';
 import { AppAbility } from '@/modules/casl/types/casl.types';
 
 interface AuthenticatedRequest extends Request {
-    user?: {
-        id: string;
-        email: string;
-        role?: string;
-        jti?: string;
-        sid?: string; // 🔥 NEW: Session ID for fast cache access
-        keyId?: string;
-    };
+    user?: AuthenticatedUser;
 }
 
 @Injectable()

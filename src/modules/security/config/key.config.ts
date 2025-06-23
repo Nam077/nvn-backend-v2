@@ -1,5 +1,7 @@
 import { get } from 'lodash';
 
+import { DateUtils } from '@/common/utils';
+
 import { KEY_TYPES, KEY_ALGORITHMS, KeyType, KeyAlgorithm, KeyConfiguration } from '../types/key.types';
 
 // ==================== COMPLETE TOKEN CONFIG ====================
@@ -215,22 +217,22 @@ export const getTokenConfig = (keyType: KeyType): TokenKeyConfig => get(TOKEN_KE
 // ==================== SIMPLE UTILITIES ====================
 
 /**
- * Simple date helpers
+ * Simple date helpers using DateUtils for UTC consistency
  */
 export const DateHelper = {
     DAYS_TO_MS: 24 * 60 * 60 * 1000,
 
-    addDays: (date: Date, days: number) => new Date(date.getTime() + days * DateHelper.DAYS_TO_MS),
-    subtractDays: (date: Date, days: number) => new Date(date.getTime() - days * DateHelper.DAYS_TO_MS),
-    daysDiff: (date1: Date, date2: Date) => Math.floor((date1.getTime() - date2.getTime()) / DateHelper.DAYS_TO_MS),
+    addDays: (date: Date, days: number) => DateUtils.addDaysUtc(date, days),
+    subtractDays: (date: Date, days: number) => DateUtils.subtractDaysUtc(date, days),
+    daysDiff: (date1: Date, date2: Date) => DateUtils.daysDiffUtc(date1, date2),
 
     needsRotation: (keyCreatedAt: Date, rotationDays: number) => {
-        const rotationThreshold = DateHelper.subtractDays(new Date(), rotationDays);
-        return keyCreatedAt < rotationThreshold;
+        const rotationThreshold = DateHelper.subtractDays(DateUtils.nowUtc(), rotationDays);
+        return DateUtils.isBeforeUtc(keyCreatedAt, rotationThreshold);
     },
 
     isExpired: (keyCreatedAt: Date, expirationDays: number) => {
         const expirationDate = DateHelper.addDays(keyCreatedAt, expirationDays);
-        return new Date() > expirationDate;
+        return DateUtils.isAfterUtc(DateUtils.nowUtc(), expirationDate);
     },
 } as const;

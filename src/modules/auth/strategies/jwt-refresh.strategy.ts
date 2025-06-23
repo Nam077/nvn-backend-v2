@@ -6,50 +6,10 @@ import { Request } from 'express';
 import { get, isEmpty } from 'lodash';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
+import { JWT_CONFIG, COOKIE_CONFIG } from '@/common/constants';
+import { JwtPayload, RefreshTokenUserData } from '@/common/interfaces';
 import { SessionService } from '@/modules/auth/services/session.service';
 import { KeyManagerService } from '@/modules/security/services/key-manager.service';
-
-interface JwtPayload {
-    sub: string;
-    email: string;
-    role?: string;
-    type: string;
-    jti: string;
-    sid: string;
-    iat?: number;
-    exp?: number;
-    iss?: string;
-    aud?: string;
-}
-
-export interface RefreshTokenUser {
-    id: string;
-    email: string;
-    role?: string;
-    jti: string;
-    sid: string;
-    sessionData: {
-        sid: string;
-        id: string;
-        email: string;
-        firstName?: string;
-        lastName?: string;
-        isActive: boolean;
-        emailVerified: boolean;
-        permissions: string[];
-        roles: Array<{ id: string; name: string; displayName?: string }>;
-        accessTokenJti: string;
-        refreshTokenJti: string;
-        accessTokenExpiry: Date;
-        refreshTokenExpiry: Date;
-        createdAt: Date;
-        lastUsedAt: Date;
-    };
-}
-
-const REFRESH_TOKEN_COOKIE_NAME = 'nvn_refresh_token';
-const JWT_ISSUER = 'nvn-backend';
-const JWT_AUDIENCE = 'nvn-users';
 
 @Injectable()
 export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
@@ -60,13 +20,13 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
     ) {
         super({
             jwtFromRequest: ExtractJwt.fromExtractors([
-                (req: Request) => get(req, ['cookies', REFRESH_TOKEN_COOKIE_NAME]) as string | null,
+                (req: Request) => get(req, ['cookies', COOKIE_CONFIG.REFRESH_TOKEN.NAME]) as string | null,
             ]),
             ignoreExpiration: false,
             secretOrKeyProvider: JwtRefreshStrategy.secretOrKeyProvider(keyManagerService, jwtService),
-            algorithms: ['RS256'],
-            issuer: JWT_ISSUER,
-            audience: JWT_AUDIENCE,
+            algorithms: [JWT_CONFIG.ALGORITHM],
+            issuer: JWT_CONFIG.ISSUER,
+            audience: JWT_CONFIG.AUDIENCE,
             passReqToCallback: true, // Pass request to validate method to access refresh token
         });
     }
@@ -102,7 +62,7 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
         };
     }
 
-    async validate(request: Request, payload: JwtPayload): Promise<RefreshTokenUser> {
+    async validate(request: Request, payload: JwtPayload): Promise<RefreshTokenUserData> {
         const sessionData = await this.sessionService.validateSession({
             sessionId: get(payload, 'sid'),
             jti: get(payload, 'jti'),
@@ -117,6 +77,7 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
             role: get(payload, 'role'),
             jti: get(payload, 'jti'),
             sid: get(payload, 'sid'),
+            refreshToken: get(request, ['cookies', COOKIE_CONFIG.REFRESH_TOKEN.NAME]) as string,
             sessionData, // ✅ Return session data directly from strategy
         };
     }

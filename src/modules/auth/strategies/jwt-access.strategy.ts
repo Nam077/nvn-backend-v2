@@ -5,30 +5,10 @@ import { PassportStrategy } from '@nestjs/passport';
 import { get, isEmpty } from 'lodash';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
+import { JWT_CONFIG } from '@/common/constants';
+import { JwtPayload, AuthenticatedUser } from '@/common/interfaces';
 import { SessionService } from '@/modules/auth/services/session.service';
 import { KeyManagerService } from '@/modules/security/services/key-manager.service';
-
-interface JwtPayload {
-    sub: string;
-    email: string;
-    type: string;
-    jti: string;
-    sid: string;
-    iat?: number;
-    exp?: number;
-    iss?: string;
-    aud?: string;
-}
-
-export interface AuthenticatedUser {
-    id: string;
-    email: string;
-    jti: string;
-    sid: string;
-}
-
-const JWT_ISSUER = 'nvn-backend';
-const JWT_AUDIENCE = 'nvn-users';
 
 @Injectable()
 export class JwtAccessStrategy extends PassportStrategy(Strategy, 'jwt-access') {
@@ -41,9 +21,9 @@ export class JwtAccessStrategy extends PassportStrategy(Strategy, 'jwt-access') 
             jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
             ignoreExpiration: false,
             secretOrKeyProvider: JwtAccessStrategy.secretOrKeyProvider(keyManagerService, jwtService),
-            algorithms: ['RS256'],
-            issuer: JWT_ISSUER,
-            audience: JWT_AUDIENCE,
+            algorithms: [JWT_CONFIG.ALGORITHM],
+            issuer: JWT_CONFIG.ISSUER,
+            audience: JWT_CONFIG.AUDIENCE,
         });
     }
 

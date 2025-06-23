@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/sequelize';
 
 import * as bcrypt from 'bcryptjs';
 
+import { DateUtils } from '@/common';
 import { RedisService } from '@/modules/redis/redis.service';
 import { CreateUserDto } from '@/modules/users/dto/create-user.dto';
 import { UpdateUserDto } from '@/modules/users/dto/update-user.dto';
@@ -248,7 +249,7 @@ export class UsersService {
         }
 
         // Update last login
-        await user.update({ lastLoginAt: new Date() });
+        await user.update({ lastLoginAt: DateUtils.nowUtc() });
 
         return user;
     }

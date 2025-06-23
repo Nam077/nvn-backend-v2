@@ -2,14 +2,7 @@ import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 
 import { get } from 'lodash';
 
-export interface AuthenticatedUser {
-    id: string;
-    email: string;
-    role?: string;
-    jti?: string;
-    sid?: string; // 🔥 NEW: Session ID for optimized cache access
-    keyId?: string;
-}
+import { AuthenticatedUser } from '@/common/interfaces';
 
 /**
  * Decorator to extract user information from request

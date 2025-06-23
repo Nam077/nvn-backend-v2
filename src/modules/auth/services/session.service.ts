@@ -2,51 +2,12 @@ import { Injectable } from '@nestjs/common';
 
 import { map, omit } from 'lodash';
 
+import { getCacheKey } from '@/common/constants';
+import { SessionData, CachedUserData } from '@/common/interfaces';
+import { DateUtils } from '@/common/utils';
 import { RedisService } from '@/modules/redis/redis.service';
 import { getTokenConfig } from '@/modules/security/config/key.config';
 import { KEY_TYPES } from '@/modules/security/types/key.types';
-
-// Redis Cache Key Prefixes - ULTRA OPTIMIZED
-const CACHE_KEYS = {
-    SESSION_DATA: 'nvn:auth:session', // nvn:auth:session:{sid} - Contains everything: user data + JTIs + permissions
-    USER_SESSIONS: 'nvn:auth:user:sessions', // nvn:auth:user:sessions:{userId} - Set of SIDs
-
-    // Blacklists (still needed for security)
-    BLACKLIST_SESSION: 'nvn:auth:blacklist:session', // nvn:auth:blacklist:session:{sid}
-    BLACKLIST_TOKEN: 'nvn:auth:blacklist:token', // nvn:auth:blacklist:token:{jti}
-
-    // Rate limiting
-    RATE_LIMIT: 'nvn:auth:rate:limit',
-    LOGIN_ATTEMPTS: 'nvn:auth:login:attempts',
-} as const;
-
-// Session data interfaces
-export interface CachedUserData {
-    id: string;
-    email: string;
-    firstName?: string;
-    lastName?: string;
-    isActive: boolean;
-    emailVerified: boolean;
-    permissions: string[];
-    roles: Array<{
-        id: string;
-        name: string;
-        displayName?: string;
-    }>;
-}
-
-export interface SessionData extends CachedUserData {
-    sid: string;
-    accessTokenJti: string;
-    refreshTokenJti: string;
-    accessTokenExpiry: Date;
-    refreshTokenExpiry: Date;
-    createdAt: Date;
-    lastUsedAt: Date;
-    userAgent?: string;
-    ipAddress?: string;
-}
 
 @Injectable()
 export class SessionService {
@@ -54,7 +15,7 @@ export class SessionService {
 
     // 🔥 SUPER FAST: Direct session access using SID
     async getSessionBySid(sessionId: string): Promise<SessionData | null> {
-        const sessionKey = `${CACHE_KEYS.SESSION_DATA}:${sessionId}`;
+        const sessionKey = getCacheKey.sessionData(sessionId);
         const cached = await this.redisService.get(sessionKey);
         if (!cached) return null;
         return JSON.parse(cached) as SessionData;
@@ -87,7 +48,7 @@ export class SessionService {
             return cleanupAndReturnNull();
         }
 
-        if (new Date() > sessionData.accessTokenExpiry) {
+        if (DateUtils.isExpiredUtc(sessionData.accessTokenExpiry)) {
             return cleanupAndReturnNull();
         }
 
@@ -101,7 +62,7 @@ export class SessionService {
 
     // 🔥 BACKWARD COMPATIBILITY: For JTI-based access (fallback method)
     async getSessionByJti(jti: string): Promise<SessionData | null> {
-        const sessionKeys = await this.redisService.keys(`${CACHE_KEYS.SESSION_DATA}:*`);
+        const sessionKeys = await this.redisService.keys('nvn:auth:session:*');
 
         for (const sessionKey of sessionKeys) {
             const cached = await this.redisService.get(sessionKey);
@@ -118,22 +79,23 @@ export class SessionService {
 
     // Cache session data with refresh token TTL
     async cacheSessionData(sessionId: string, sessionData: SessionData): Promise<void> {
-        const sessionKey = `${CACHE_KEYS.SESSION_DATA}:${sessionId}`;
+        const sessionKey = getCacheKey.sessionData(sessionId);
         const refreshTokenConfig = getTokenConfig(KEY_TYPES.REFRESH_TOKEN);
 
         await this.redisService.set(sessionKey, JSON.stringify(sessionData), {
             ttl: refreshTokenConfig.seconds,
         });
     }
+
     async isChildUserSessionId(sessionId: string, userId: string): Promise<boolean> {
-        const userSessionsKey = `${CACHE_KEYS.USER_SESSIONS}:${userId}`;
+        const userSessionsKey = getCacheKey.userSessions(userId);
         const isMember = await this.redisService.sismember(userSessionsKey, sessionId);
         return isMember === 1;
     }
 
     // Track user session
     async trackUserSession(userId: string, sessionId: string): Promise<void> {
-        const userSessionsKey = `${CACHE_KEYS.USER_SESSIONS}:${userId}`;
+        const userSessionsKey = getCacheKey.userSessions(userId);
         const refreshTokenConfig = getTokenConfig(KEY_TYPES.REFRESH_TOKEN);
 
         await this.redisService.sadd(userSessionsKey, sessionId);
@@ -142,19 +104,19 @@ export class SessionService {
 
     // Remove user session
     async removeUserSession(userId: string, sessionId: string): Promise<void> {
-        const userSessionsKey = `${CACHE_KEYS.USER_SESSIONS}:${userId}`;
+        const userSessionsKey = getCacheKey.userSessions(userId);
         await this.redisService.srem(userSessionsKey, sessionId);
     }
 
     // Get all user sessions
     async getUserSessions(userId: string): Promise<string[]> {
-        const userSessionsKey = `${CACHE_KEYS.USER_SESSIONS}:${userId}`;
+        const userSessionsKey = getCacheKey.userSessions(userId);
         return this.redisService.smembers(userSessionsKey);
     }
 
     // Blacklist session
     async blacklistSession(sessionId: string): Promise<void> {
-        const blacklistKey = `${CACHE_KEYS.BLACKLIST_SESSION}:${sessionId}`;
+        const blacklistKey = getCacheKey.blacklistSession(sessionId);
         const refreshTokenConfig = getTokenConfig(KEY_TYPES.REFRESH_TOKEN);
 
         await this.redisService.set(blacklistKey, 'blacklisted', {
@@ -164,7 +126,7 @@ export class SessionService {
 
     // Check if session is blacklisted
     async isSessionBlacklisted(sessionId: string): Promise<boolean> {
-        const blacklistKey = `${CACHE_KEYS.BLACKLIST_SESSION}:${sessionId}`;
+        const blacklistKey = getCacheKey.blacklistSession(sessionId);
         const exists = await this.redisService.exists(blacklistKey);
         return exists > 0;
     }
@@ -229,7 +191,7 @@ export class SessionService {
         }
 
         // Clear the user sessions set
-        const userSessionsKey = `${CACHE_KEYS.USER_SESSIONS}:${userId}`;
+        const userSessionsKey = getCacheKey.userSessions(userId);
         await this.redisService.del(userSessionsKey);
     }
 
@@ -240,22 +202,22 @@ export class SessionService {
         if (sessions.length > 0) {
             // Delete all session data from cache
             const deletePromises = map(sessions, (sessionId) => {
-                const sessionKey = `${CACHE_KEYS.SESSION_DATA}:${sessionId}`;
+                const sessionKey = getCacheKey.sessionData(sessionId);
                 return this.redisService.del(sessionKey);
             });
             await Promise.all(deletePromises);
         }
 
         // Clear the user sessions set
-        const userSessionsKey = `${CACHE_KEYS.USER_SESSIONS}:${userId}`;
+        const userSessionsKey = getCacheKey.userSessions(userId);
         await this.redisService.del(userSessionsKey);
     }
 
     async removeSessionFromCache(sessionId: string, userId: string): Promise<void> {
-        const sessionKey = `${CACHE_KEYS.SESSION_DATA}:${sessionId}`;
+        const sessionKey = getCacheKey.sessionData(sessionId);
         await this.redisService.del(sessionKey);
 
-        const userSessionsKey = `${CACHE_KEYS.USER_SESSIONS}:${userId}`;
+        const userSessionsKey = getCacheKey.userSessions(userId);
         await this.redisService.srem(userSessionsKey, sessionId);
     }
 }

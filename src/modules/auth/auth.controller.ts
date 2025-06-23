@@ -3,22 +3,15 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 
 import { Request, Response } from 'express';
 
+import { COOKIE_CONFIG } from '@/common/constants';
+import { AuthenticatedUser } from '@/common/interfaces';
+import { GetUser } from '@/modules/auth/decorators/get-user.decorator';
 import { JwtAuthGuard } from '@/modules/auth/guards/auth.guard';
 import { JwtRefreshGuard } from '@/modules/auth/guards/refresh-token.guard';
 
 import { AuthService } from './auth.service';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
-
-interface AuthenticatedRequest extends Request {
-    user: {
-        id: string;
-        email: string;
-        role?: string;
-        jti: string;
-        sid: string;
-    };
-}
 
 interface RefreshTokenRequest extends Request {
     user: {
@@ -48,18 +41,6 @@ interface RefreshTokenRequest extends Request {
     };
 }
 
-// Cookie configuration for refresh tokens
-const REFRESH_TOKEN_COOKIE_CONFIG = {
-    name: 'nvn_refresh_token',
-    options: {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict' as const,
-        path: '/',
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    },
-};
-
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
@@ -77,7 +58,7 @@ export class AuthController {
         const result = await this.authService.login(loginDto);
 
         // Set refresh token as httpOnly cookie
-        res.cookie(REFRESH_TOKEN_COOKIE_CONFIG.name, result.refreshToken, REFRESH_TOKEN_COOKIE_CONFIG.options);
+        res.cookie(COOKIE_CONFIG.REFRESH_TOKEN.NAME, result.refreshToken, COOKIE_CONFIG.REFRESH_TOKEN.OPTIONS);
 
         // Return only access token and user info (no refresh token in response)
         return {
@@ -101,7 +82,7 @@ export class AuthController {
         const result = await this.authService.refreshTokenWithSessionData(req.user);
 
         // Set new refresh token as httpOnly cookie
-        res.cookie(REFRESH_TOKEN_COOKIE_CONFIG.name, result.refreshToken, REFRESH_TOKEN_COOKIE_CONFIG.options);
+        res.cookie(COOKIE_CONFIG.REFRESH_TOKEN.NAME, result.refreshToken, COOKIE_CONFIG.REFRESH_TOKEN.OPTIONS);
 
         // Return only access token and user info
         return {
@@ -115,7 +96,7 @@ export class AuthController {
     @Post('logout')
     @UseGuards(JwtRefreshGuard)
     @HttpCode(HttpStatus.OK)
-    @ApiOperation({ summary: 'Logout user and clear refresh token cookie' })
+    @ApiOperation({ summary: 'Logout user using refresh token cookie and clear refresh token cookie' })
     @ApiResponse({ status: 200, description: 'User logged out successfully' })
     async logout(
         @Req() req: RefreshTokenRequest,
@@ -125,10 +106,34 @@ export class AuthController {
         await this.authService.logoutWithSessionData(req.user.sessionData);
 
         // Clear refresh token cookie
-        res.clearCookie(REFRESH_TOKEN_COOKIE_CONFIG.name, {
-            path: REFRESH_TOKEN_COOKIE_CONFIG.options.path,
-            secure: REFRESH_TOKEN_COOKIE_CONFIG.options.secure,
-            sameSite: REFRESH_TOKEN_COOKIE_CONFIG.options.sameSite,
+        res.clearCookie(COOKIE_CONFIG.REFRESH_TOKEN.NAME, {
+            path: COOKIE_CONFIG.REFRESH_TOKEN.OPTIONS.path,
+            secure: COOKIE_CONFIG.REFRESH_TOKEN.OPTIONS.secure,
+            sameSite: COOKIE_CONFIG.REFRESH_TOKEN.OPTIONS.sameSite,
+        });
+
+        return { message: 'Logged out successfully' };
+    }
+
+    @Post('logout-token')
+    @UseGuards(JwtAuthGuard)
+    @HttpCode(HttpStatus.OK)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Logout user using access token from Authorization header' })
+    @ApiResponse({ status: 200, description: 'User logged out successfully' })
+    @ApiResponse({ status: 401, description: 'Unauthorized' })
+    async logoutWithToken(
+        @GetUser() user: AuthenticatedUser,
+        @Res({ passthrough: true }) res: Response,
+    ): Promise<{ message: string }> {
+        // 🔥 DIRECT: Use validated user data from JwtAuthGuard
+        await this.authService.logout(user.id, user.sid);
+
+        // Also clear refresh token cookie if present
+        res.clearCookie(COOKIE_CONFIG.REFRESH_TOKEN.NAME, {
+            path: COOKIE_CONFIG.REFRESH_TOKEN.OPTIONS.path,
+            secure: COOKIE_CONFIG.REFRESH_TOKEN.OPTIONS.secure,
+            sameSite: COOKIE_CONFIG.REFRESH_TOKEN.OPTIONS.sameSite,
         });
 
         return { message: 'Logged out successfully' };
@@ -142,16 +147,16 @@ export class AuthController {
     @ApiResponse({ status: 200, description: 'Logout from all devices successful' })
     @ApiResponse({ status: 401, description: 'Unauthorized' })
     async logoutAll(
-        @Req() req: AuthenticatedRequest,
+        @GetUser() user: AuthenticatedUser,
         @Res({ passthrough: true }) res: Response,
     ): Promise<{ message: string }> {
-        await this.authService.logoutAll(req.user.id);
+        await this.authService.logoutAll(user.id);
 
         // Also clear current device's refresh token cookie
-        res.clearCookie(REFRESH_TOKEN_COOKIE_CONFIG.name, {
-            path: REFRESH_TOKEN_COOKIE_CONFIG.options.path,
-            secure: REFRESH_TOKEN_COOKIE_CONFIG.options.secure,
-            sameSite: REFRESH_TOKEN_COOKIE_CONFIG.options.sameSite,
+        res.clearCookie(COOKIE_CONFIG.REFRESH_TOKEN.NAME, {
+            path: COOKIE_CONFIG.REFRESH_TOKEN.OPTIONS.path,
+            secure: COOKIE_CONFIG.REFRESH_TOKEN.OPTIONS.secure,
+            sameSite: COOKIE_CONFIG.REFRESH_TOKEN.OPTIONS.sameSite,
         });
 
         return { message: 'Logged out from all devices' };
@@ -163,12 +168,12 @@ export class AuthController {
     @ApiOperation({ summary: 'Get user profile' })
     @ApiResponse({ status: 200, description: 'User profile retrieved successfully' })
     @ApiResponse({ status: 401, description: 'Unauthorized' })
-    getProfile(@Req() req: AuthenticatedRequest) {
+    getProfile(@GetUser() user: AuthenticatedUser) {
         return {
-            id: req.user.id,
-            email: req.user.email,
-            role: req.user.role,
-            sessionId: req.user.sid,
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            sessionId: user.sid,
         };
     }
 

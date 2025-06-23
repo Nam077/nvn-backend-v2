@@ -12,6 +12,8 @@ import { randomBytes, generateKeyPairSync, createHmac, pbkdf2Sync, createCipheri
 import { split, join, startsWith, get } from 'lodash';
 import { Op } from 'sequelize';
 
+import { DateUtils } from '@/common';
+
 import { EnvironmentKeyLoaderService } from './environment-key-loader.service';
 import { KEY_CONFIGURATIONS, CRYPTO_CONFIG } from '../config/key.config';
 import { KeyRotationHistory } from '../entities/key-rotation-history.entity';
@@ -56,7 +58,7 @@ export class KeyManagerService {
             );
 
             // 2. Create unique context
-            const creationTimestamp = Date.now();
+            const creationTimestamp = DateUtils.timestampUtc();
             const randomSalt = randomBytes(32);
 
             // 3. Generate context-dependent encryption key
@@ -81,7 +83,7 @@ export class KeyManagerService {
             );
 
             // 6. Store in database
-            const expiresAt = new Date(Date.now() + get(config, 'expirationDays', 30) * 24 * 60 * 60 * 1000);
+            const expiresAt = DateUtils.addDaysUtc(DateUtils.nowUtc(), get(config, 'expirationDays', 30));
 
             const newKey = await this.securityKeyModel.create({
                 keyType,
@@ -112,8 +114,6 @@ export class KeyManagerService {
     }
 
     async getPrivateKey(keyId: string): Promise<string> {
-        const startTime = Date.now();
-
         // Always fetch from database for security - NEVER cache private keys
         const keyRecord = await this.securityKeyModel.findOne({
             where: { keyId, status: { [Op.in]: [KEY_STATUSES.ACTIVE, KEY_STATUSES.ROTATING] } },
@@ -134,14 +134,10 @@ export class KeyManagerService {
         // Update usage statistics
         await this.updateKeyUsage(keyId);
 
-        const duration = Date.now() - startTime;
-        this.logger.debug(`🔑 Retrieved private key from database: ${keyId} (${duration}ms)`);
         return privateKey;
     }
 
     async getPublicKey(keyId: string): Promise<string | null> {
-        const startTime = Date.now();
-
         // Always fetch from database for security - NEVER cache public keys
         const keyRecord = await this.securityKeyModel.findOne({
             where: { keyId, status: { [Op.in]: [KEY_STATUSES.ACTIVE, KEY_STATUSES.ROTATING] } },
@@ -156,11 +152,7 @@ export class KeyManagerService {
         await this.validateKeyAccess(keyRecord);
 
         // Decrypt public key (always fresh from DB)
-        const publicKey = await this.decryptPublicKey(keyRecord);
-
-        const duration = Date.now() - startTime;
-        this.logger.debug(`🔑 Retrieved public key from database: ${keyId} (${duration}ms)`);
-        return publicKey;
+        return await this.decryptPublicKey(keyRecord);
     }
 
     async getActiveKey(keyType: KeyType): Promise<string> {
@@ -169,7 +161,7 @@ export class KeyManagerService {
             where: {
                 keyType,
                 status: KEY_STATUSES.ACTIVE,
-                expiresAt: { [Op.gt]: new Date() },
+                expiresAt: { [Op.gt]: DateUtils.nowUtc() },
             },
             order: [['createdAt', 'DESC']],
         });
@@ -189,7 +181,6 @@ export class KeyManagerService {
             }
         }
 
-        this.logger.debug(`🔍 Retrieved active key from database: ${keyType} -> ${activeKey.keyId}`);
         return activeKey.keyId;
     }
 
@@ -205,7 +196,7 @@ export class KeyManagerService {
 
         await keyRecord.update({
             status: KEY_STATUSES.ACTIVE,
-            activatedAt: new Date(),
+            activatedAt: DateUtils.nowUtc(),
             metadata: {
                 ...keyRecord.metadata,
                 activatedBy,
@@ -224,7 +215,7 @@ export class KeyManagerService {
 
         await keyRecord.update({
             status: KEY_STATUSES.REVOKED,
-            revokedAt: new Date(),
+            revokedAt: DateUtils.nowUtc(),
             revocationReason: reason,
             metadata: {
                 ...keyRecord.metadata,
@@ -414,7 +405,7 @@ export class KeyManagerService {
     }
 
     private async validateKeyAccess(keyRecord: SecurityKey): Promise<void> {
-        if (keyRecord.expiresAt < new Date()) {
+        if (DateUtils.isExpiredUtc(keyRecord.expiresAt)) {
             throw new BadRequestException('Key has expired');
         }
 
@@ -467,7 +458,7 @@ export class KeyManagerService {
         return this.securityKeyModel
             .update(
                 {
-                    lastUsedAt: new Date(),
+                    lastUsedAt: DateUtils.nowUtc(),
                     usageCount: this.securityKeyModel.sequelize.literal('usage_count + 1'),
                 },
                 { where: { keyId } },

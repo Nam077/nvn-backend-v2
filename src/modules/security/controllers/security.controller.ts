@@ -4,6 +4,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/
 
 import { isEmpty, isString, defaultTo, toNumber, clamp } from 'lodash';
 
+import { DateUtils } from '@/common/utils';
 import { KeyManagerService } from '../services/key-manager.service';
 import { KeyRotationSchedulerService } from '../services/key-rotation-scheduler.service';
 import { KeyType, KeyStatus, RotationStatusData } from '../types/key.types';
@@ -214,7 +215,7 @@ export class SecurityController {
                 statistics,
                 summary: {
                     totalKeyTypes: Object.keys(statistics).length,
-                    generatedAt: new Date().toISOString(),
+                    generatedAt: DateUtils.formatForLog(DateUtils.nowUtc()),
                 },
             },
         };
@@ -462,7 +463,7 @@ export class SecurityController {
                 keyType,
                 newActiveKeyId: newKeyId,
                 rotationReason: body.reason || 'manual-rotation',
-                rotatedAt: new Date().toISOString(),
+                rotatedAt: DateUtils.formatForLog(DateUtils.nowUtc()),
             },
         };
     }
@@ -538,7 +539,7 @@ export class SecurityController {
             success: true,
             message: 'Manual rotation check completed successfully',
             data: {
-                triggeredAt: new Date(),
+                triggeredAt: DateUtils.nowUtc(),
                 type: 'manual',
             },
         };
