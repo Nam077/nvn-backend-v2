@@ -3,20 +3,180 @@ import ejs from 'ejs';
 import fs from 'fs/promises';
 import { glob } from 'glob';
 import inquirer from 'inquirer';
-import { filter, last, map, replace, snakeCase, split, toUpper, trim, size } from 'lodash';
+import {
+    filter,
+    last,
+    map,
+    partition,
+    replace,
+    snakeCase,
+    some,
+    split,
+    toUpper,
+    trim,
+    size,
+    includes,
+    toLower,
+} from 'lodash';
 import path from 'path';
+import { Project, PropertyDeclaration } from 'ts-morph';
+
 // --- Configuration ---
 const TEMPLATE_PATH = path.resolve(process.cwd(), 'scripts/templates/blueprint.ejs');
 const OUTPUT_DIR = path.resolve(process.cwd(), 'src/queries/blueprints');
 const ENTITY_GLOB_PATTERN = 'src/modules/**/*.entity.ts';
 
-// --- Helper Functions ---
+// --- Type Definitions ---
+interface ParsedField {
+    name: string;
+    type: string;
+    isRelation: boolean;
+    isEnum: boolean;
+    enumName?: string;
+    suggestedOperators: string[];
+}
+
 interface EntityInfo {
     modelName: string;
     modulePath: string;
     entityFileName: string;
     fullPath: string;
 }
+const PRIMITIVE_TYPES = ['string', 'number', 'boolean', 'Date', 'uuid'];
+
+// --- Smart Type-to-Operator Mapping ---
+const getOperatorsForType = (type: string): string[] => {
+    const lowerType = toLower(type);
+
+    // Date types
+    if (includes(lowerType, 'date')) {
+        return ['DATE_OPERATORS.BETWEEN', 'DATE_OPERATORS.GTE', 'DATE_OPERATORS.LTE'];
+    }
+
+    // Number types
+    if (includes(lowerType, 'number') || includes(lowerType, 'int')) {
+        return ['NUMBER_OPERATORS.EQUALS', 'NUMBER_OPERATORS.GTE', 'NUMBER_OPERATORS.LTE'];
+    }
+
+    // Boolean types - treat as enum
+    if (includes(lowerType, 'boolean')) {
+        return ['ENUM_OPERATORS.EQUALS'];
+    }
+
+    // String types - check for common patterns
+    if (includes(lowerType, 'string')) {
+        // ID fields typically only need exact match
+        if (includes(lowerType, 'id') || lowerType === 'uuid') {
+            return ['STRING_OPERATORS.EQUALS'];
+        }
+        // Regular string fields support contains and equals
+        return ['STRING_OPERATORS.CONTAINS', 'STRING_OPERATORS.EQUALS'];
+    }
+
+    // Default fallback for unknown types
+    return ['STRING_OPERATORS.EQUALS'];
+};
+
+// Check if field name suggests it should be treated as enum
+const isLikelyEnum = (fieldName: string): boolean => {
+    const enumPatterns = ['status', 'type', 'state', 'role', 'permission', 'level'];
+    return some(enumPatterns, (pattern) => includes(toLower(fieldName), pattern));
+};
+
+// --- Helper Functions ---
+
+const isPrimitiveType = (type: string) =>
+    // Check if the type string includes any of the primitive types
+    // This handles simple cases like 'string' and more complex ones like 'string | null'
+    some(PRIMITIVE_TYPES, (p) => includes(type, p));
+
+// Helper function to extract enum name from decorator
+const extractEnumName = (property: PropertyDeclaration): string | undefined => {
+    const decorators = property.getDecorators();
+    for (const decorator of decorators) {
+        const decoratorText = decorator.getFullText();
+
+        if (includes(decoratorText, '@Column') && includes(decoratorText, 'DataType.ENUM')) {
+            // Try to extract enum name from patterns like:
+            // DataType.ENUM(...values(COLLECTION_TYPE))
+            const enumMatch = decoratorText.match(/values\(([A-Z_]+)\)/);
+            if (enumMatch && enumMatch[1]) {
+                return enumMatch[1];
+            }
+        }
+    }
+    return undefined;
+};
+
+// Helper function to check if a property is an enum based on its decorators
+const isEnumProperty = (property: PropertyDeclaration): boolean => {
+    const decorators = property.getDecorators();
+    for (const decorator of decorators) {
+        const decoratorText = decorator.getFullText();
+
+        // Check @Column for enum indicators
+        if (includes(decoratorText, '@Column')) {
+            if (
+                includes(decoratorText, 'DataType.ENUM') ||
+                includes(decoratorText, 'type: DataType.ENUM') ||
+                includes(decoratorText, 'ENUM(')
+            ) {
+                return true;
+            }
+        }
+
+        // Check @ApiProperty for enum hints
+        if (includes(decoratorText, '@ApiProperty')) {
+            if (includes(decoratorText, 'enum:') || includes(decoratorText, 'enum: ')) {
+                return true;
+            }
+        }
+    }
+    return false;
+};
+
+/**
+ * Uses ts-morph to parse an entity file and extract its properties with smart operator suggestions.
+ * @param filePath - The absolute path to the entity file.
+ * @returns An array of parsed field information with suggested operators.
+ */
+const parseEntityFields = (filePath: string): ParsedField[] => {
+    const project = new Project();
+    const sourceFile = project.addSourceFileAtPath(filePath);
+    const classDeclaration = sourceFile.getClasses()[0];
+
+    if (!classDeclaration) {
+        console.warn(`   ⚠️ Could not find a class declaration in ${path.basename(filePath)}.`);
+        return [];
+    }
+
+    const properties = classDeclaration.getProperties();
+
+    return map(properties, (property: PropertyDeclaration) => {
+        const name = property.getName();
+        const type = property.getType().getText(property);
+        let isRelation = !isPrimitiveType(type);
+
+        const isEnumField = isEnumProperty(property) || isLikelyEnum(name);
+        const enumName = isEnumField ? extractEnumName(property) : undefined;
+
+        // Override relation detection for enum fields
+        if (isEnumField) {
+            isRelation = false;
+        }
+
+        let suggestedOperators: string[];
+        if (isRelation) {
+            suggestedOperators = [];
+        } else if (isEnumField) {
+            suggestedOperators = ['ENUM_OPERATORS.EQUALS', 'ENUM_OPERATORS.IN'];
+        } else {
+            suggestedOperators = getOperatorsForType(type);
+        }
+
+        return { name, type, isRelation, isEnum: isEnumField, enumName, suggestedOperators };
+    });
+};
 
 const findEntities = async (): Promise<EntityInfo[]> => {
     const entityFiles = await glob(ENTITY_GLOB_PATTERN, { absolute: true });
@@ -87,6 +247,13 @@ const main = async () => {
         return;
     }
 
+    console.log(`🔎 Analyzing fields for ${selectedEntity.modelName}...`);
+    const allFields = parseEntityFields(selectedEntity.fullPath);
+    const [relations, fields] = partition(allFields, (field) => field.isRelation);
+
+    console.log(`   - Found ${fields.length} primitive fields.`);
+    console.log(`   - Found ${relations.length} potential relations.`);
+
     const { modelName, modulePath, entityFileName } = selectedEntity;
     const outputFileName = `${entityFileName}.blueprint.ts`;
     const outputPath = path.join(OUTPUT_DIR, outputFileName);
@@ -127,6 +294,8 @@ const main = async () => {
         modulePath,
         entityFileName,
         blueprintName,
+        fields,
+        relations,
     });
 
     // 4. Write the new file

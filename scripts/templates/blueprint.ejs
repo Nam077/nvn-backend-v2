@@ -1,6 +1,12 @@
 import { kebabCase, snakeCase, upperCase } from 'lodash';
 
 import { BlueprintDefinition, QueryBlueprint } from '@/common/query-builder/query-blueprint.base';
+import {
+    STRING_OPERATORS,
+    NUMBER_OPERATORS,
+    DATE_OPERATORS,
+    ENUM_OPERATORS,
+} from '@/common/query-builder/operators.constants';
 import { <%= modelName %> } from '@/modules/<%= modulePath %>/entities/<%= entityFileName %>.entity';
 
 export class <%= modelName %>QueryBlueprint extends QueryBlueprint<<%= modelName %>> {
@@ -9,30 +15,49 @@ export class <%= modelName %>QueryBlueprint extends QueryBlueprint<<%= modelName
     protected readonly definition: BlueprintDefinition<<%= modelName %>> = {
         model: <%= modelName %>,
         fields: {
-            // TODO: Add fields from <%= modelName %> that you want to query
-            // Example:
-            // name: {
-            //     type: 'text',
-            //     operators: [STRING_OPERATORS.CONTAINS],
-            // },
+            <% fields.forEach(field => { %>// <%= field.name %>: <%= field.type %>
+            '<%= field.name %>': {
+                type: '<% if (field.type.includes('number')) { %>number<% } else if (field.type.includes('Date')) { %>datetime<% } else if (field.type.includes('boolean') || field.isEnum) { %>select<% } else { %>text<% } %>',
+                label: '<%= field.name.charAt(0).toUpperCase() + field.name.slice(1).replace(/([A-Z])/g, ' $1') %>',
+                operators: [<%= field.suggestedOperators.join(', ') %>],
+                <% if (field.type.includes('boolean')) { %>
+                fieldSettings: {
+                    listValues: [
+                        { title: 'Yes', value: true },
+                        { title: 'No', value: false },
+                    ],
+                },
+                <% } else if (field.isEnum) { %>
+                fieldSettings: {
+                    <% if (field.enumName) { %>defaultValue: [<%= field.enumName %>.VALUE1, <%= field.enumName %>.VALUE2],
+                    listValues: map(<%= field.enumName %>, (v) => ({ title: startCase(v), value: v })),<% } else { %>defaultValue: [YOUR_<%= field.name.toUpperCase() %>_ENUM.VALUE1, YOUR_<%= field.name.toUpperCase() %>_ENUM.VALUE2],
+                    listValues: map(YOUR_<%= field.name.toUpperCase() %>_ENUM, (v) => ({ title: startCase(v), value: v })),<% } %>
+                },
+                <% } %>
+            },
+            <% }) %>
         },
-        // TODO: Define which fields from the model and its relations can be selected
-        selectableFields: ['id', 'createdAt'],
-
-        // TODO: Define which fields can be used for sorting
-        sortableFields: ['createdAt'],
-
+        // Suggested sortable fields based on entity properties
+        sortableFields: [
+            <% fields.forEach(field => { %>'<%= field.name %>',
+            <% }) %>
+        ],
+        // Suggested selectable fields based on entity properties
+        selectableFields: [
+            <% fields.forEach(field => { %>'<%= field.name %>',
+            <% }) %>
+        ],
         // TODO: Define the default sort order
         defaultSort: [['createdAt', 'DESC']],
-
-        // TODO: (Optional) Define relations to other models
-        // relations: {
-        //     relationName: {
-        //         model: OtherModel,
-        //         fields: {
-        //             fieldName: { operators: [STRING_OPERATORS.EQUALS] },
-        //         }
-        //     }
-        // }
+        relations: {
+            <% relations.forEach(relation => { %>// <%= relation.name %>: <%= relation.type %>
+            // '<%= relation.name %>': {
+            //   model: <%= relation.type.replace('[]', '') %>, // <-- Adjust if needed
+            //   fields: {
+            //     // Define queryable fields from the <%= relation.type.replace('[]', '') %> entity here
+            //     // 'some_field_from_<%= relation.type.replace('[]', '').toLowerCase() %>': { operators: [Operator.EQUALS] },
+            //   },
+            <% }) %>
+        },
     };
 } 
