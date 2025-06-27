@@ -7,8 +7,10 @@ import { CaslModule } from '@/modules/casl/casl.module';
 import { ConfigModule } from '@/modules/config/config.module';
 import { ConfigServiceApp } from '@/modules/config/config.service';
 import { DatabaseModule } from '@/modules/database/database.module';
+import { PaymentModule } from '@/modules/payment/payment.module';
 import { RedisModule } from '@/modules/redis/redis.module';
 import { SecurityModule } from '@/modules/security/security.module';
+import { SubscriptionModule } from '@/modules/subscription/subscription.module';
 import { UsersModule } from '@/modules/users/users.module';
 
 @Module({
@@ -34,6 +36,8 @@ import { UsersModule } from '@/modules/users/users.module';
         }),
         SecurityModule,
         UsersModule,
+        SubscriptionModule,
+        PaymentModule,
     ],
     controllers: [AppController],
     providers: [AppService],

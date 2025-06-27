@@ -7,15 +7,14 @@ import { map } from 'lodash';
 import { JWT_CONFIG } from '@/common/constants';
 import { JwtPayload, UserInfo, SessionData, RefreshTokenUserData } from '@/common/interfaces';
 import { DateUtils } from '@/common/utils';
+import { AuthResponseDto } from '@/modules/auth/dto/auth-response.dto';
+import { LoginDto } from '@/modules/auth/dto/login.dto';
+import { SessionService } from '@/modules/auth/services/session.service';
 import { getTokenConfig } from '@/modules/security/config/key.config';
 import { KeyManagerService } from '@/modules/security/services/key-manager.service';
 import { KEY_TYPES } from '@/modules/security/types/key.types';
 import { RbacService } from '@/modules/users/services/rbac.service';
 import { UsersService } from '@/modules/users/users.service';
-
-import { AuthResponseDto } from './dto/auth-response.dto';
-import { LoginDto } from './dto/login.dto';
-import { SessionService } from './services/session.service';
 
 @Injectable()
 export class AuthService {

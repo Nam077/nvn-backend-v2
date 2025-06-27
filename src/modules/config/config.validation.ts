@@ -31,6 +31,9 @@ export interface EnvironmentVariables {
     REDIS_PASSWORD: string;
     REDIS_DB: number;
     REDIS_KEY_PREFIX: string;
+
+    // SePay Configuration
+    SEPAY_API_KEY: string;
 }
 
 export const validate = (config: Record<string, unknown>): EnvironmentVariables => {
@@ -77,4 +80,7 @@ export const validationSchema = Joi.object({
     REDIS_PASSWORD: Joi.string().allow(''),
     REDIS_DB: Joi.number().default(0),
     REDIS_KEY_PREFIX: Joi.string().default(''),
+
+    // SePay Configuration
+    SEPAY_API_KEY: Joi.string().required().description('SePay API key for webhook authentication'),
 });

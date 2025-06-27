@@ -4,6 +4,8 @@ import { InjectModel } from '@nestjs/sequelize';
 import { forEach, map } from 'lodash';
 import { Transaction } from 'sequelize';
 
+import { DateUtils } from '@/common/utils';
+
 import { AssignSinglePermissionDto } from '../dto/assign-permission.dto';
 import { AssignRoleDto, AssignSingleRoleDto } from '../dto/assign-role.dto';
 import { CreatePermissionDto } from '../dto/create-permission.dto';
@@ -214,7 +216,7 @@ export class RbacService {
                 userId,
                 roleId,
                 assignedBy,
-                expiresAt: expiresAt ? new Date(expiresAt) : null,
+                expiresAt: expiresAt ? DateUtils.parseToUtc(expiresAt) : null,
             }));
 
             await this.userRoleModel.bulkCreate(userRoleData, { transaction });
@@ -256,7 +258,7 @@ export class RbacService {
             userId,
             roleId,
             assignedBy,
-            expiresAt: expiresAt ? new Date(expiresAt) : null,
+            expiresAt: expiresAt ? DateUtils.parseToUtc(expiresAt) : null,
         });
 
         return this.getUserWithRoles(userId);

@@ -6,8 +6,10 @@ import { InjectModel } from '@nestjs/sequelize';
 import { get, map, filter, reduce, forEach, toUpper } from 'lodash';
 import { Op, Transaction } from 'sequelize';
 
+import { DateUtils } from '@/common/utils';
+
 import { KeyManagerService } from './key-manager.service';
-import { TOKEN_KEY_CONFIG, KEY_CONFIGURATIONS, DateHelper } from '../config/key.config';
+import { TOKEN_KEY_CONFIG, KEY_CONFIGURATIONS } from '../config/key.config';
 import { KeyRotationHistory } from '../entities/key-rotation-history.entity';
 import { SecurityKey } from '../entities/security-key.entity';
 import { KeyType, KEY_STATUSES } from '../types/key.types';
@@ -110,61 +112,41 @@ export class KeyRotationSchedulerService {
 
     private async rotateKeysIfNeeded(keyType: KeyType, rotationDays: number): Promise<void> {
         try {
-            // Single query to get all keys that might need rotation
-            const keysToCheck = await this.securityKeyModel.findAll({
+            // Get keys that need rotation (created before rotation threshold)
+            const keysNeedingRotation = await this.securityKeyModel.findAll({
                 where: {
                     keyType,
                     status: KEY_STATUSES.ACTIVE,
                 },
-                attributes: ['keyId', 'createdAt'], // Only fetch needed columns for initial check
-                order: [['createdAt', 'ASC']], // Oldest first for consistent processing
+                order: [['createdAt', 'ASC']],
+                attributes: ['keyId', 'createdAt'], // Only fetch needed columns
             });
 
-            if (keysToCheck.length === 0) {
-                this.logger.debug(`✅ No ${keyType} keys found`);
-                return;
-            }
-
-            // Filter keys that need rotation using lodash filter
-            const keysNeedingRotation = filter(keysToCheck, (key) =>
-                DateHelper.needsRotation(key.createdAt, rotationDays),
+            // Filter using DateUtils
+            const keysToRotate = filter(keysNeedingRotation, (key) =>
+                DateUtils.needsRotation(key.createdAt, rotationDays),
             );
 
-            if (keysNeedingRotation.length === 0) {
+            if (keysToRotate.length === 0) {
                 this.logger.debug(`✅ No ${keyType} keys need rotation`);
                 return;
             }
 
-            // Process in batches to avoid memory issues and database overload
+            this.logger.log(`🔄 Found ${keysToRotate.length} ${keyType} keys needing rotation`);
+
+            // Process rotation with concurrency control
             let rotatedCount = 0;
-            for (let i = 0; i < keysNeedingRotation.length; i += this.BATCH_SIZE) {
-                const batch = keysNeedingRotation.slice(i, i + this.BATCH_SIZE);
-
-                // Fetch full key objects for the batch
-                const fullKeys = await this.securityKeyModel.findAll({
-                    where: {
-                        keyId: { [Op.in]: map(batch, (k) => k.keyId) },
-                    },
-                });
-
-                // Process batch in parallel
-                const batchResults = await Promise.allSettled(map(fullKeys, (key) => this.rotateKey(key)));
-
-                // Count successful rotations
-                const batchSuccessCount = reduce(
-                    batchResults,
-                    (count, result) => {
-                        if (result.status === 'fulfilled') {
-                            return count + 1;
-                        }
-                        this.logger.error('Failed to rotate key in batch:', result.reason);
-                        return count;
-                    },
-                    0,
-                );
-
-                rotatedCount += batchSuccessCount;
-            }
+            await this.processConcurrently(
+                keysToRotate,
+                async (keyData) => {
+                    const fullKey = await this.securityKeyModel.findByPk(keyData.keyId);
+                    if (fullKey) {
+                        await this.rotateKey(fullKey);
+                        rotatedCount++;
+                    }
+                },
+                this.MAX_PARALLEL_OPERATIONS,
+            );
 
             if (rotatedCount > 0) {
                 this.logger.log(`🔑 Rotated ${rotatedCount} ${keyType} keys`);
@@ -177,7 +159,7 @@ export class KeyRotationSchedulerService {
     private async cleanupExpiredKeysForType(keyType: KeyType, expirationDays: number): Promise<void> {
         try {
             // Optimize query to only get potentially expired keys
-            const cutoffDate = new Date(Date.now() - expirationDays * 24 * 60 * 60 * 1000);
+            const cutoffDate = DateUtils.createExpiryUtc(-expirationDays * 24 * 60 * 60);
 
             const expiredKeys = await this.securityKeyModel.findAll({
                 where: {
@@ -193,9 +175,9 @@ export class KeyRotationSchedulerService {
                 return;
             }
 
-            // Double-check expiration using DateHelper
+            // Double-check expiration using DateUtils
             const actuallyExpiredKeys = filter(expiredKeys, (key) =>
-                DateHelper.isExpired(key.createdAt, expirationDays),
+                DateUtils.isExpired(key.createdAt, expirationDays),
             );
 
             if (actuallyExpiredKeys.length === 0) {
@@ -217,7 +199,7 @@ export class KeyRotationSchedulerService {
                             'expired-key-cleanup',
                         );
 
-                        const ageInDays = DateHelper.daysDiff(new Date(), key.createdAt);
+                        const ageInDays = DateUtils.daysDiffUtc(DateUtils.nowUtc(), key.createdAt);
                         this.logger.log(`🚫 Revoked expired key: ${key.keyId} (age: ${ageInDays} days)`);
                         return key;
                     }),
@@ -230,7 +212,7 @@ export class KeyRotationSchedulerService {
                         if (result.status === 'fulfilled') {
                             return count + 1;
                         }
-                        this.logger.error('Failed to revoke key in batch:', result.reason);
+                        this.logger.error('Failed to revoke key in batch:', result.reason as Error);
                         return count;
                     },
                     0,
@@ -266,7 +248,7 @@ export class KeyRotationSchedulerService {
                     status: KEY_STATUSES.ROTATING,
                     metadata: {
                         ...oldKey.metadata,
-                        rotationStarted: new Date().toISOString(),
+                        rotationStarted: DateUtils.formatForLog(DateUtils.nowUtc()),
                         replacedBy: newKeyId,
                     },
                 },
@@ -275,9 +257,9 @@ export class KeyRotationSchedulerService {
 
             // Prepare rotation history data
             const config = get(KEY_CONFIGURATIONS, oldKey.keyType);
-            const ageInDays = DateHelper.daysDiff(new Date(), oldKey.createdAt);
-            const expirationDate = DateHelper.addDays(oldKey.createdAt, get(config, 'expirationDays', 90));
-            const daysUntilExpiration = DateHelper.daysDiff(expirationDate, new Date());
+            const ageInDays = DateUtils.daysDiffUtc(DateUtils.nowUtc(), oldKey.createdAt);
+            const expirationDate = DateUtils.addDaysUtc(oldKey.createdAt, get(config, 'expirationDays', 90));
+            const daysUntilExpiration = DateUtils.daysDiffUtc(expirationDate, DateUtils.nowUtc());
 
             // Record rotation history
             await this.keyRotationHistoryModel.create(
@@ -351,15 +333,15 @@ export class KeyRotationSchedulerService {
         const statusPromises = map(keyTypeEntries, async ([keyType, config]) => {
             const keys = await this.getKeysStatus(keyType as KeyType);
 
-            // Use lodash filter
-            const keysNeedingRotation = filter(keys, (k) => DateHelper.needsRotation(k.createdAt, config.rotationDays));
+            // Use DateUtils filter
+            const keysNeedingRotation = filter(keys, (k) => DateUtils.needsRotation(k.createdAt, config.rotationDays));
 
             return {
                 keyType: toUpper(keyType), // Use lodash toUpper
                 data: {
                     totalActiveKeys: keys.length,
                     keysNeedingRotation: keysNeedingRotation.length,
-                    oldestKeyAge: keys.length > 0 ? DateHelper.daysDiff(new Date(), keys[0].createdAt) : 0,
+                    oldestKeyAge: keys.length > 0 ? DateUtils.daysDiffUtc(DateUtils.nowUtc(), keys[0].createdAt) : 0,
                     rotationDays: config.rotationDays,
                     expirationDays: config.keyExpirationDays,
                 },

@@ -1,5 +1,5 @@
 import { addSeconds, addDays, parseISO, isAfter, isBefore, differenceInSeconds, differenceInDays } from 'date-fns';
-import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
+import { formatInTimeZone, toZonedTime, fromZonedTime } from 'date-fns-tz';
 
 const UTC_TIMEZONE = 'UTC';
 
@@ -9,10 +9,12 @@ const UTC_TIMEZONE = 'UTC';
 export const DateUtils = {
     /**
      * Get current UTC date
-     * @returns Current date in UTC
+     * @returns Current date normalized to UTC
      */
     nowUtc(): Date {
-        return new Date(); // new Date() already returns UTC timestamp
+        // Get current local time and convert it to UTC explicitly
+        const now = new Date();
+        return fromZonedTime(now, Intl.DateTimeFormat().resolvedOptions().timeZone);
     },
 
     /**
@@ -21,6 +23,24 @@ export const DateUtils = {
      */
     timestampUtc(): number {
         return Date.now();
+    },
+
+    /**
+     * Parse various date inputs to UTC Date
+     * @param dateInput - Date input (string, Date, or number)
+     * @returns Parsed date in UTC
+     */
+    parseToUtc(dateInput: string | Date | number): Date {
+        if (dateInput instanceof Date) {
+            return dateInput;
+        }
+        if (typeof dateInput === 'number') {
+            return new Date(dateInput);
+        }
+        if (typeof dateInput === 'string') {
+            return parseISO(dateInput);
+        }
+        throw new Error('Invalid date input type');
     },
 
     /**
@@ -61,6 +81,28 @@ export const DateUtils = {
      */
     daysDiffUtc(laterDate: Date, earlierDate: Date): number {
         return differenceInDays(laterDate, earlierDate);
+    },
+
+    /**
+     * Check if a key needs rotation based on creation date and rotation threshold
+     * @param createdAt - Key creation date
+     * @param rotationDays - Days after which rotation is needed
+     * @returns True if key needs rotation
+     */
+    needsRotation(createdAt: Date, rotationDays: number): boolean {
+        const rotationThreshold = this.subtractDaysUtc(this.nowUtc(), rotationDays);
+        return this.isBeforeUtc(createdAt, rotationThreshold);
+    },
+
+    /**
+     * Check if a key is expired based on creation date and expiration period
+     * @param createdAt - Key creation date
+     * @param expirationDays - Days after which key expires
+     * @returns True if key is expired
+     */
+    isExpired(createdAt: Date, expirationDays: number): boolean {
+        const expirationDate = this.addDaysUtc(createdAt, expirationDays);
+        return this.isAfterUtc(this.nowUtc(), expirationDate);
     },
 
     /**

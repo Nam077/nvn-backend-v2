@@ -96,4 +96,9 @@ export class ConfigServiceApp {
     get swaggerVersion(): string {
         return this.configService.get('SWAGGER_VERSION');
     }
+
+    // SePay Configuration
+    get sepayApiKey(): string {
+        return this.configService.get('SEPAY_API_KEY');
+    }
 }

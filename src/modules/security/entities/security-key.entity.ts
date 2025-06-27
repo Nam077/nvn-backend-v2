@@ -2,6 +2,8 @@ import { ApiProperty } from '@nestjs/swagger';
 
 import { Column, CreatedAt, DataType, Model, PrimaryKey, Table, UpdatedAt, Index } from 'sequelize-typescript';
 
+import { DateUtils } from '@/common/utils';
+
 import { KeyType, KeyAlgorithm, KeyStatus } from '../types/key.types';
 
 @Table({
@@ -161,19 +163,19 @@ export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
     // Virtual properties
     @ApiProperty({ description: 'Is key currently active' })
     get isActive(): boolean {
-        return this.status === 'active' && this.expiresAt > new Date();
+        return this.status === 'active' && this.expiresAt > DateUtils.nowUtc();
     }
 
     @ApiProperty({ description: 'Days until expiration' })
     get daysUntilExpiration(): number {
-        const now = new Date();
+        const now = DateUtils.nowUtc();
         const diffTime = this.expiresAt.getTime() - now.getTime();
         return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     }
 
     @ApiProperty({ description: 'Key age in days' })
     get ageInDays(): number {
-        const now = new Date();
+        const now = DateUtils.nowUtc();
         const diffTime = now.getTime() - this.createdAt.getTime();
         return Math.floor(diffTime / (1000 * 60 * 60 * 24));
     }
