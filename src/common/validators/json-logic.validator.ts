@@ -173,6 +173,9 @@ export class JsonLogicValidator {
             throw new Error(`Operator "${operator}" is not allowed by this blueprint.`);
         }
 
+        // Validate argument count for specific operators
+        this.validateOperatorArguments(operator, values);
+
         // Find all variables ('var' nodes) within the arguments.
         const referencedFieldNames = this.findVarsInArgs(values);
 
@@ -189,19 +192,105 @@ export class JsonLogicValidator {
                 throw new Error(`Operator "${operator}" is not allowed for field "${fieldName}".`);
             }
 
-            // Special check for 'in' operator values against the field's `listValues`
-            if (operator === 'in' && fieldConfig?.listValues) {
-                const providedValues = get(values, 1) as unknown[]; // The array is the second argument in an "in" clause
-                if (isArray(providedValues)) {
-                    const allowedValues = map(fieldConfig.listValues, 'value');
-                    const invalidValues = difference(providedValues, allowedValues);
+            // Special validation for operators with value constraints
+            this.validateOperatorValues(operator, values, fieldName, fieldConfig);
+        }
+    }
 
-                    if (size(invalidValues) > 0) {
-                        throw new Error(
-                            `Value(s) "${invalidValues.join(', ')}" are not allowed for field "${fieldName}". Permitted values are: ${allowedValues.join(', ')}.`,
-                        );
-                    }
+    /**
+     * Validates that an operator has the correct number of arguments.
+     * @param operator The operator being validated.
+     * @param values The arguments passed to the operator.
+     * @private
+     */
+    private validateOperatorArguments(operator: string, values: any[]): void {
+        const operatorArgRequirements: Record<string, number | number[]> = {
+            // Binary operators (field, value)
+            '==': 2,
+            '!=': 2,
+            '>': 2,
+            '>=': 2,
+            '<': 2,
+            '<=': 2,
+            contains: 2,
+            not_contains: 2,
+            like: 2,
+            not_like: 2,
+            starts_with: 2,
+            ends_with: 2,
+
+            // Unary operators (field only)
+            is_null: 1,
+            is_not_null: 1,
+            is_empty: 1,
+            is_not_empty: 1,
+
+            // Array operators (field, array)
+            in: 2,
+            not_in: 2,
+
+            // Range operators (field, min, max)
+            between: 3,
+            not_between: 3,
+        };
+
+        const requiredCount = get(operatorArgRequirements, operator);
+        if (requiredCount !== undefined) {
+            const actualCount = values.length;
+            if (isArray(requiredCount)) {
+                if (!includes(requiredCount, actualCount)) {
+                    throw new Error(
+                        `Operator "${operator}" requires ${requiredCount.join(' or ')} arguments, but got ${actualCount}.`,
+                    );
                 }
+            } else if (actualCount !== requiredCount) {
+                throw new Error(
+                    `Operator "${operator}" requires exactly ${requiredCount} arguments, but got ${actualCount}.`,
+                );
+            }
+        }
+    }
+
+    /**
+     * Validates operator-specific value constraints.
+     * @param operator The operator being validated.
+     * @param values The arguments passed to the operator.
+     * @param fieldName The field being queried.
+     * @param fieldConfig The field configuration.
+     * @private
+     */
+    private validateOperatorValues(
+        operator: string,
+        values: any[],
+        fieldName: string,
+        fieldConfig?: QueryFieldConfig,
+    ): void {
+        if (!fieldConfig) return;
+
+        // Special check for 'in' and 'not_in' operator values against the field's `listValues`
+        if ((operator === 'in' || operator === 'not_in') && fieldConfig.listValues) {
+            const providedValues = get(values, 1) as unknown[]; // The array is the second argument
+            if (isArray(providedValues)) {
+                const allowedValues = map(fieldConfig.listValues, 'value');
+                const invalidValues = difference(providedValues, allowedValues);
+
+                if (size(invalidValues) > 0) {
+                    throw new Error(
+                        `Value(s) "${invalidValues.join(', ')}" are not allowed for field "${fieldName}". Permitted values are: ${allowedValues.join(', ')}.`,
+                    );
+                }
+            }
+        }
+
+        // Special validation for range operators
+        if (operator === 'between' || operator === 'not_between') {
+            const minValue = get(values, 1) as unknown;
+            const maxValue = get(values, 2) as unknown;
+
+            if (typeof minValue === 'number' && typeof maxValue === 'number' && minValue > maxValue) {
+                throw new Error(
+                    `Range operator "${operator}" requires min value (${minValue}) to be less than or equal to max value (${maxValue}).`,
+                );
             }
         }
     }

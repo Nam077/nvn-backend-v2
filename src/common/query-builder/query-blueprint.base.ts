@@ -1,4 +1,4 @@
-import { get, set, startCase } from 'lodash';
+import { assign, get, startCase } from 'lodash';
 import { Model, ModelCtor } from 'sequelize-typescript';
 
 import { ModelAttributes } from '../types/sequelize.types';
@@ -103,20 +103,22 @@ export abstract class QueryBlueprint<T extends Model> {
     protected abstract readonly definition: BlueprintDefinition<T>;
 
     private getProcessedFields(): Record<string, UiFieldDefinition> {
-        const flatFields: Record<string, Partial<UiFieldDefinition>> = {};
+        const flatFields: Record<string, UiFieldDefinition> = {};
 
         // 1. Process direct model fields
         for (const fieldName in get(this.definition, 'fields')) {
             if (Object.prototype.hasOwnProperty.call(this.definition.fields, fieldName)) {
                 const config = get(get(this.definition, 'fields'), fieldName);
-                set(flatFields, fieldName, {
-                    ...config,
-                    label: get(config, 'label') ?? startCase(fieldName),
+                assign(flatFields, {
+                    [fieldName]: {
+                        ...config,
+                        label: get(config, 'label') ?? startCase(fieldName),
+                    },
                 });
             }
         }
 
-        // 2. Process relational fields
+        // 2. Process relational fields - create flat keys
         for (const relationName in this.definition.relations) {
             if (Object.prototype.hasOwnProperty.call(this.definition.relations, relationName)) {
                 const relation = get(this.definition.relations, relationName);
@@ -124,16 +126,20 @@ export abstract class QueryBlueprint<T extends Model> {
                     if (Object.prototype.hasOwnProperty.call(relation.fields, fieldName)) {
                         const config = get(relation.fields, fieldName);
                         const flatFieldName = `${relationName}.${fieldName}`;
-                        set(flatFields, flatFieldName, {
-                            ...config,
-                            label: config.label ?? `${startCase(relationName)}: ${startCase(fieldName)}`,
+                        assign(flatFields, {
+                            [flatFieldName]: {
+                                type: 'text', // Default type for relation fields
+                                operators: [],
+                                ...config,
+                                label: get(config, 'label') ?? `${startCase(relationName)}: ${startCase(fieldName)}`,
+                            },
                         });
                     }
                 }
             }
         }
 
-        return flatFields as Record<string, UiFieldDefinition>;
+        return flatFields;
     }
 
     toJSON() {

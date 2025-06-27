@@ -1,0 +1,74 @@
+{
+    "name": "ROLE_MANAGEMENT",
+    "fields": {
+        "id": {
+            "type": "text",
+            "label": "Id",
+            "operators": ["contains", "equals"]
+        },
+        "name": {
+            "type": "text",
+            "label": "Name",
+            "operators": ["contains", "equals"]
+        },
+        "displayName": {
+            "type": "text",
+            "label": "Display Name",
+            "operators": ["contains", "equals"]
+        },
+        "description": {
+            "type": "text",
+            "label": "Description",
+            "operators": ["contains", "equals"]
+        },
+        "isActive": {
+            "type": "select",
+            "label": "Is Active",
+            "operators": ["equals"]
+        },
+        "priority": {
+            "type": "number",
+            "label": "Priority",
+            "operators": ["equals", "gte", "lte"]
+        },
+        "isSystem": {
+            "type": "select",
+            "label": "Is System",
+            "operators": ["equals"]
+        },
+        "createdAt": {
+            "type": "datetime",
+            "label": "Created At",
+            "operators": ["between", "gte", "lte"]
+        },
+        "updatedAt": {
+            "type": "datetime",
+            "label": "Updated At",
+            "operators": ["between", "gte", "lte"]
+        }
+    },
+    "sortableFields": [
+        "id",
+        "name",
+        "displayName",
+        "description",
+        "isActive",
+        "priority",
+        "isSystem",
+        "createdAt",
+        "updatedAt"
+    ],
+    "selectableFields": [
+        "id",
+        "name",
+        "displayName",
+        "description",
+        "isActive",
+        "priority",
+        "isSystem",
+        "createdAt",
+        "updatedAt"
+    ],
+    "defaultSort": [["createdAt", "DESC"]],
+    "generatedAt": "2025-06-27T20:05:34.897Z"
+}

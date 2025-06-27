@@ -20,10 +20,14 @@ export const STRING_OPERATORS = {
     ...NULL_CHECK_OPERATORS,
     CONTAINS: 'contains',
     NOT_CONTAINS: 'not_contains',
+    LIKE: 'like',
+    NOT_LIKE: 'not_like',
     STARTS_WITH: 'starts_with',
     ENDS_WITH: 'ends_with',
     IS_EMPTY: 'is_empty',
     IS_NOT_EMPTY: 'is_not_empty',
+    IN: 'in',
+    NOT_IN: 'not_in',
 } as const;
 
 export const NUMBER_OPERATORS = {
@@ -34,6 +38,9 @@ export const NUMBER_OPERATORS = {
     LT: 'lt', // less than
     LTE: 'lte', // less than or equal
     BETWEEN: 'between',
+    NOT_BETWEEN: 'not_between',
+    IN: 'in',
+    NOT_IN: 'not_in',
 } as const;
 
 export const DATE_OPERATORS = {

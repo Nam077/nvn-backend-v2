@@ -48,33 +48,73 @@ const PRIMITIVE_TYPES = ['string', 'number', 'boolean', 'Date', 'uuid'];
 const getOperatorsForType = (type: string): string[] => {
     const lowerType = toLower(type);
 
-    // Date types
+    // Date types - comprehensive set
     if (includes(lowerType, 'date')) {
-        return ['DATE_OPERATORS.BETWEEN', 'DATE_OPERATORS.GTE', 'DATE_OPERATORS.LTE'];
+        return [
+            'DATE_OPERATORS.EQUALS',
+            'DATE_OPERATORS.NOT_EQUALS',
+            'DATE_OPERATORS.GT',
+            'DATE_OPERATORS.GTE',
+            'DATE_OPERATORS.LT',
+            'DATE_OPERATORS.LTE',
+            'DATE_OPERATORS.BETWEEN',
+            'DATE_OPERATORS.IS_NULL',
+            'DATE_OPERATORS.IS_NOT_NULL',
+        ];
     }
 
-    // Number types
-    if (includes(lowerType, 'number') || includes(lowerType, 'int')) {
-        return ['NUMBER_OPERATORS.EQUALS', 'NUMBER_OPERATORS.GTE', 'NUMBER_OPERATORS.LTE'];
+    // Number types - comprehensive set
+    if (includes(lowerType, 'number') || includes(lowerType, 'int') || includes(lowerType, 'decimal')) {
+        return [
+            'NUMBER_OPERATORS.EQUALS',
+            'NUMBER_OPERATORS.NOT_EQUALS',
+            'NUMBER_OPERATORS.GT',
+            'NUMBER_OPERATORS.GTE',
+            'NUMBER_OPERATORS.LT',
+            'NUMBER_OPERATORS.LTE',
+            'NUMBER_OPERATORS.BETWEEN',
+            'NUMBER_OPERATORS.IS_NULL',
+            'NUMBER_OPERATORS.IS_NOT_NULL',
+        ];
     }
 
-    // Boolean types - treat as enum
+    // Boolean types
     if (includes(lowerType, 'boolean')) {
-        return ['ENUM_OPERATORS.EQUALS'];
+        return ['BOOLEAN_OPERATORS.EQUALS', 'BOOLEAN_OPERATORS.IS_NULL', 'BOOLEAN_OPERATORS.IS_NOT_NULL'];
     }
 
-    // String types - check for common patterns
-    if (includes(lowerType, 'string')) {
-        // ID fields typically only need exact match
+    // String types - comprehensive set
+    if (includes(lowerType, 'string') || includes(lowerType, 'text')) {
+        // ID fields - limited operators
         if (includes(lowerType, 'id') || lowerType === 'uuid') {
-            return ['STRING_OPERATORS.EQUALS'];
+            return [
+                'STRING_OPERATORS.EQUALS',
+                'STRING_OPERATORS.NOT_EQUALS',
+                'STRING_OPERATORS.IN',
+                'STRING_OPERATORS.NOT_IN',
+                'STRING_OPERATORS.IS_NULL',
+                'STRING_OPERATORS.IS_NOT_NULL',
+            ];
         }
-        // Regular string fields support contains and equals
-        return ['STRING_OPERATORS.CONTAINS', 'STRING_OPERATORS.EQUALS'];
+        // Regular string fields - full text search capabilities
+        return [
+            'STRING_OPERATORS.EQUALS',
+            'STRING_OPERATORS.NOT_EQUALS',
+            'STRING_OPERATORS.CONTAINS',
+            'STRING_OPERATORS.NOT_CONTAINS',
+            'STRING_OPERATORS.LIKE',
+            'STRING_OPERATORS.NOT_LIKE',
+            'STRING_OPERATORS.STARTS_WITH',
+            'STRING_OPERATORS.ENDS_WITH',
+            'STRING_OPERATORS.IS_EMPTY',
+            'STRING_OPERATORS.IS_NOT_EMPTY',
+            'STRING_OPERATORS.IS_NULL',
+            'STRING_OPERATORS.IS_NOT_NULL',
+        ];
     }
 
     // Default fallback for unknown types
-    return ['STRING_OPERATORS.EQUALS'];
+    return ['STRING_OPERATORS.EQUALS', 'STRING_OPERATORS.NOT_EQUALS'];
 };
 
 // Check if field name suggests it should be treated as enum
@@ -169,7 +209,14 @@ const parseEntityFields = (filePath: string): ParsedField[] => {
         if (isRelation) {
             suggestedOperators = [];
         } else if (isEnumField) {
-            suggestedOperators = ['ENUM_OPERATORS.EQUALS', 'ENUM_OPERATORS.IN'];
+            suggestedOperators = [
+                'ENUM_OPERATORS.EQUALS',
+                'ENUM_OPERATORS.NOT_EQUALS',
+                'ENUM_OPERATORS.IN',
+                'ENUM_OPERATORS.NOT_IN',
+                'ENUM_OPERATORS.IS_NULL',
+                'ENUM_OPERATORS.IS_NOT_NULL',
+            ];
         } else {
             suggestedOperators = getOperatorsForType(type);
         }

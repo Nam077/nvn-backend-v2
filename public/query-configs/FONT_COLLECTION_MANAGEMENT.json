@@ -1,0 +1,131 @@
+{
+    "name": "FONT_COLLECTION_MANAGEMENT",
+    "fields": {
+        "id": {
+            "type": "text",
+            "label": "Id",
+            "operators": ["contains", "equals"]
+        },
+        "name": {
+            "type": "text",
+            "label": "Name",
+            "operators": ["contains", "equals"]
+        },
+        "slug": {
+            "type": "text",
+            "label": "Slug",
+            "operators": ["contains", "equals"]
+        },
+        "description": {
+            "type": "text",
+            "label": "Description",
+            "operators": ["contains", "equals"]
+        },
+        "coverImageUrl": {
+            "type": "text",
+            "label": "Cover Image Url",
+            "operators": ["contains", "equals"]
+        },
+        "creatorId": {
+            "type": "text",
+            "label": "Creator Id",
+            "operators": ["contains", "equals"]
+        },
+        "collectionType": {
+            "type": "select",
+            "label": "Collection Type",
+            "operators": ["equals", "in"],
+            "fieldSettings": {
+                "defaultValue": ["free", "vip", "paid"],
+                "listValues": [
+                    {
+                        "title": "Free",
+                        "value": "free"
+                    },
+                    {
+                        "title": "Vip",
+                        "value": "vip"
+                    },
+                    {
+                        "title": "Paid",
+                        "value": "paid"
+                    }
+                ]
+            }
+        },
+        "price": {
+            "type": "number",
+            "label": "Price",
+            "operators": ["equals", "gte", "lte"]
+        },
+        "downloadCount": {
+            "type": "number",
+            "label": "Download Count",
+            "operators": ["equals", "gte", "lte"]
+        },
+        "isActive": {
+            "type": "select",
+            "label": "Is Active",
+            "operators": ["equals"],
+            "fieldSettings": {
+                "listValues": [
+                    {
+                        "title": "Yes",
+                        "value": true
+                    },
+                    {
+                        "title": "No",
+                        "value": false
+                    }
+                ]
+            }
+        },
+        "metadata": {
+            "type": "text",
+            "label": "Metadata",
+            "operators": ["contains", "equals"]
+        },
+        "createdAt": {
+            "type": "datetime",
+            "label": "Created At",
+            "operators": ["between", "gte", "lte"]
+        },
+        "updatedAt": {
+            "type": "datetime",
+            "label": "Updated At",
+            "operators": ["between", "gte", "lte"]
+        }
+    },
+    "sortableFields": [
+        "id",
+        "name",
+        "slug",
+        "description",
+        "coverImageUrl",
+        "creatorId",
+        "collectionType",
+        "price",
+        "downloadCount",
+        "isActive",
+        "metadata",
+        "createdAt",
+        "updatedAt"
+    ],
+    "selectableFields": [
+        "id",
+        "name",
+        "slug",
+        "description",
+        "coverImageUrl",
+        "creatorId",
+        "collectionType",
+        "price",
+        "downloadCount",
+        "isActive",
+        "metadata",
+        "createdAt",
+        "updatedAt"
+    ],
+    "defaultSort": [["createdAt", "DESC"]],
+    "generatedAt": "2025-06-27T20:05:35.861Z"
+}

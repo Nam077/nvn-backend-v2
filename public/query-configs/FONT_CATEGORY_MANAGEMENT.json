@@ -21,54 +21,50 @@
             "operators": ["between", "gte", "lte"],
             "label": "Created At"
         },
-        "font": {
-            "name": {
-                "type": "text",
-                "operators": ["contains", "equals"],
-                "label": "Font: Name"
-            },
-            "slug": {
-                "type": "text",
-                "operators": ["equals", "in"],
-                "label": "Font: Slug"
-            },
-            "fontType": {
-                "type": "select",
-                "operators": ["in", "equals"],
-                "fieldSettings": {
-                    "listValues": [
-                        {
-                            "title": "FREE",
-                            "value": "free"
-                        },
-                        {
-                            "title": "VIP",
-                            "value": "vip"
-                        },
-                        {
-                            "title": "PAID",
-                            "value": "paid"
-                        }
-                    ]
-                },
-                "label": "Font: Font Type"
-            }
+        "font.name": {
+            "type": "text",
+            "operators": ["contains", "equals"],
+            "label": "Font: Name"
         },
-        "category": {
-            "name": {
-                "type": "text",
-                "operators": ["contains", "equals"],
-                "label": "Category: Name"
+        "font.slug": {
+            "type": "text",
+            "operators": ["equals", "in"],
+            "label": "Font: Slug"
+        },
+        "font.fontType": {
+            "type": "select",
+            "operators": ["in", "equals"],
+            "fieldSettings": {
+                "listValues": [
+                    {
+                        "title": "FREE",
+                        "value": "free"
+                    },
+                    {
+                        "title": "VIP",
+                        "value": "vip"
+                    },
+                    {
+                        "title": "PAID",
+                        "value": "paid"
+                    }
+                ]
             },
-            "slug": {
-                "type": "text",
-                "operators": ["equals", "in"],
-                "label": "Category: Slug"
-            }
+            "label": "Font: Font Type"
+        },
+        "category.name": {
+            "type": "text",
+            "operators": ["contains", "equals"],
+            "label": "Category: Name"
+        },
+        "category.slug": {
+            "type": "text",
+            "operators": ["equals", "in"],
+            "label": "Category: Slug"
         }
     },
     "sortableFields": ["createdAt", "isPrimary"],
     "selectableFields": ["fontId", "categoryId", "isPrimary", "createdAt"],
     "defaultSort": [["createdAt", "DESC"]],
-    "generatedAt": "2025-06-27T18:56:04.878Z"
+    "generatedAt": "2025-06-27T20:05:35.522Z"
 }
