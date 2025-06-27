@@ -1,62 +1,114 @@
 /* eslint-disable no-console */
 import ejs from 'ejs';
 import fs from 'fs/promises';
+import { glob } from 'glob';
 import inquirer from 'inquirer';
-import { kebabCase, snakeCase, toLower, toUpper, trim, upperCase } from 'lodash';
+import { filter, last, map, replace, snakeCase, split, toUpper, trim, size } from 'lodash';
 import path from 'path';
-
 // --- Configuration ---
 const TEMPLATE_PATH = path.resolve(process.cwd(), 'scripts/templates/blueprint.ejs');
 const OUTPUT_DIR = path.resolve(process.cwd(), 'src/queries/blueprints');
+const ENTITY_GLOB_PATTERN = 'src/modules/**/*.entity.ts';
 
 // --- Helper Functions ---
-const validateNonEmpty = (input: string) => (trim(input) ? true : 'This field cannot be empty.');
-const toPascalCase = (str: string) => upperCase(str.charAt(0)) + str.slice(1);
+interface EntityInfo {
+    modelName: string;
+    modulePath: string;
+    entityFileName: string;
+    fullPath: string;
+}
+
+const findEntities = async (): Promise<EntityInfo[]> => {
+    const entityFiles = await glob(ENTITY_GLOB_PATTERN, { absolute: true });
+
+    const entityInfoPromises = map(entityFiles, async (filePath): Promise<EntityInfo | null> => {
+        try {
+            const fileContent = await fs.readFile(filePath, 'utf-8');
+            const match = fileContent.match(/export class (\w+)/);
+
+            if (!match || !match[1]) {
+                console.warn(`   ⚠️ Could not parse model name from ${path.basename(filePath)}. Skipping.`);
+                return null;
+            }
+
+            const [, modelName] = match;
+            const parts = split(filePath, '/');
+            const fileName = last(parts) || '';
+            const entityFileName = replace(fileName, '.entity.ts', '');
+            const modulePath = parts[parts.length - 3];
+
+            return {
+                modelName,
+                modulePath,
+                entityFileName,
+                fullPath: filePath,
+            };
+        } catch {
+            console.warn(`   ⚠️ Could not read or process ${path.basename(filePath)}. Skipping.`);
+            return null;
+        }
+    });
+
+    const results = await Promise.all(entityInfoPromises);
+    return filter(results, (result): result is EntityInfo => result !== null);
+};
 
 /**
  * Main generator function.
  */
 const main = async () => {
     console.log('🔵--- Blueprint Generator ---🔵');
+    console.log('🔍 Scanning for entities...');
+
+    const entities = await findEntities();
+    if (size(entities) === 0) {
+        console.error('❌ No entity files found. Please create an entity first.');
+        return;
+    }
+
+    console.log(`✅ Found ${size(entities)} entities.`);
 
     // 1. Get user input
-    const answers = await inquirer.prompt<{
-        modelName: string;
-        modulePath: string;
-        overwrite?: boolean;
-    }>([
+    const { selectedEntityPath } = await inquirer.prompt<{ selectedEntityPath: string }>([
         {
-            type: 'input',
-            name: 'modelName',
-            message: 'Enter the Model name (e.g., User, Font, FontCategory):',
-            filter: (input) => toPascalCase(trim(input as string)),
-            validate: validateNonEmpty,
-        },
-        {
-            type: 'input',
-            name: 'modulePath',
-            message: 'Enter the module directory name (e.g., users, fonts):',
-            filter: (input) => toLower(trim(input as string)),
-            validate: validateNonEmpty,
+            type: 'list',
+            name: 'selectedEntityPath',
+            message: 'Select the entity to generate a blueprint for:',
+            choices: map(entities, (e) => ({
+                name: `${e.modelName} (from modules/${e.modulePath})`,
+                value: e.fullPath,
+            })),
         },
     ]);
 
-    const { modelName, modulePath } = answers;
-    const entityFileName = kebabCase(modelName);
+    const selectedEntity = entities.find((e) => e.fullPath === selectedEntityPath);
+    if (!selectedEntity) {
+        console.error('❌ Invalid selection. Exiting.');
+        return;
+    }
+
+    const { modelName, modulePath, entityFileName } = selectedEntity;
     const outputFileName = `${entityFileName}.blueprint.ts`;
     const outputPath = path.join(OUTPUT_DIR, outputFileName);
 
-    // 2. Check if file exists and confirm overwrite
+    // 2. Check if file exists and warn if it has content before overwriting
     try {
-        await fs.access(outputPath);
+        const existingContent = await fs.readFile(outputPath, 'utf-8');
+        let overwriteMessage = `⚠️ The file "${outputFileName}" already exists. Do you want to overwrite it?`;
+
+        if (trim(existingContent).length > 0) {
+            overwriteMessage = `🔥🔥🔥 DANGER: The file "${outputFileName}" is not empty and may contain custom code. Overwriting will delete all changes. Are you absolutely sure?`;
+        }
+
         const { overwrite } = await inquirer.prompt<{ overwrite: boolean }>([
             {
                 type: 'confirm',
                 name: 'overwrite',
-                message: `⚠️ The file "${outputFileName}" already exists. Do you want to overwrite it?`,
+                message: overwriteMessage,
                 default: false,
             },
         ]);
+
         if (!overwrite) {
             console.log('🚫 Operation cancelled. Exiting.');
             return;
