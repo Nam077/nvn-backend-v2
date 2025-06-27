@@ -4,13 +4,11 @@
         "originalName": {
             "type": "text",
             "operators": ["contains", "equals"],
-            "selectable": true,
             "label": "Original Name"
         },
         "fileType": {
             "type": "select",
             "operators": ["in", "equals"],
-            "selectable": true,
             "fieldSettings": {
                 "listValues": [
                     {
@@ -60,7 +58,6 @@
         "status": {
             "type": "select",
             "operators": ["in", "equals"],
-            "selectable": true,
             "fieldSettings": {
                 "listValues": [
                     {
@@ -90,19 +87,16 @@
         "fileSize": {
             "type": "number",
             "label": "File Size (bytes)",
-            "operators": ["gte", "lte"],
-            "sortable": true,
-            "selectable": true
+            "operators": ["gte", "lte"]
         },
         "createdAt": {
             "type": "datetime",
             "operators": ["between", "gte"],
-            "sortable": true,
-            "selectable": true,
             "label": "Created At"
         }
     },
     "sortableFields": ["fileSize", "createdAt"],
-    "selectableFields": ["originalName", "fileType", "status", "fileSize", "createdAt"],
-    "generatedAt": "2025-06-27T17:46:50.543Z"
+    "selectableFields": ["id", "originalName", "fileType", "status", "fileSize", "createdAt"],
+    "defaultSort": [["createdAt", "DESC"]],
+    "generatedAt": "2025-06-27T18:56:05.054Z"
 }

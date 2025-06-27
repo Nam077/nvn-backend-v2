@@ -1,5 +1,5 @@
-import { forEach, reduce, startCase, get, set } from 'lodash';
-import { Model } from 'sequelize-typescript';
+import { get, set, startCase } from 'lodash';
+import { Model, ModelCtor } from 'sequelize-typescript';
 
 import { ModelAttributes } from '../types/sequelize.types';
 
@@ -51,6 +51,7 @@ export interface UiFieldDefinition {
     sortable?: boolean;
     selectable?: boolean;
     fieldSettings?: FieldSettings;
+    remoteValues?: { blueprint: string; valueField: string; labelField: string };
 }
 
 // --- Blueprint Definition ---
@@ -67,13 +68,22 @@ export interface RelationDefinition<R extends Model> {
     fields: RelationField<R>[];
 }
 
+export type BlueprintFields<T extends Model> = {
+    [key in keyof Partial<T['_attributes']>]: UiFieldDefinition;
+};
+
 export interface BlueprintDefinition<T extends Model> {
-    fields: {
-        [K in keyof Partial<ModelAttributes<T>>]: UiFieldDefinition;
-    };
+    model: ModelCtor<T>;
+    fields: BlueprintFields<T>;
     relations?: {
-        [relationName: string]: RelationDefinition<any>;
+        [relationName: string]: {
+            model: ModelCtor<any>;
+            fields: { [fieldName: string]: Partial<Omit<UiFieldDefinition, 'defaultValue'>> };
+        };
     };
+    selectableFields: (keyof T['_attributes'] | string)[];
+    sortableFields: (keyof T['_attributes'] | string)[];
+    defaultSort?: [keyof T['_attributes'] | string, 'ASC' | 'DESC'][];
 }
 
 /**
@@ -92,84 +102,47 @@ export abstract class QueryBlueprint<T extends Model> {
     abstract readonly name: string;
     protected abstract readonly definition: BlueprintDefinition<T>;
 
-    private processedFields: Record<string, UiFieldDefinition> | null = null;
-
     private getProcessedFields(): Record<string, UiFieldDefinition> {
-        if (this.processedFields) {
-            return this.processedFields;
+        const flatFields: Record<string, Partial<UiFieldDefinition>> = {};
+
+        // 1. Process direct model fields
+        for (const fieldName in get(this.definition, 'fields')) {
+            if (Object.prototype.hasOwnProperty.call(this.definition.fields, fieldName)) {
+                const config = get(get(this.definition, 'fields'), fieldName);
+                set(flatFields, fieldName, {
+                    ...config,
+                    label: get(config, 'label') ?? startCase(fieldName),
+                });
+            }
         }
 
-        const allFields: Record<string, UiFieldDefinition> = {};
-
-        // 1. Process direct fields using lodash.forEach
-        forEach(get(this.definition, 'fields'), (field, key) => {
-            set(allFields, key, {
-                ...field,
-                label: field.label ?? startCase(key),
-            });
-        });
-
-        // 2. Process relation fields using lodash.forEach
-        forEach(get(this.definition, 'relations'), (relationConfig, relationName) => {
-            const targetInstance = new relationConfig.targetBlueprint();
-            const targetFields = targetInstance.getProcessedFields();
-
-            forEach(get(relationConfig, 'fields'), (field) => {
-                const isOverride = typeof field === 'object';
-                const fieldKey = isOverride ? get(field, 'name') : field;
-                const baseFieldConfig = get(targetFields, fieldKey);
-
-                if (baseFieldConfig) {
-                    const newFieldKey = `${relationName}.${fieldKey}`;
-                    set(allFields, newFieldKey, {
-                        ...baseFieldConfig,
-                        operators:
-                            isOverride && get(field, 'operators')
-                                ? get(field, 'operators')
-                                : get(baseFieldConfig, 'operators'),
-                        label: `${get(relationConfig, 'label')}: ${get(baseFieldConfig, 'label')}`,
-                        fieldSettings: {
-                            ...get(baseFieldConfig, 'fieldSettings'),
-                            relation: {
-                                name: relationName,
-                                label: get(relationConfig, 'label'),
-                            },
-                        },
-                    });
+        // 2. Process relational fields
+        for (const relationName in this.definition.relations) {
+            if (Object.prototype.hasOwnProperty.call(this.definition.relations, relationName)) {
+                const relation = get(this.definition.relations, relationName);
+                for (const fieldName in relation.fields) {
+                    if (Object.prototype.hasOwnProperty.call(relation.fields, fieldName)) {
+                        const config = get(relation.fields, fieldName);
+                        const flatFieldName = `${relationName}.${fieldName}`;
+                        set(flatFields, flatFieldName, {
+                            ...config,
+                            label: config.label ?? `${startCase(relationName)}: ${startCase(fieldName)}`,
+                        });
+                    }
                 }
-            });
-        });
+            }
+        }
 
-        this.processedFields = allFields;
-        return this.processedFields;
+        return flatFields as Record<string, UiFieldDefinition>;
     }
 
     toJSON() {
-        const fields = this.getProcessedFields();
-
-        // Use lodash.reduce to build sortable and selectable fields
-        const { sortableFields, selectableFields } = reduce(
-            fields,
-            (acc, field, key) => {
-                if (get(field, 'sortable')) {
-                    acc.sortableFields.push(key);
-                }
-                if (get(field, 'selectable') !== false) {
-                    acc.selectableFields.push(key);
-                }
-                return acc;
-            },
-            { sortableFields: [], selectableFields: [] } as {
-                sortableFields: string[];
-                selectableFields: string[];
-            },
-        );
-
         return {
             name: this.name,
-            fields,
-            sortableFields,
-            selectableFields,
+            fields: this.getProcessedFields(),
+            sortableFields: get(this.definition, 'sortableFields'),
+            selectableFields: get(this.definition, 'selectableFields'),
+            defaultSort: get(this.definition, 'defaultSort'),
             generatedAt: new Date().toISOString(),
         };
     }

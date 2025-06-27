@@ -4,15 +4,17 @@
         "name": {
             "type": "text",
             "operators": ["contains", "equals"],
-            "sortable": true,
-            "selectable": true,
             "label": "Name"
+        },
+        "slug": {
+            "type": "text",
+            "operators": ["equals"],
+            "label": "Slug"
         },
         "fontType": {
             "type": "select",
             "label": "Font Type",
             "operators": ["in", "equals"],
-            "selectable": true,
             "fieldSettings": {
                 "defaultValue": ["free", "vip"],
                 "listValues": [
@@ -34,14 +36,16 @@
         "price": {
             "type": "number",
             "operators": ["gte", "lte", "between"],
-            "sortable": true,
-            "selectable": true,
             "label": "Price"
+        },
+        "downloadCount": {
+            "type": "number",
+            "label": "Download Count",
+            "operators": ["gte", "lte"]
         },
         "isActive": {
             "type": "boolean",
             "operators": ["equals"],
-            "selectable": true,
             "fieldSettings": {
                 "defaultValue": true
             },
@@ -50,39 +54,26 @@
         "createdAt": {
             "type": "datetime",
             "label": "Creation Date",
-            "operators": ["between", "gte"],
-            "sortable": true,
-            "selectable": true
+            "operators": ["between", "gte"]
+        },
+        "updatedAt": {
+            "type": "datetime",
+            "label": "Last Updated",
+            "operators": ["between", "gte"]
         },
         "categories": {
             "name": {
-                "type": "text",
                 "operators": ["equals"],
-                "sortable": true,
-                "selectable": true,
-                "label": "Categories: Name",
-                "fieldSettings": {
-                    "relation": {
-                        "name": "categories",
-                        "label": "Categories"
-                    }
-                }
+                "label": "Categories: Name"
             },
             "slug": {
-                "type": "text",
                 "operators": ["equals"],
-                "selectable": true,
-                "label": "Categories: Slug",
-                "fieldSettings": {
-                    "relation": {
-                        "name": "categories",
-                        "label": "Categories"
-                    }
-                }
+                "label": "Categories: Slug"
             }
         }
     },
-    "sortableFields": ["name", "price", "createdAt"],
-    "selectableFields": ["name", "fontType", "price", "isActive", "createdAt", "categories"],
-    "generatedAt": "2025-06-27T17:46:50.868Z"
+    "sortableFields": ["name", "price", "downloadCount", "createdAt", "updatedAt"],
+    "selectableFields": ["id", "name", "slug", "fontType", "price", "downloadCount", "isActive", "createdAt"],
+    "defaultSort": [["createdAt", "DESC"]],
+    "generatedAt": "2025-06-27T18:56:04.697Z"
 }

@@ -6,24 +6,23 @@ export class CategoryQueryBlueprint extends QueryBlueprint<Category> {
     readonly name = 'CATEGORY_MANAGEMENT';
 
     protected readonly definition: BlueprintDefinition<Category> = {
+        model: Category,
         fields: {
             name: {
                 type: 'text',
                 operators: [STRING_OPERATORS.CONTAINS, STRING_OPERATORS.EQUALS],
-                sortable: true,
-                selectable: true,
             },
             slug: {
                 type: 'text',
                 operators: [STRING_OPERATORS.EQUALS],
-                selectable: true,
             },
             level: {
                 type: 'number',
                 operators: [NUMBER_OPERATORS.EQUALS, NUMBER_OPERATORS.GT, NUMBER_OPERATORS.LT],
-                sortable: true,
-                selectable: true,
             },
         },
+        selectableFields: ['id', 'name', 'slug', 'level', 'parentId', 'createdAt'],
+        sortableFields: ['name', 'level', 'createdAt'],
+        defaultSort: [['level', 'ASC']],
     };
 }

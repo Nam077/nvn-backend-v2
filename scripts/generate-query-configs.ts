@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import fs from 'fs/promises';
 import { glob } from 'glob';
-import { isFunction, find, values } from 'lodash';
+import { isFunction, find, values, size } from 'lodash';
 import path from 'path';
 
 import { QueryBlueprint } from '../src/common/query-builder/query-blueprint.base';
@@ -20,12 +20,12 @@ const main = async () => {
 
     const blueprintFiles = await glob(SOURCE_GLOB_PATTERN, { absolute: true });
 
-    if (blueprintFiles.length === 0) {
+    if (size(blueprintFiles) === 0) {
         console.warn('⚠️ No blueprint files found. Exiting.');
         return;
     }
 
-    console.log(`✅ Found ${blueprintFiles.length} blueprint file(s).`);
+    console.log(`✅ Found ${size(blueprintFiles)} blueprint file(s).`);
 
     await fs.mkdir(OUTPUT_DIR, { recursive: true });
     console.log(`🚀 Generating JSON configs in: ${OUTPUT_DIR}`);

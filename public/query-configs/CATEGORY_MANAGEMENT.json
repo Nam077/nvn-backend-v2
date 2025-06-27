@@ -4,25 +4,21 @@
         "name": {
             "type": "text",
             "operators": ["contains", "equals"],
-            "sortable": true,
-            "selectable": true,
             "label": "Name"
         },
         "slug": {
             "type": "text",
             "operators": ["equals"],
-            "selectable": true,
             "label": "Slug"
         },
         "level": {
             "type": "number",
             "operators": ["equals", "gt", "lt"],
-            "sortable": true,
-            "selectable": true,
             "label": "Level"
         }
     },
-    "sortableFields": ["name", "level"],
-    "selectableFields": ["name", "slug", "level"],
-    "generatedAt": "2025-06-27T17:46:51.028Z"
+    "sortableFields": ["name", "level", "createdAt"],
+    "selectableFields": ["id", "name", "slug", "level", "parentId", "createdAt"],
+    "defaultSort": [["level", "ASC"]],
+    "generatedAt": "2025-06-27T18:56:05.225Z"
 }
