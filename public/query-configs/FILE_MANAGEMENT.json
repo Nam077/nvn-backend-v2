@@ -1,0 +1,108 @@
+{
+    "name": "FILE_MANAGEMENT",
+    "fields": {
+        "originalName": {
+            "type": "text",
+            "operators": ["contains", "equals"],
+            "selectable": true,
+            "label": "Original Name"
+        },
+        "fileType": {
+            "type": "select",
+            "operators": ["in", "equals"],
+            "selectable": true,
+            "fieldSettings": {
+                "listValues": [
+                    {
+                        "title": "Font File",
+                        "value": "font_file"
+                    },
+                    {
+                        "title": "Font Preview",
+                        "value": "font_preview"
+                    },
+                    {
+                        "title": "Font Thumbnail",
+                        "value": "font_thumbnail"
+                    },
+                    {
+                        "title": "Font Gallery",
+                        "value": "font_gallery"
+                    },
+                    {
+                        "title": "Collection Cover",
+                        "value": "collection_cover"
+                    },
+                    {
+                        "title": "Collection Zip",
+                        "value": "collection_zip"
+                    },
+                    {
+                        "title": "Avatar",
+                        "value": "avatar"
+                    },
+                    {
+                        "title": "Icon",
+                        "value": "icon"
+                    },
+                    {
+                        "title": "Document",
+                        "value": "document"
+                    },
+                    {
+                        "title": "Other",
+                        "value": "other"
+                    }
+                ]
+            },
+            "label": "File Type"
+        },
+        "status": {
+            "type": "select",
+            "operators": ["in", "equals"],
+            "selectable": true,
+            "fieldSettings": {
+                "listValues": [
+                    {
+                        "title": "Uploading",
+                        "value": "uploading"
+                    },
+                    {
+                        "title": "Ready",
+                        "value": "ready"
+                    },
+                    {
+                        "title": "Processing",
+                        "value": "processing"
+                    },
+                    {
+                        "title": "Error",
+                        "value": "error"
+                    },
+                    {
+                        "title": "Deleted",
+                        "value": "deleted"
+                    }
+                ]
+            },
+            "label": "Status"
+        },
+        "fileSize": {
+            "type": "number",
+            "label": "File Size (bytes)",
+            "operators": ["gte", "lte"],
+            "sortable": true,
+            "selectable": true
+        },
+        "createdAt": {
+            "type": "datetime",
+            "operators": ["between", "gte"],
+            "sortable": true,
+            "selectable": true,
+            "label": "Created At"
+        }
+    },
+    "sortableFields": ["fileSize", "createdAt"],
+    "selectableFields": ["originalName", "fileType", "status", "fileSize", "createdAt"],
+    "generatedAt": "2025-06-27T17:46:50.543Z"
+}

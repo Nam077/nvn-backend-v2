@@ -33,6 +33,6 @@
             "@filters/*": ["src/common/filters/*"]
         }
     },
-    "include": ["src/**/*", "test/**/*"],
+    "include": ["src/**/*", "test/**/*", "scripts"],
     "exclude": ["node_modules", "dist"]
 }

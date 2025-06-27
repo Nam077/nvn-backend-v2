@@ -1,0 +1,33 @@
+{
+    "name": "FONT_CATEGORY_MANAGEMENT",
+    "fields": {
+        "fontId": {
+            "type": "text",
+            "operators": ["equals", "in"],
+            "selectable": true,
+            "label": "Font Id"
+        },
+        "categoryId": {
+            "type": "text",
+            "operators": ["equals", "in"],
+            "selectable": true,
+            "label": "Category Id"
+        },
+        "isPrimary": {
+            "type": "boolean",
+            "operators": ["equals"],
+            "selectable": true,
+            "label": "Is Primary"
+        },
+        "createdAt": {
+            "type": "datetime",
+            "operators": ["between", "gte"],
+            "sortable": true,
+            "selectable": true,
+            "label": "Created At"
+        }
+    },
+    "sortableFields": ["createdAt"],
+    "selectableFields": ["fontId", "categoryId", "isPrimary", "createdAt"],
+    "generatedAt": "2025-06-27T17:46:51.027Z"
+}

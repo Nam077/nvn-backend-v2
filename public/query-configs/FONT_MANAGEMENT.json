@@ -1,0 +1,88 @@
+{
+    "name": "FONT_MANAGEMENT",
+    "fields": {
+        "name": {
+            "type": "text",
+            "operators": ["contains", "equals"],
+            "sortable": true,
+            "selectable": true,
+            "label": "Name"
+        },
+        "fontType": {
+            "type": "select",
+            "label": "Font Type",
+            "operators": ["in", "equals"],
+            "selectable": true,
+            "fieldSettings": {
+                "defaultValue": ["free", "vip"],
+                "listValues": [
+                    {
+                        "title": "Free",
+                        "value": "free"
+                    },
+                    {
+                        "title": "Vip",
+                        "value": "vip"
+                    },
+                    {
+                        "title": "Paid",
+                        "value": "paid"
+                    }
+                ]
+            }
+        },
+        "price": {
+            "type": "number",
+            "operators": ["gte", "lte", "between"],
+            "sortable": true,
+            "selectable": true,
+            "label": "Price"
+        },
+        "isActive": {
+            "type": "boolean",
+            "operators": ["equals"],
+            "selectable": true,
+            "fieldSettings": {
+                "defaultValue": true
+            },
+            "label": "Is Active"
+        },
+        "createdAt": {
+            "type": "datetime",
+            "label": "Creation Date",
+            "operators": ["between", "gte"],
+            "sortable": true,
+            "selectable": true
+        },
+        "categories": {
+            "name": {
+                "type": "text",
+                "operators": ["equals"],
+                "sortable": true,
+                "selectable": true,
+                "label": "Categories: Name",
+                "fieldSettings": {
+                    "relation": {
+                        "name": "categories",
+                        "label": "Categories"
+                    }
+                }
+            },
+            "slug": {
+                "type": "text",
+                "operators": ["equals"],
+                "selectable": true,
+                "label": "Categories: Slug",
+                "fieldSettings": {
+                    "relation": {
+                        "name": "categories",
+                        "label": "Categories"
+                    }
+                }
+            }
+        }
+    },
+    "sortableFields": ["name", "price", "createdAt"],
+    "selectableFields": ["name", "fontType", "price", "isActive", "createdAt", "categories"],
+    "generatedAt": "2025-06-27T17:46:50.868Z"
+}

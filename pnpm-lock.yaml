@@ -39,7 +39,7 @@ importers:
                 version: 6.0.0(@nestjs/common@11.1.3(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.3)
             '@nestjs/sequelize':
                 specifier: ^11.0.0
-                version: 11.0.0(@nestjs/common@11.1.3(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)(sequelize-typescript@2.1.6(@types/node@22.15.32)(@types/validator@13.15.2)(reflect-metadata@0.2.2)(sequelize@6.37.7(pg@8.16.2)))(sequelize@6.37.7(pg@8.16.2))
+                version: 11.0.0(@nestjs/common@11.1.3(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)(sequelize-typescript@2.1.6(@types/node@22.15.32)(@types/validator@13.15.2)(reflect-metadata@0.2.2)(sequelize@6.37.7(pg-hstore@2.3.4)(pg@8.16.2)))(sequelize@6.37.7(pg-hstore@2.3.4)(pg@8.16.2))
             '@nestjs/swagger':
                 specifier: ^11.2.0
                 version: 11.2.0(@nestjs/common@11.1.3(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.3)(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)
@@ -85,6 +85,9 @@ importers:
             joi:
                 specifier: ^17.13.3
                 version: 17.13.3
+            json-logic-js:
+                specifier: ^2.0.5
+                version: 2.0.5
             lodash:
                 specifier: ^4.17.21
                 version: 4.17.21
@@ -100,6 +103,9 @@ importers:
             pg:
                 specifier: ^8.16.2
                 version: 8.16.2
+            pg-hstore:
+                specifier: ^2.3.4
+                version: 2.3.4
             qrcode:
                 specifier: ^1.5.4
                 version: 1.5.4
@@ -111,10 +117,10 @@ importers:
                 version: 7.8.2
             sequelize:
                 specifier: ^6.37.7
-                version: 6.37.7(pg@8.16.2)
+                version: 6.37.7(pg-hstore@2.3.4)(pg@8.16.2)
             sequelize-typescript:
                 specifier: ^2.1.6
-                version: 2.1.6(@types/node@22.15.32)(@types/validator@13.15.2)(reflect-metadata@0.2.2)(sequelize@6.37.7(pg@8.16.2))
+                version: 2.1.6(@types/node@22.15.32)(@types/validator@13.15.2)(reflect-metadata@0.2.2)(sequelize@6.37.7(pg-hstore@2.3.4)(pg@8.16.2))
         devDependencies:
             '@commitlint/cli':
                 specifier: ^19.8.1
@@ -209,6 +215,9 @@ importers:
             eslint-plugin-unused-imports:
                 specifier: ^4.1.4
                 version: 4.1.4(@typescript-eslint/eslint-plugin@8.34.1(@typescript-eslint/parser@8.34.1(eslint@9.29.0(jiti@2.4.2))(typescript@5.8.3))(eslint@9.29.0(jiti@2.4.2))(typescript@5.8.3))(eslint@9.29.0(jiti@2.4.2))
+            glob:
+                specifier: ^10.4.1
+                version: 10.4.5
             globals:
                 specifier: ^16.0.0
                 version: 16.2.0
@@ -1629,6 +1638,13 @@ packages:
                 integrity: sha512-m7X9U6BG2+J+R1lSOdCiITLLrxm+cWlNI3HUFA92oLO77ObGNzaKdh8pMLqdZcshtkKuV84olNNXDfMc4FezBQ==,
             }
         engines: { node: '>=10' }
+
+    '@pkgjs/parseargs@0.11.0':
+        resolution:
+            {
+                integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==,
+            }
+        engines: { node: '>=14' }
 
     '@pkgr/core@0.2.7':
         resolution:
@@ -4671,6 +4687,13 @@ packages:
                 integrity: sha512-lkX1HJXwyMcprw/5YUZc2s7DrpAiHB21/V+E1rHUrVNokkvB6bqMzT0VfV6/86ZNabt1k14YOIaT7nDvOX3Iiw==,
             }
 
+    glob@10.4.5:
+        resolution:
+            {
+                integrity: sha512-7Bv8RF0k6xjo7d4A/PxYLbUCfb6c+Vpd2/mB2yRDlew7Jb5hEXiCD9ibfO7wpk8i4sevK6DFny9h7EYbM3/sHg==,
+            }
+        hasBin: true
+
     glob@11.0.1:
         resolution:
             {
@@ -5304,6 +5327,12 @@ packages:
             }
         engines: { node: '>=6' }
 
+    jackspeak@3.4.3:
+        resolution:
+            {
+                integrity: sha512-OGlZQpz2yfahA/Rd1Y8Cd9SIEsqvXkLVoSw/cgwhnhFMDbsQFeZYoJJ7bIZBS9BcamUW96asq/npPWugM+RQBw==,
+            }
+
     jackspeak@4.1.1:
         resolution:
             {
@@ -5585,6 +5614,12 @@ packages:
         resolution:
             {
                 integrity: sha512-4bV5BfR2mqfQTJm+V5tPPdf+ZpuhiIvTuAB5g8kcrXOZpTT/QwwVRWBywX1ozr6lEuPdbHxwaJlm9G6mI2sfSQ==,
+            }
+
+    json-logic-js@2.0.5:
+        resolution:
+            {
+                integrity: sha512-rTT2+lqcuUmj4DgWfmzupZqQDA64AdmYqizzMPWj3DxGdfFNsxPpcNVSaTj4l8W2tG/+hg7/mQhxjU3aPacO6g==,
             }
 
     json-parse-even-better-errors@2.3.1:
@@ -5901,6 +5936,12 @@ packages:
                 integrity: sha512-ozCC6gdQ+glXOQsveKD0YsDy8DSQFjDTz4zyzEHNV5+JP5D62LmfDZ6o1cycFx9ouG940M5dE8C8CTewdj2YWQ==,
             }
         engines: { node: ^12.20.0 || ^14.13.1 || >=16.0.0 }
+
+    lru-cache@10.4.3:
+        resolution:
+            {
+                integrity: sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==,
+            }
 
     lru-cache@11.1.0:
         resolution:
@@ -6498,6 +6539,13 @@ packages:
                 integrity: sha512-LDJzPVEEEPR+y48z93A0Ed0yXb8pAByGWo/k5YYdYgpY2/2EsOsksJrq7lOHxryrVOn1ejG6oAp8ahvOIQD8sw==,
             }
 
+    path-scurry@1.11.1:
+        resolution:
+            {
+                integrity: sha512-Xa4Nw17FS9ApQFJ9umLiJS4orGjm7ZzwUrwamcGQuHSzDyth9boKDaycYdDcZDuqYATXw4HFXgaqWTctW/v1HA==,
+            }
+        engines: { node: '>=16 || 14 >=14.18' }
+
     path-scurry@2.0.0:
         resolution:
             {
@@ -6549,6 +6597,13 @@ packages:
             {
                 integrity: sha512-nkc6NpDcvPVpZXxrreI/FOtX3XemeLl8E0qFr6F2Lrm/I8WOnaWNhIPK2Z7OHpw7gh5XJThi6j6ppgNoaT1w4w==,
             }
+
+    pg-hstore@2.3.4:
+        resolution:
+            {
+                integrity: sha512-N3SGs/Rf+xA1M2/n0JBiXFDVMzdekwLZLAO0g7mpDY9ouX+fDI7jS6kTq3JujmYbtNSJ53TJ0q4G98KVZSM4EA==,
+            }
+        engines: { node: '>= 0.8.x' }
 
     pg-int8@1.0.1:
         resolution:
@@ -7954,6 +8009,12 @@ packages:
                 integrity: sha512-mlExGW4w71ebDJviH16lQLtZS32VKqsSfk80GCfUlwT/4/hNRFsoscrF/c++9xinkMzECL1uL9DDwXqFWkruPg==,
             }
 
+    underscore@1.13.7:
+        resolution:
+            {
+                integrity: sha512-GMXzWtsc57XAtguZgaQViUOzs0KTkk8ojr3/xAxXLITqf/3EMwxC0inyETfDFjH/Krbhuep0HNbbjI9i/q3F3g==,
+            }
+
     undici-types@6.21.0:
         resolution:
             {
@@ -9301,14 +9362,14 @@ snapshots:
         transitivePeerDependencies:
             - chokidar
 
-    '@nestjs/sequelize@11.0.0(@nestjs/common@11.1.3(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)(sequelize-typescript@2.1.6(@types/node@22.15.32)(@types/validator@13.15.2)(reflect-metadata@0.2.2)(sequelize@6.37.7(pg@8.16.2)))(sequelize@6.37.7(pg@8.16.2))':
+    '@nestjs/sequelize@11.0.0(@nestjs/common@11.1.3(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)(sequelize-typescript@2.1.6(@types/node@22.15.32)(@types/validator@13.15.2)(reflect-metadata@0.2.2)(sequelize@6.37.7(pg-hstore@2.3.4)(pg@8.16.2)))(sequelize@6.37.7(pg-hstore@2.3.4)(pg@8.16.2))':
         dependencies:
             '@nestjs/common': 11.1.3(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2)
             '@nestjs/core': 11.1.3(@nestjs/common@11.1.3(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@11.1.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
             reflect-metadata: 0.2.2
             rxjs: 7.8.2
-            sequelize: 6.37.7(pg@8.16.2)
-            sequelize-typescript: 2.1.6(@types/node@22.15.32)(@types/validator@13.15.2)(reflect-metadata@0.2.2)(sequelize@6.37.7(pg@8.16.2))
+            sequelize: 6.37.7(pg-hstore@2.3.4)(pg@8.16.2)
+            sequelize-typescript: 2.1.6(@types/node@22.15.32)(@types/validator@13.15.2)(reflect-metadata@0.2.2)(sequelize@6.37.7(pg-hstore@2.3.4)(pg@8.16.2))
 
     '@nestjs/swagger@11.2.0(@nestjs/common@11.1.3(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.3)(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)':
         dependencies:
@@ -9356,6 +9417,9 @@ snapshots:
             '@noble/hashes': 1.8.0
 
     '@phc/format@1.0.0': {}
+
+    '@pkgjs/parseargs@0.11.0':
+        optional: true
 
     '@pkgr/core@0.2.7': {}
 
@@ -11292,6 +11356,15 @@ snapshots:
 
     glob-to-regexp@0.4.1: {}
 
+    glob@10.4.5:
+        dependencies:
+            foreground-child: 3.3.1
+            jackspeak: 3.4.3
+            minimatch: 9.0.5
+            minipass: 7.1.2
+            package-json-from-dist: 1.0.1
+            path-scurry: 1.11.1
+
     glob@11.0.1:
         dependencies:
             foreground-child: 3.3.1
@@ -11654,6 +11727,12 @@ snapshots:
 
     iterare@1.2.1: {}
 
+    jackspeak@3.4.3:
+        dependencies:
+            '@isaacs/cliui': 8.0.2
+        optionalDependencies:
+            '@pkgjs/parseargs': 0.11.0
+
     jackspeak@4.1.1:
         dependencies:
             '@isaacs/cliui': 8.0.2
@@ -12007,6 +12086,8 @@ snapshots:
 
     json-buffer@3.0.1: {}
 
+    json-logic-js@2.0.5: {}
+
     json-parse-even-better-errors@2.3.1: {}
 
     json-schema-traverse@0.4.1: {}
@@ -12171,6 +12252,8 @@ snapshots:
             wrap-ansi: 9.0.0
 
     lowercase-keys@3.0.0: {}
+
+    lru-cache@10.4.3: {}
 
     lru-cache@11.1.0: {}
 
@@ -12460,6 +12543,11 @@ snapshots:
 
     path-parse@1.0.7: {}
 
+    path-scurry@1.11.1:
+        dependencies:
+            lru-cache: 10.4.3
+            minipass: 7.1.2
+
     path-scurry@2.0.0:
         dependencies:
             lru-cache: 11.1.0
@@ -12479,6 +12567,10 @@ snapshots:
         optional: true
 
     pg-connection-string@2.9.1: {}
+
+    pg-hstore@2.3.4:
+        dependencies:
+            underscore: 1.13.7
 
     pg-int8@1.0.1: {}
 
@@ -12798,15 +12890,15 @@ snapshots:
 
     sequelize-pool@7.1.0: {}
 
-    sequelize-typescript@2.1.6(@types/node@22.15.32)(@types/validator@13.15.2)(reflect-metadata@0.2.2)(sequelize@6.37.7(pg@8.16.2)):
+    sequelize-typescript@2.1.6(@types/node@22.15.32)(@types/validator@13.15.2)(reflect-metadata@0.2.2)(sequelize@6.37.7(pg-hstore@2.3.4)(pg@8.16.2)):
         dependencies:
             '@types/node': 22.15.32
             '@types/validator': 13.15.2
             glob: 7.2.0
             reflect-metadata: 0.2.2
-            sequelize: 6.37.7(pg@8.16.2)
+            sequelize: 6.37.7(pg-hstore@2.3.4)(pg@8.16.2)
 
-    sequelize@6.37.7(pg@8.16.2):
+    sequelize@6.37.7(pg-hstore@2.3.4)(pg@8.16.2):
         dependencies:
             '@types/debug': 4.1.12
             '@types/validator': 13.15.2
@@ -12826,6 +12918,7 @@ snapshots:
             wkx: 0.5.0
         optionalDependencies:
             pg: 8.16.2
+            pg-hstore: 2.3.4
         transitivePeerDependencies:
             - supports-color
 
@@ -13339,6 +13432,8 @@ snapshots:
         dependencies:
             buffer: 5.7.1
             through: 2.3.8
+
+    underscore@1.13.7: {}
 
     undici-types@6.21.0: {}
 
