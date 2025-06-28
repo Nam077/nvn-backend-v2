@@ -1,0 +1,426 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Database & ORM Patterns
+
+## Database Setup
+This project uses PostgreSQL with Sequelize ORM in a NestJS environment.
+
+## Core Configuration
+- Database module: [database.module.ts](mdc:src/modules/database/database.module.ts)
+- Configuration service: [config.service.ts](mdc:src/modules/config/config.service.ts)
+- Docker setup: [docker-compose.dev.yml](mdc:docker-compose.dev.yml)
+
+## Entity Definition Patterns
+
+### Base Entity Structure
+Example entity: [user.entity.ts](mdc:src/modules/users/entities/user.entity.ts)
+
+```typescript
+@Table({ 
+    tableName: 'users',
+    timestamps: true,
+    underscored: true,
+    paranoid: true // Soft deletes
+})
+export class User extends Model<User> {
+    @PrimaryKey
+    @Default(DataType.UUIDV4)
+    @Column(DataType.UUID)
+    readonly id: string;
+    
+    @AllowNull(false)
+    @Column(DataType.STRING(50))
+    @Unique
+    email: string;
+    
+    @AllowNull(false)
+    @Column(DataType.STRING(100))
+    firstName: string;
+    
+    @AllowNull(false)
+    @Column(DataType.STRING(100))
+    lastName: string;
+    
+    @AllowNull(false)
+    @Column(DataType.STRING)
+    passwordHash: string;
+    
+    @Default(true)
+    @Column(DataType.BOOLEAN)
+    isActive: boolean;
+    
+    @CreatedAt
+    readonly createdAt: Date;
+    
+    @UpdatedAt
+    readonly updatedAt: Date;
+    
+    @DeletedAt
+    readonly deletedAt: Date;
+    
+    // Relations
+    @HasMany(() => UserRole)
+    userRoles: UserRole[];
+    
+    @HasMany(() => Collection)
+    collections: Collection[];
+}
+```
+
+### Relationship Patterns
+
+#### One-to-Many
+```typescript
+// Parent Entity
+@HasMany(() => UserRole)
+userRoles: UserRole[];
+
+// Child Entity
+@ForeignKey(() => User)
+@Column(DataType.UUID)
+userId: string;
+
+@BelongsTo(() => User)
+user: User;
+```
+
+#### Many-to-Many
+```typescript
+// Junction Table
+@Table({ tableName: 'collection_fonts' })
+export class CollectionFont extends Model<CollectionFont> {
+    @ForeignKey(() => Collection)
+    @Column(DataType.UUID)
+    collectionId: string;
+    
+    @ForeignKey(() => Font)
+    @Column(DataType.UUID)
+    fontId: string;
+    
+    @CreatedAt
+    readonly createdAt: Date;
+}
+
+// Parent Entities
+@BelongsToMany(() => Font, () => CollectionFont)
+fonts: Font[];
+
+@BelongsToMany(() => Collection, () => CollectionFont)
+collections: Collection[];
+```
+
+## Repository Pattern
+
+### Service with Repository
+```typescript
+@Injectable()
+export class UserService {
+    constructor(
+        @InjectModel(User) 
+        private readonly userRepository: Repository<User>,
+        @InjectModel(UserRole) 
+        private readonly userRoleRepository: Repository<UserRole>,
+    ) {}
+    
+    async findById(id: string): Promise<User | null> {
+        return this.userRepository.findByPk(id, {
+            include: [
+                {
+                    model: UserRole,
+                    include: [Role],
+                },
+            ],
+        });
+    }
+    
+    async findByEmail(email: string): Promise<User | null> {
+        return this.userRepository.findOne({
+            where: { email },
+            include: [UserRole],
+        });
+    }
+    
+    async create(userData: CreateUserDto): Promise<User> {
+        return this.userRepository.create(userData);
+    }
+    
+    async update(id: string, updateData: UpdateUserDto): Promise<User> {
+        const [affectedCount] = await this.userRepository.update(updateData, {
+            where: { id },
+            returning: true,
+        });
+        
+        if (affectedCount === 0) {
+            throw new NotFoundException('User not found');
+        }
+        
+        return this.findById(id);
+    }
+    
+    async delete(id: string): Promise<void> {
+        const result = await this.userRepository.destroy({
+            where: { id },
+        });
+        
+        if (result === 0) {
+            throw new NotFoundException('User not found');
+        }
+    }
+}
+```
+
+## Transaction Patterns
+
+### Simple Transaction
+```typescript
+async createUserWithRole(userData: CreateUserDto, roleName: string): Promise<User> {
+    const transaction = await this.sequelize.transaction();
+    
+    try {
+        // Create user
+        const user = await this.userRepository.create(userData, { transaction });
+        
+        // Find role
+        const role = await this.roleRepository.findOne({
+            where: { name: roleName },
+            transaction,
+        });
+        
+        if (!role) {
+            throw new BadRequestException('Role not found');
+        }
+        
+        // Create user-role association
+        await this.userRoleRepository.create({
+            userId: user.id,
+            roleId: role.id,
+        }, { transaction });
+        
+        await transaction.commit();
+        return user;
+    } catch (error) {
+        await transaction.rollback();
+        throw error;
+    }
+}
+```
+
+### Managed Transaction
+```typescript
+async transferFontOwnership(fontId: string, fromUserId: string, toUserId: string): Promise<void> {
+    await this.sequelize.transaction(async (transaction) => {
+        // Update font ownership
+        await this.fontRepository.update(
+            { userId: toUserId },
+            { 
+                where: { id: fontId, userId: fromUserId },
+                transaction,
+            }
+        );
+        
+        // Log ownership transfer
+        await this.auditRepository.create({
+            action: 'font_ownership_transfer',
+            fromUserId,
+            toUserId,
+            fontId,
+            timestamp: new Date(),
+        }, { transaction });
+    });
+}
+```
+
+## Query Optimization Patterns
+
+### Efficient Includes
+```typescript
+async findFontsWithCategories(userId: string): Promise<Font[]> {
+    return this.fontRepository.findAll({
+        where: { userId },
+        include: [
+            {
+                model: Category,
+                attributes: ['id', 'name'], // Only needed fields
+                required: true, // INNER JOIN instead of LEFT JOIN
+            },
+            {
+                model: FontWeight,
+                attributes: ['weight', 'style'],
+                separate: true, // Separate query for one-to-many
+            },
+        ],
+        attributes: { exclude: ['passwordHash'] }, // Exclude sensitive fields
+        order: [['createdAt', 'DESC']],
+        limit: 50,
+    });
+}
+```
+
+### Pagination Pattern
+```typescript
+async findPaginated(page: number = 1, limit: number = 20): Promise<{
+    data: User[];
+    pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+    };
+}> {
+    const offset = (page - 1) * limit;
+    
+    const { count, rows } = await this.userRepository.findAndCountAll({
+        where: { isActive: true },
+        limit,
+        offset,
+        order: [['createdAt', 'DESC']],
+        distinct: true, // Important for includes
+    });
+    
+    return {
+        data: rows,
+        pagination: {
+            page,
+            limit,
+            total: count,
+            totalPages: Math.ceil(count / limit),
+        },
+    };
+}
+```
+
+## Raw Query Patterns
+
+### Complex Queries with JsonLogic
+```typescript
+async findUsersWithComplexFilters(jsonLogicRule: any): Promise<User[]> {
+    const sqlBuilder = new UserSqlBuilder();
+    const { sql, parameters } = sqlBuilder.build(jsonLogicRule);
+    
+    return this.userRepository.findAll({
+        where: Sequelize.literal(sql),
+        replacements: parameters,
+        include: [
+            {
+                model: UserRole,
+                include: [Role],
+            },
+        ],
+    });
+}
+```
+
+### Analytics Queries
+```typescript
+async getUserStatistics(): Promise<any> {
+    return this.sequelize.query(`
+        SELECT 
+            COUNT(*) as total_users,
+            COUNT(CASE WHEN is_active = true THEN 1 END) as active_users,
+            COUNT(CASE WHEN created_at > NOW() - INTERVAL '30 days' THEN 1 END) as new_users_30_days,
+            AVG(CASE WHEN subscription_expires_at > NOW() THEN 1 ELSE 0 END) as subscription_rate
+        FROM users
+        WHERE deleted_at IS NULL
+    `, {
+        type: QueryTypes.SELECT,
+        raw: true,
+    });
+}
+```
+
+## Error Handling
+
+### Database Error Patterns
+```typescript
+async createUser(userData: CreateUserDto): Promise<User> {
+    try {
+        return await this.userRepository.create(userData);
+    } catch (error) {
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            const field = error.errors[0]?.path;
+            throw new ConflictException(`${field} already exists`);
+        }
+        
+        if (error.name === 'SequelizeValidationError') {
+            const messages = error.errors.map(err => err.message);
+            throw new BadRequestException(`Validation failed: ${messages.join(', ')}`);
+        }
+        
+        if (error.name === 'SequelizeForeignKeyConstraintError') {
+            throw new BadRequestException('Referenced record does not exist');
+        }
+        
+        this.logger.error('Database operation failed', {
+            error: error.message,
+            stack: error.stack,
+            userData: { ...userData, password: '[REDACTED]' },
+        });
+        
+        throw new InternalServerErrorException('User creation failed');
+    }
+}
+```
+
+## Migration Patterns
+
+### Entity-First Approach
+This project uses entity-first approach where Sequelize models define the database schema.
+
+### Schema Synchronization
+```typescript
+// In database.module.ts
+SequelizeModule.forRootAsync({
+    useFactory: (configService: ConfigService) => ({
+        dialect: 'postgres',
+        host: configService.get('DB_HOST'),
+        port: parseInt(configService.get('DB_PORT')),
+        username: configService.get('DB_USERNAME'),
+        password: configService.get('DB_PASSWORD'),
+        database: configService.get('DB_NAME'),
+        autoLoadModels: true,
+        synchronize: configService.get('NODE_ENV') === 'development',
+        logging: configService.get('NODE_ENV') === 'development' ? console.log : false,
+    }),
+    inject: [ConfigService],
+}),
+```
+
+## Performance Best Practices
+
+### Indexing Strategy
+```typescript
+@Table({
+    indexes: [
+        { fields: ['email'] },
+        { fields: ['isActive'] },
+        { fields: ['createdAt'] },
+        { fields: ['userId', 'roleId'], unique: true }, // Composite index
+    ],
+})
+export class User extends Model<User> {
+    // ... entity definition
+}
+```
+
+### Connection Pooling
+```typescript
+// Database configuration
+{
+    pool: {
+        max: 10,           // Maximum connections
+        min: 0,            // Minimum connections
+        acquire: 30000,    // Maximum time to get connection
+        idle: 10000,       // Maximum time connection can be idle
+    },
+}
+```
+
+### Query Performance
+- Always use `attributes` to select only needed fields
+- Use `include.required: true` for INNER JOINs when possible
+- Use `separate: true` for one-to-many relations to avoid N+1
+- Implement proper pagination with `limit` and `offset`
+- Use database-level filtering instead of application-level filtering

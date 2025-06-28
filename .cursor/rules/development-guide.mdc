@@ -1,0 +1,256 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Development Guide & Best Practices
+
+## Quick Reference
+This is a comprehensive NestJS TypeScript backend for font management with PostgreSQL, Sequelize ORM, and RBAC system.
+
+## Project Rules Summary
+- **Project Structure**: [project-structure.mdc](mdc:.cursor/rules/project-structure.mdc)
+- **NestJS Patterns**: [nestjs-patterns.mdc](mdc:.cursor/rules/nestjs-patterns.mdc)
+- **ESLint Standards**: [eslint-standards.mdc](mdc:.cursor/rules/eslint-standards.mdc)
+- **JSDoc Documentation**: [jsdoc-documentation.mdc](mdc:.cursor/rules/jsdoc-documentation.mdc)
+- **Query Builder**: [query-builder.mdc](mdc:.cursor/rules/query-builder.mdc)
+- **Security & Validation**: [security-validation.mdc](mdc:.cursor/rules/security-validation.mdc)
+- **Database & ORM**: [database-orm.mdc](mdc:.cursor/rules/database-orm.mdc)
+
+## Quick Commands & Shortcuts
+
+### VSCode/Cursor Tasks
+Access via `Cmd+Shift+P` → "Tasks: Run Task"
+- 🧹 Lint & Fix All
+- 🧪 Run Tests
+- 🚀 Start Development
+- 📊 Generate Blueprint
+- 🐳 Docker Compose Up
+
+### Key Files to Reference
+- ESLint config: [eslint.config.mjs](mdc:eslint.config.mjs)
+- Main app: [main.ts](mdc:src/main.ts)
+- User entity example: [user.entity.ts](mdc:src/modules/users/entities/user.entity.ts)
+- JsonLogic SQL builder: [json-logic-to-sql.builder.ts](mdc:src/common/query-builder/json-logic-to-sql.builder.ts)
+
+## Development Workflow
+
+### 1. Creating New Features
+1. **Entity First**: Create Sequelize entity in `entities/` folder
+2. **Generate Blueprint**: Use script to generate query blueprint
+3. **Create DTOs**: Add validation DTOs in `dto/` folder
+4. **Service Layer**: Implement business logic with proper error handling
+5. **Controller**: Add API endpoints with guards and validation
+6. **Tests**: Write comprehensive tests for all layers
+
+### 2. Code Organization
+```
+src/modules/feature-name/
+├── entities/          # Sequelize models
+├── dto/              # Data Transfer Objects
+├── controllers/      # API endpoints
+├── services/         # Business logic
+├── guards/           # Custom guards (if needed)
+├── decorators/       # Custom decorators (if needed)
+└── feature-name.module.ts
+```
+
+### 3. Standard Patterns
+
+#### Service Creation
+```typescript
+@Injectable()
+export class FeatureService {
+    constructor(
+        @InjectModel(Entity) private readonly repository: Repository<Entity>,
+        private readonly configService: ConfigService,
+    ) {}
+    
+    async findById(id: string): Promise<Entity> {
+        const entity = await this.repository.findByPk(id);
+        if (!entity) {
+            throw new NotFoundException('Entity not found');
+        }
+        return entity;
+    }
+}
+```
+
+#### Controller Creation
+```typescript
+@Controller('feature')
+@UseGuards(AuthGuard, CaslGuard)
+export class FeatureController {
+    constructor(private readonly featureService: FeatureService) {}
+    
+    @Get(':id')
+    @CheckAbilities({ action: 'read', subject: 'Feature' })
+    async findOne(@Param('id') id: string): Promise<FeatureDto> {
+        return this.featureService.findById(id);
+    }
+}
+```
+
+## Security Checklist
+
+### ✅ Always Include
+- [ ] Input validation with class-validator
+- [ ] Authorization checks with CASL guards
+- [ ] Proper error handling (don't expose internals)
+- [ ] Parameterized queries (never string interpolation)
+- [ ] Rate limiting for public endpoints
+- [ ] Audit logging for sensitive operations
+- [ ] **JSDoc documentation** for all public methods
+
+### ❌ Never Do
+- Direct object property access with user input: `obj[userInput]`
+- String interpolation in SQL queries: `SELECT * FROM users WHERE id = '${id}'`
+- Expose sensitive data in error messages
+- Return full entities in API responses (use DTOs)
+- Skip authorization checks on protected endpoints
+
+## Common Patterns
+
+### JsonLogic Query Building
+```typescript
+// Simple usage
+const result = convertJsonLogicToSql({ equals: ['name', 'John'] });
+
+// Custom builder
+class CustomBuilder extends JsonLogicToSqlBuilder {
+    protected mapFieldName(field: string): string {
+        const mappings = { fullName: 'first_name || \' \' || last_name' };
+        return mappings[field] || super.mapFieldName(field);
+    }
+}
+```
+
+### Database Transactions
+```typescript
+await this.sequelize.transaction(async (transaction) => {
+    await this.repository1.create(data1, { transaction });
+    await this.repository2.update(data2, { where: { id }, transaction });
+});
+```
+
+### Error Handling
+```typescript
+try {
+    return await this.repository.create(data);
+} catch (error) {
+    if (error.name === 'SequelizeUniqueConstraintError') {
+        throw new ConflictException('Resource already exists');
+    }
+    this.logger.error('Operation failed', error);
+    throw new InternalServerErrorException('Operation failed');
+}
+```
+
+## Testing Guidelines
+
+### Unit Tests
+- Test all service methods
+- Mock dependencies properly
+- Test error conditions
+- Use descriptive test names
+- **Document test expectations** with JSDoc
+
+### Integration Tests
+- Test API endpoints end-to-end
+- Include authentication/authorization
+- Test database operations
+- Verify error responses
+
+### Documentation Testing
+Follow comprehensive standards: [jsdoc-documentation.mdc](mdc:.cursor/rules/jsdoc-documentation.mdc)
+
+## Environment Setup
+
+### Required Environment Variables
+Reference: [.env.example](mdc:.env.example)
+- Database configuration (DB_HOST, DB_PORT, etc.)
+- JWT secrets (JWT_ACCESS_SECRET, JWT_REFRESH_SECRET)
+- Application settings (NODE_ENV, PORT)
+
+### Docker Development
+```bash
+# Start development environment
+docker-compose -f docker-compose.dev.yml up -d
+
+# View logs
+docker-compose -f docker-compose.dev.yml logs -f
+
+# Stop environment
+docker-compose -f docker-compose.dev.yml down
+```
+
+## Code Quality Tools
+
+### ESLint Configuration
+Comprehensive standards defined in: [eslint-standards.mdc](mdc:.cursor/rules/eslint-standards.mdc)
+Reference config: [eslint.config.mjs](mdc:eslint.config.mjs)
+- Enforces coding standards
+- Import organization
+- Security rules
+- Performance optimizations
+
+### Key Rules (CRITICAL)
+- **Arrow functions required** outside classes
+- **Import order**: NestJS → External → Internal → Relative
+- **Single quotes** for strings
+- **Trailing commas** in multiline objects
+- **Class member organization** (static → instance → constructor → methods)
+- **Security rules**: No object injection, safe regex
+- **Performance**: Prefer const, destructuring, template literals
+
+## Performance Considerations
+
+### Database Optimization
+- Use proper indexes on frequently queried fields
+- Implement pagination for large datasets
+- Use `include.attributes` to select only needed fields
+- Use `include.required: true` for INNER JOINs when possible
+- Use `separate: true` for one-to-many relations to avoid N+1
+
+### Caching Strategy
+- Implement Redis caching for frequently accessed data
+- Cache expensive computations
+- Use proper cache invalidation strategies
+
+## Debugging Tips
+
+### Common Issues
+1. **Import Errors**: Check tsconfig paths and @ aliases
+2. **Sequelize Errors**: Check entity relationships and foreign keys
+3. **Authorization Failures**: Verify user permissions and CASL rules
+4. **Validation Errors**: Check DTO validation decorators
+
+### Logging
+- Use structured logging with context
+- Log errors with stack traces
+- Don't log sensitive information
+- Use appropriate log levels
+
+## Useful Commands
+
+```bash
+# Development
+pnpm start:dev          # Start with hot reload
+pnpm build             # Build for production
+pnpm test              # Run unit tests
+pnpm test:e2e          # Run integration tests
+
+# Code Quality
+pnpm lint              # Check linting
+pnpm lint:fix          # Fix linting issues
+pnpm format            # Format code
+
+# Database
+docker-compose exec postgres psql -U postgres -d nvn_font
+
+# Custom Scripts
+pnpm run generate:blueprint     # Generate query blueprint
+pnpm run generate:query-configs # Generate query configurations
+```
+
+This development guide should be your first reference when working on the NVN Font Backend project. Follow these patterns consistently for maintainable, secure, and performant code.

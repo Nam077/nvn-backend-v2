@@ -1,0 +1,292 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Security & Validation Patterns
+
+## Security Principles
+This project implements comprehensive security measures including RBAC, input validation, and SQL injection prevention.
+
+## Authentication System
+- JWT Strategy: [jwt-access.strategy.ts](mdc:src/modules/auth/strategies/jwt-access.strategy.ts)
+- Auth Service: [auth.service.ts](mdc:src/modules/auth/auth.service.ts)
+- Session Management: [session.service.ts](mdc:src/modules/auth/services/session.service.ts)
+
+### Authentication Pattern
+```typescript
+@Injectable()
+export class AuthGuard implements CanActivate {
+    async canActivate(context: ExecutionContext): Promise<boolean> {
+        const request = context.switchToHttp().getRequest();
+        const token = this.extractTokenFromHeader(request);
+        
+        if (!token) {
+            throw new UnauthorizedException('Token not found');
+        }
+        
+        try {
+            const payload = await this.jwtService.verifyAsync(token);
+            request.user = payload;
+            return true;
+        } catch {
+            throw new UnauthorizedException('Invalid token');
+        }
+    }
+}
+```
+
+## RBAC (Role-Based Access Control)
+- CASL Factory: [ability.factory.ts](mdc:src/modules/casl/factories/ability.factory.ts)
+- Permission Decorator: [check-abilities.decorator.ts](mdc:src/modules/casl/decorators/check-abilities.decorator.ts)
+- CASL Guard: [casl.guard.ts](mdc:src/modules/casl/guards/casl.guard.ts)
+- RBAC Service: [rbac.service.ts](mdc:src/modules/users/services/rbac.service.ts)
+
+### Permission Check Pattern
+```typescript
+@Get('sensitive-data')
+@UseGuards(AuthGuard, CaslGuard)
+@CheckAbilities({ action: 'read', subject: 'SensitiveData' })
+async getSensitiveData(@GetUser() user: User) {
+    return this.service.getSensitiveData(user.id);
+}
+```
+
+### Ability Definition Pattern
+```typescript
+export type Subjects = InferSubjects<typeof User | typeof Font | typeof Collection> | 'all';
+export type AppAbility = Ability<[Action, Subjects]>;
+
+@Injectable()
+export class AbilityFactory {
+    createForUser(user: User): AppAbility {
+        const { can, cannot, build } = new AbilityBuilder<AppAbility>(Ability as any);
+        
+        if (user.roles.some(role => role.name === 'admin')) {
+            can(Action.Manage, 'all');
+        } else {
+            can(Action.Read, 'all');
+            can(Action.Create, Font, { userId: user.id });
+            can(Action.Update, Font, { userId: user.id });
+        }
+        
+        return build();
+    }
+}
+```
+
+## Input Validation
+Example validators: [json-logic.validator.ts](mdc:src/common/validators/json-logic.validator.ts)
+
+### DTO Validation Pattern
+```typescript
+export class CreateFontDto {
+    @IsString()
+    @IsNotEmpty()
+    @MaxLength(100)
+    readonly name: string;
+    
+    @IsOptional()
+    @IsString()
+    @MaxLength(500)
+    readonly description?: string;
+    
+    @IsNumber()
+    @Min(0)
+    @Max(10000)
+    readonly price: number;
+    
+    @IsUUID()
+    readonly categoryId: string;
+    
+    @IsArray()
+    @ArrayMaxSize(10)
+    @IsString({ each: true })
+    readonly tags: string[];
+}
+```
+
+### Custom Validator Pattern
+```typescript
+@ValidatorConstraint({ async: true })
+export class IsUniqueConstraint implements ValidatorConstraintInterface {
+    constructor(private readonly repository: any) {}
+    
+    async validate(value: any, args: ValidationArguments): Promise<boolean> {
+        const [field] = args.constraints;
+        const entity = await this.repository.findOne({ where: { [field]: value } });
+        return !entity;
+    }
+    
+    defaultMessage(args: ValidationArguments): string {
+        return `${args.property} must be unique`;
+    }
+}
+```
+
+## SQL Injection Prevention
+JsonLogic SQL Builder: [json-logic-to-sql.builder.ts](mdc:src/common/query-builder/json-logic-to-sql.builder.ts)
+
+### Safe Query Building
+```typescript
+// ✅ Good - Parameterized queries
+const { sql, parameters } = sqlBuilder.build(jsonLogicRule);
+const users = await this.userRepository.findAll({
+    where: Sequelize.literal(sql),
+    replacements: parameters, // Safely escaped parameters
+});
+
+// ❌ Bad - Direct string interpolation
+const sql = `SELECT * FROM users WHERE name = '${userInput}'`; // SQL injection risk!
+```
+
+### Field Access Control
+```typescript
+// ✅ Good - Whitelisted fields
+const allowedFields = ['name', 'email', 'status'];
+const field = allowedFields.includes(userInput) ? userInput : 'name';
+const value = obj[field];
+
+// ❌ Bad - Direct object access
+const value = obj[userInput]; // Object injection risk!
+```
+
+## Error Handling Security
+### Safe Error Responses
+```typescript
+try {
+    return await this.sensitiveOperation();
+} catch (error) {
+    // Log detailed error internally
+    this.logger.error('Sensitive operation failed', {
+        error: error.message,
+        stack: error.stack,
+        userId: user.id,
+        timestamp: new Date(),
+    });
+    
+    // Return generic error to client
+    throw new InternalServerErrorException('Operation failed');
+}
+```
+
+### Database Error Handling
+```typescript
+try {
+    return await this.userRepository.create(userData);
+} catch (error) {
+    if (error.name === 'SequelizeUniqueConstraintError') {
+        throw new ConflictException('Email already exists');
+    }
+    
+    if (error.name === 'SequelizeValidationError') {
+        throw new BadRequestException('Invalid data provided');
+    }
+    
+    // Don't expose database details
+    this.logger.error('Database operation failed', error);
+    throw new InternalServerErrorException('User creation failed');
+}
+```
+
+## Rate Limiting & Security Headers
+```typescript
+// In main.ts
+app.use(helmet()); // Security headers
+app.use(rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+}));
+```
+
+## Password Security
+```typescript
+import * as bcrypt from 'bcrypt';
+
+export class PasswordService {
+    private readonly saltRounds = 12;
+    
+    async hashPassword(password: string): Promise<string> {
+        return bcrypt.hash(password, this.saltRounds);
+    }
+    
+    async comparePassword(password: string, hash: string): Promise<boolean> {
+        return bcrypt.compare(password, hash);
+    }
+}
+```
+
+## File Upload Security
+```typescript
+@Post('upload')
+@UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+    fileFilter: (req, file, callback) => {
+        // Only allow specific file types
+        const allowedMimes = ['font/woff', 'font/woff2', 'font/ttf'];
+        if (allowedMimes.includes(file.mimetype)) {
+            callback(null, true);
+        } else {
+            callback(new BadRequestException('Invalid file type'), false);
+        }
+    },
+}))
+async uploadFont(@UploadedFile() file: Express.Multer.File) {
+    // Validate file content, not just extension
+    await this.fontValidationService.validateFontFile(file);
+    return this.fontService.processFont(file);
+}
+```
+
+## Environment & Configuration Security
+Configuration service: [config.service.ts](mdc:src/modules/config/config.service.ts)
+
+### Secure Configuration
+```typescript
+@Injectable()
+export class ConfigService {
+    get(key: string): string {
+        const value = process.env[key];
+        if (!value && this.isRequired(key)) {
+            throw new Error(`Required environment variable ${key} is not set`);
+        }
+        return value;
+    }
+    
+    getDatabaseConfig(): DatabaseConfig {
+        return {
+            host: this.get('DB_HOST'),
+            port: parseInt(this.get('DB_PORT')),
+            username: this.get('DB_USERNAME'),
+            password: this.get('DB_PASSWORD'), // Never log passwords
+            database: this.get('DB_NAME'),
+        };
+    }
+}
+```
+
+## Audit Logging
+```typescript
+@Injectable()
+export class AuditService {
+    async logUserAction(userId: string, action: string, resource: string, details?: any) {
+        await this.auditRepository.create({
+            userId,
+            action,
+            resource,
+            details: JSON.stringify(details),
+            timestamp: new Date(),
+            ipAddress: this.getClientIp(),
+        });
+    }
+}
+```
+
+## Security Testing
+Key security tests should cover:
+- Authentication bypass attempts
+- Authorization checks for each endpoint
+- Input validation for all DTOs
+- SQL injection prevention
+- File upload restrictions
+- Rate limiting effectiveness

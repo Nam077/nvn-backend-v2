@@ -1,0 +1,190 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Query Builder & JsonLogic to SQL Patterns
+
+## Overview
+The project includes a powerful JsonLogic to SQL builder system for dynamic query generation with security and customization features.
+
+## Core Files
+- Main builder class: [json-logic-to-sql.builder.ts](mdc:src/common/query-builder/json-logic-to-sql.builder.ts)
+- Base blueprint class: [query-blueprint.base.ts](mdc:src/common/query-builder/query-blueprint.base.ts)
+- Operator constants: [operators.constants.ts](mdc:src/common/query-builder/operators.constants.ts)
+- Examples and patterns: [examples.ts](mdc:src/common/query-builder/examples.ts)
+- Comprehensive tests: [json-logic-to-sql.builder.spec.ts](mdc:src/common/query-builder/json-logic-to-sql.builder.spec.ts)
+
+## Blueprint System
+Example blueprint: [role.blueprint.ts](mdc:src/queries/blueprints/role.blueprint.ts)
+
+### Blueprint Pattern
+```typescript
+export class ModelQueryBlueprint extends QueryBlueprint<Model> {
+    readonly name = 'MODEL_MANAGEMENT';
+
+    protected readonly definition: BlueprintDefinition<Model> = {
+        model: Model,
+        fields: {
+            fieldName: {
+                type: 'text',
+                label: 'Field Label',
+                operators: [STRING_OPERATORS.CONTAINS, STRING_OPERATORS.EQUALS],
+            },
+        },
+        sortableFields: ['id', 'name', 'createdAt'],
+        selectableFields: ['id', 'name', 'description'],
+        defaultSort: [['createdAt', 'DESC']],
+    };
+}
+```
+
+## JsonLogic to SQL Builder Usage
+
+### Basic Usage
+```typescript
+import { convertJsonLogicToSql } from '@/common/query-builder';
+
+const rule = { equals: ['name', 'John'] };
+const result = convertJsonLogicToSql(rule);
+// Result: { sql: "(name = :param0)", parameters: { param0: 'John' } }
+```
+
+### Custom Builder Pattern
+```typescript
+class CustomSqlBuilder extends JsonLogicToSqlBuilder {
+    constructor() {
+        super({ tableAlias: 'u' });
+    }
+
+    protected mapFieldName(field: string): string {
+        const mappings = {
+            'fullName': 'u.first_name || \' \' || u.last_name',
+            'isActive': 'u.status = \'active\'',
+        };
+        return mappings[field] || super.mapFieldName(field);
+    }
+
+    protected buildCondition(rule: any): string {
+        // Custom operators
+        if (typeof rule === 'object' && rule !== null) {
+            const operator = Object.keys(rule)[0];
+            
+            if (operator === 'has_role') {
+                const roleName = rule[operator];
+                const paramName = this.addParameter(roleName);
+                return `EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role = :${paramName})`;
+            }
+        }
+        
+        return super.buildCondition(rule);
+    }
+}
+```
+
+## Supported Operators
+Reference: [operators.constants.ts](mdc:src/common/query-builder/operators.constants.ts)
+
+### String Operators
+- `equals`, `not_equals`
+- `contains`, `not_contains` 
+- `starts_with`, `ends_with`
+- `like`, `not_like`
+- `is_empty`, `is_not_empty`
+- `is_null`, `is_not_null`
+- `in`, `not_in`
+
+### Number/Date Operators
+- `gt`, `gte`, `lt`, `lte`
+- `between`, `not_between`
+- `equals`, `not_equals`
+- `in`, `not_in`
+- `is_null`, `is_not_null`
+
+### Logic Operators
+- `and`, `or`, `not`
+
+## Example Custom Builders
+Reference: [examples.ts](mdc:src/common/query-builder/examples.ts)
+
+### User SQL Builder
+```typescript
+class UserSqlBuilder extends JsonLogicToSqlBuilder {
+    // Custom field mappings
+    protected mapFieldName(field: string): string {
+        const userFieldMappings = {
+            'fullName': 'CONCAT(u.firstName, \' \', u.lastName)',
+            'hasSubscription': 'EXISTS (SELECT 1 FROM user_subscriptions us WHERE us.user_id = u.id)',
+        };
+        return userFieldMappings[field] || super.mapFieldName(field);
+    }
+    
+    // Custom operators
+    protected buildCondition(rule: any): string {
+        if (rule.has_permission) {
+            const permission = rule.has_permission;
+            const paramName = this.addParameter(permission);
+            return `EXISTS (SELECT 1 FROM user_permissions up WHERE up.user_id = u.id AND up.permission = :${paramName})`;
+        }
+        return super.buildCondition(rule);
+    }
+}
+```
+
+### Font SQL Builder
+```typescript
+class FontSqlBuilder extends JsonLogicToSqlBuilder {
+    protected mapFieldName(field: string): string {
+        const fontFieldMappings = {
+            'categoryName': 'c.name',
+            'isPopular': 'f.download_count > 1000',
+            'isPremium': 'f.price > 0',
+        };
+        return fontFieldMappings[field] || super.mapFieldName(field);
+    }
+}
+```
+
+## Security Features
+- **Parameterized Queries**: All values are properly escaped via parameters
+- **No Direct SQL Injection**: User input never directly inserted into SQL
+- **Validation**: Built-in validation for operators and operands
+- **Safe Field Mapping**: Custom field mapping prevents unauthorized field access
+
+## Integration with Services
+```typescript
+@Injectable()
+export class QueryService {
+    private userBuilder = new UserSqlBuilder();
+    
+    async buildUserQuery(jsonLogicRule: any) {
+        try {
+            const { sql, parameters } = this.userBuilder.build(jsonLogicRule);
+            
+            return await this.userRepository.findAll({
+                where: Sequelize.literal(sql),
+                replacements: parameters,
+            });
+        } catch (error) {
+            throw new BadRequestException(`Invalid query: ${error.message}`);
+        }
+    }
+}
+```
+
+## Blueprint Generation
+- Generator script: [generate-blueprint.ts](mdc:scripts/generate-blueprint.ts)
+- Template: [blueprint.ejs](mdc:scripts/templates/blueprint.ejs)
+- Auto-generates blueprints from entity files
+- Intelligent operator mapping based on field types
+
+## Testing Patterns
+Reference: [json-logic-to-sql.builder.spec.ts](mdc:src/common/query-builder/json-logic-to-sql.builder.spec.ts)
+
+Test coverage includes:
+- All operator types
+- Custom field mapping
+- Custom operators
+- Error handling
+- Security validation
+- Complex nested conditions

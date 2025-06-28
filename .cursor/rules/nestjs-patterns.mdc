@@ -1,0 +1,180 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# NestJS Coding Patterns & Conventions
+
+## Core Principles
+Follow the established patterns in this NestJS project for consistency and maintainability.
+
+## Service Layer Pattern
+Example service: [users.service.ts](mdc:src/modules/users/users.service.ts)
+
+### Service Structure
+```typescript
+@Injectable()
+export class ExampleService {
+    // 1. Static properties first
+    private static readonly DEFAULT_LIMIT = 10;
+    
+    // 2. Instance properties
+    private readonly logger = new Logger(ExampleService.name);
+    
+    // 3. Private properties
+    private cacheMap = new Map();
+    
+    // 4. Constructor with dependency injection
+    constructor(
+        @InjectModel(Model) private readonly repository: Repository<Model>,
+        private readonly configService: ConfigService,
+    ) {}
+    
+    // 5. Public methods
+    async findById(id: string): Promise<Model> {
+        return this.repository.findByPk(id);
+    }
+    
+    // 6. Private methods
+    private validateInput(data: any): boolean {
+        return !isEmpty(data);
+    }
+}
+```
+
+## Controller Pattern
+Example controller: [users.controller.ts](mdc:src/modules/users/users.controller.ts)
+
+### Controller Structure
+```typescript
+@Controller('users')
+@UseGuards(AuthGuard, CaslGuard)
+export class UsersController {
+    constructor(private readonly usersService: UsersService) {}
+    
+    @Get(':id')
+    @CheckAbilities({ action: 'read', subject: 'User' })
+    async findOne(@Param('id') id: string): Promise<UserDto> {
+        return this.usersService.findById(id);
+    }
+    
+    @Post()
+    @CheckAbilities({ action: 'create', subject: 'User' })
+    async create(@Body() createUserDto: CreateUserDto): Promise<UserDto> {
+        return this.usersService.create(createUserDto);
+    }
+}
+```
+
+## Entity/Model Pattern
+Example entity: [user.entity.ts](mdc:src/modules/users/entities/user.entity.ts)
+
+### Sequelize Entity Structure
+```typescript
+@Table({ tableName: 'users' })
+export class User extends Model<User> {
+    @PrimaryKey
+    @Default(DataType.UUIDV4)
+    @Column(DataType.UUID)
+    readonly id: string;
+    
+    @AllowNull(false)
+    @Column(DataType.STRING(50))
+    name: string;
+    
+    @CreatedAt
+    readonly createdAt: Date;
+    
+    @UpdatedAt
+    readonly updatedAt: Date;
+    
+    // Relations
+    @HasMany(() => UserRole)
+    userRoles: UserRole[];
+}
+```
+
+## DTO Pattern
+Example DTOs: [create-user.dto.ts](mdc:src/modules/users/dto/create-user.dto.ts)
+
+### Validation DTOs
+```typescript
+export class CreateUserDto {
+    @IsString()
+    @IsNotEmpty()
+    @MaxLength(50)
+    readonly name: string;
+    
+    @IsEmail()
+    readonly email: string;
+    
+    @IsOptional()
+    @IsBoolean()
+    readonly isActive?: boolean = true;
+}
+```
+
+## Module Pattern
+Example module: [users.module.ts](mdc:src/modules/users/users.module.ts)
+
+### Module Structure
+```typescript
+@Module({
+    imports: [
+        SequelizeModule.forFeature([User, Role, Permission]),
+        CaslModule,
+    ],
+    controllers: [UsersController, RbacController],
+    providers: [UsersService, RbacService],
+    exports: [UsersService],
+})
+export class UsersModule {}
+```
+
+## Authentication & Authorization
+- Auth guards: [auth.guard.ts](mdc:src/modules/auth/guards/auth.guard.ts)
+- CASL abilities: [ability.factory.ts](mdc:src/modules/casl/factories/ability.factory.ts)
+- Permission decorators: [check-abilities.decorator.ts](mdc:src/modules/casl/decorators/check-abilities.decorator.ts)
+
+### Guard Usage
+```typescript
+@UseGuards(AuthGuard, CaslGuard)
+@CheckAbilities({ action: 'read', subject: 'User' })
+```
+
+## Error Handling Pattern
+```typescript
+try {
+    return await this.repository.create(data);
+} catch (error) {
+    if (error.name === 'SequelizeUniqueConstraintError') {
+        throw new ConflictException('Email already exists');
+    }
+    
+    this.logger.error('Failed to create user', error);
+    throw new InternalServerErrorException('User creation failed');
+}
+```
+
+## Function Style Rules
+- Use arrow functions outside of classes
+- Use method syntax inside classes
+- Always use explicit return types for public methods
+- Prefer const over let, never use var
+
+## Import Organization
+Reference: [eslint.config.mjs](mdc:eslint.config.mjs)
+
+```typescript
+// 1. NestJS imports first
+import { Injectable, Controller } from '@nestjs/common';
+
+// 2. External libraries
+import { isEmpty, isArray } from 'lodash';
+
+// 3. Internal imports with @ alias
+import { UserEntity } from '@/modules/users/entities/user.entity';
+
+// 4. Relative imports last
+import { LocalService } from './local.service';
+```

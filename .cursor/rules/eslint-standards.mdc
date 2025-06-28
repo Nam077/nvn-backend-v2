@@ -1,0 +1,379 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# ESLint Standards & Code Quality Rules
+
+## Overview
+This project enforces strict coding standards through ESLint configuration defined in [eslint.config.mjs](mdc:eslint.config.mjs). These rules ensure consistency, security, and performance across the codebase.
+
+## Import Organization Rules
+
+### Import Order (Mandatory)
+```typescript
+// 1. NestJS imports first (external, position: before)
+import { Injectable, Controller, Get } from '@nestjs/common';
+import { InjectModel } from '@nestjs/sequelize';
+
+// 2. External libraries (alphabetical)
+import { isEmpty, isArray, get } from 'lodash';
+import { Op } from 'sequelize';
+
+// 3. Internal imports with @ alias
+import { UserEntity } from '@/modules/users/entities/user.entity';
+import { AuthService } from '@/modules/auth/auth.service';
+
+// 4. Relative imports (parent, sibling, index)
+import { LocalService } from './local.service';
+import { ValidationDto } from '../dto/validation.dto';
+```
+
+### Import Rules Enforced
+- `import-x/no-unresolved`: All imports must be resolvable
+- `import-x/no-duplicates`: No duplicate imports allowed
+- `import-x/newline-after-import`: Always add newline after imports
+- `unused-imports/no-unused-imports`: Remove all unused imports
+- `unused-imports/no-unused-vars`: No unused variables (prefix with `_` to ignore)
+
+## Function Style Rules (CRITICAL)
+
+### Arrow Functions Required
+```typescript
+// ✅ Correct - Arrow functions outside classes
+const processUsers = async (users: User[]): Promise<ProcessedUser[]> => {
+    return users.map((user) => ({
+        id: user.id,
+        name: user.name,
+    }));
+};
+
+const validateInput = (data: any): boolean => {
+    return !isEmpty(data);
+};
+
+// ❌ Forbidden - Function declarations outside classes
+function processUsers(users: User[]): Promise<ProcessedUser[]> { // ESLint error!
+    return users.map(function(user) { // Also wrong
+        return { id: user.id, name: user.name };
+    });
+}
+```
+
+### Class Methods (Exception)
+```typescript
+// ✅ Correct - Method syntax in classes
+@Injectable()
+export class UserService {
+    async findById(id: string): Promise<User> {
+        return this.repository.findByPk(id);
+    }
+}
+```
+
+### Arrow Function Style
+- `arrow-parens`: Always use parentheses `(param) => result`
+- `arrow-body-style`: Use `as-needed` - omit braces for simple returns
+
+## Code Style & Formatting
+
+### String & Punctuation Rules
+```typescript
+// ✅ Correct
+const message = 'Hello world';
+const object = {
+    name: 'John',
+    age: 30,
+    skills: ['TypeScript', 'NestJS'],
+};
+
+// ❌ Wrong
+const message = "Hello world"; // Use single quotes
+const object = {
+    name: 'John',
+    age: 30,
+    skills: ['TypeScript', 'NestJS'] // Missing trailing comma
+};
+```
+
+### Enforced Style Rules
+- `quotes`: Single quotes always (except to avoid escaping)
+- `semi`: Semicolons required
+- `comma-dangle`: Trailing commas in multiline objects/arrays
+- `object-curly-spacing`: Always space inside braces `{ key: value }`
+- `array-bracket-spacing`: Never space inside brackets `[item1, item2]`
+- `space-in-parens`: Never space inside parentheses `(param)`
+
+## Class Member Organization
+
+### Required Order (NestJS Optimized)
+```typescript
+@Injectable()
+export class ExampleService {
+    // 1. Static properties first
+    private static readonly DEFAULT_LIMIT = 10;
+    
+    // 2. Instance properties
+    private readonly logger = new Logger(ExampleService.name);
+    
+    // 3. Private properties
+    private cacheMap = new Map();
+    
+    // 4. Constructor
+    constructor(
+        @InjectModel(User) private readonly userRepository: Repository<User>,
+        private readonly configService: ConfigService,
+    ) {}
+    
+    // 5. Static methods
+    static createDefault(): ExampleService {
+        return new ExampleService();
+    }
+    
+    // 6. Public methods
+    async findById(id: string): Promise<User> {
+        return this.userRepository.findByPk(id);
+    }
+    
+    // 7. Private methods
+    private validateInput(data: any): boolean {
+        return !isEmpty(data);
+    }
+}
+```
+
+## TypeScript Specific Rules
+
+### Method Signatures
+```typescript
+// ✅ Correct - Property style
+interface UserService {
+    findById: (id: string) => Promise<User>;
+    create: (data: CreateUserDto) => Promise<User>;
+}
+
+// ❌ Wrong - Method style
+interface UserService {
+    findById(id: string): Promise<User>; // ESLint error!
+}
+```
+
+### TypeScript Rules Enforced
+- `@typescript-eslint/method-signature-style`: Use property style for interfaces
+- `@typescript-eslint/no-explicit-any`: Allowed (set to 'off')
+- `@typescript-eslint/no-floating-promises`: Warning for unhandled promises
+- `@typescript-eslint/no-unsafe-argument`: Warning for unsafe arguments
+
+## Performance & Best Practices
+
+### Variable Declaration
+```typescript
+// ✅ Correct
+const users = await this.findUsers();
+const config = this.configService.get('database');
+
+// ❌ Wrong
+let users = await this.findUsers(); // Use const when not reassigning
+var config = this.configService.get('database'); // Never use var
+```
+
+### Array & Object Operations
+```typescript
+// ✅ Correct - Modern syntax
+const names = users.map((user) => user.name);
+const { name, email } = user; // Destructuring preferred
+const message = `Welcome ${name}!`; // Template literals preferred
+
+// ❌ Avoid
+const names = [];
+for (let i = 0; i < users.length; i++) {
+    names.push(users[i].name);
+}
+const message = 'Welcome ' + name + '!'; // String concatenation
+```
+
+### Performance Rules Enforced
+- `prefer-const`: Use const when variable is not reassigned
+- `no-var`: Never use var
+- `prefer-destructuring`: Use destructuring when possible
+- `prefer-template`: Use template literals over string concatenation
+- `array-callback-return`: Array methods must return values
+- `max-nested-callbacks`: Maximum 3 nested callbacks
+
+## Security Rules (CRITICAL)
+
+### Object Injection Prevention
+```typescript
+// ✅ Safe - Whitelisted field access
+const allowedFields = ['name', 'email', 'status'];
+const field = allowedFields.includes(userInput) ? userInput : 'name';
+const value = obj[field];
+
+// ❌ Dangerous - Direct object injection
+const value = obj[userInput]; // ESLint security error!
+```
+
+### Regular Expression Safety
+```typescript
+// ✅ Safe - Literal regex
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// ❌ Potentially unsafe - Dynamic regex
+const pattern = new RegExp(userInput); // ESLint warning
+```
+
+### Security Rules Enforced
+- `security/detect-object-injection`: Prevent `obj[userInput]` patterns
+- `security/detect-non-literal-regexp`: Warn about dynamic regex
+- `security/detect-possible-timing-attacks`: Warn about timing attack vulnerabilities
+
+## Lodash Optimization Rules
+
+### Preferred Usage
+```typescript
+// ✅ Use native methods for simple operations
+const activeUsers = users.filter(user => user.isActive);
+const userNames = users.map(user => user.name);
+const foundUser = users.find(user => user.id === targetId);
+
+// ✅ Use Lodash for complex operations
+import { get, groupBy, orderBy } from 'lodash';
+
+const userName = get(user, 'profile.firstName', 'Unknown');
+const usersByRole = groupBy(users, 'role.name');
+const sortedUsers = orderBy(users, ['createdAt'], ['desc']);
+```
+
+### Lodash Rules Enforced
+- `lodash/prefer-lodash-method`: Use Lodash for complex operations only
+- `lodash/prefer-get`: Use `_.get()` for safe property access
+- `lodash/identity-shorthand`: Use shorthand syntax when possible
+- Exceptions: `find`, `map`, `filter` (prefer native)
+- Ignore objects: `repository`, `Repository`, `QueryBuilder`
+
+## Code Quality Rules (SonarJS)
+
+### Complexity Management
+```typescript
+// ✅ Good - Simple, readable
+const processUser = (user: User): ProcessedUser => {
+    if (!user.isActive) {
+        return { ...user, status: 'inactive' };
+    }
+    
+    return { ...user, status: 'active' };
+};
+
+// ❌ Bad - Too complex (cognitive complexity > 15)
+const complexFunction = (data: any): any => {
+    if (data) {
+        if (data.type === 'user') {
+            if (data.isActive) {
+                if (data.hasPermission) {
+                    // ... deeply nested logic
+                }
+            }
+        }
+    }
+}; // ESLint error for complexity!
+```
+
+### Quality Rules Enforced
+- `sonarjs/cognitive-complexity`: Maximum complexity of 15
+- `sonarjs/no-identical-functions`: No duplicate function implementations
+- `sonarjs/prefer-immediate-return`: Return immediately when possible
+- `sonarjs/no-nested-template-literals`: Avoid nested template literals
+
+## Jest Testing Rules
+
+### Test Structure
+```typescript
+describe('UserService', () => {
+    // ✅ Unique test titles required
+    it('should return user when found', async () => {
+        expect(mockRepository.findByPk).toHaveBeenCalledWith('user-id');
+    });
+    
+    it('should throw error when user not found', async () => {
+        await expect(service.findById('invalid-id')).rejects.toThrow();
+    });
+});
+```
+
+### Testing Rules Enforced
+- `jest/no-identical-title`: Test titles must be unique
+- `jest/valid-expect`: Proper expect usage
+- `jest/expect-expect`: Tests must include expectations
+
+## JSDoc Documentation
+
+Comprehensive documentation standards: [jsdoc-documentation.mdc](mdc:.cursor/rules/jsdoc-documentation.mdc)
+
+### Basic Documentation Pattern
+```typescript
+/**
+ * Creates a new user account with the provided information
+ * @param userData - The user data for account creation
+ * @returns Promise resolving to the created user entity
+ * @throws {ConflictException} When email already exists
+ */
+async createUser(userData: CreateUserDto): Promise<User> {
+    // Implementation
+}
+```
+
+### Documentation Rules Enforced
+- `jsdoc/require-jsdoc`: JSDoc required for public methods
+- `jsdoc/require-param`: Parameter documentation required
+- `jsdoc/require-returns`: Return value documentation required
+- `jsdoc/check-types`: Validate JSDoc types
+
+For detailed JSDoc patterns, examples, and standards, see the comprehensive guide above.
+
+## Common Violations & Fixes
+
+### 1. Import Order Violation
+```bash
+# Error: Import order violation
+# Fix: Reorganize imports according to rules
+```
+
+### 2. Function Declaration Usage
+```bash
+# Error: Use arrow functions outside of classes
+# Fix: Convert to arrow function
+```
+
+### 3. Security Object Injection
+```bash
+# Error: Detected object injection sink
+# Fix: Use whitelisted field access
+```
+
+### 4. Cognitive Complexity
+```bash
+# Error: Function has cognitive complexity of 16 (max: 15)
+# Fix: Break down into smaller functions
+```
+
+## Integration with Development Workflow
+
+### Pre-commit Hooks
+The project uses lint-staged to run ESLint on staged files:
+```json
+{
+  "*.{ts,js}": ["eslint --fix", "prettier --write"]
+}
+```
+
+### VSCode Integration
+ESLint is configured to auto-fix on save through [settings.json](mdc:.vscode/settings.json):
+```json
+{
+  "eslint.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  }
+}
+```
+
+All code MUST pass these ESLint rules before being committed. Use `pnpm lint:fix` to automatically fix violations where possible.

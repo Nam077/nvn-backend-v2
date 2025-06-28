@@ -1,0 +1,404 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# JSDoc Documentation Standards
+
+## Overview
+This project enforces comprehensive JSDoc documentation standards as defined in [eslint.config.mjs](mdc:eslint.config.mjs). Proper documentation improves code maintainability and developer experience.
+
+## JSDoc Rules Enforced
+
+### Required Documentation Rules
+- `jsdoc/require-jsdoc`: JSDoc comments required for public methods
+- `jsdoc/require-param`: Parameter documentation required
+- `jsdoc/require-param-description`: Parameter descriptions required
+- `jsdoc/require-returns`: Return value documentation required
+- `jsdoc/require-returns-description`: Return descriptions required
+
+### Quality Control Rules
+- `jsdoc/check-alignment`: Proper JSDoc alignment
+- `jsdoc/check-param-names`: Parameter names must match function signature
+- `jsdoc/check-types`: Type annotations must be valid
+
+## NestJS Service Documentation
+
+### Service Methods Pattern
+```typescript
+@Injectable()
+export class UserService {
+    /**
+     * Retrieves a user by their unique identifier
+     * @param id - The unique user identifier (UUID)
+     * @returns Promise resolving to the user entity or null if not found
+     * @throws {NotFoundException} When user does not exist
+     * @throws {BadRequestException} When ID format is invalid
+     * @example
+     * ```typescript
+     * const user = await userService.findById('123e4567-e89b-12d3-a456-426614174000');
+     * if (user) {
+     *   console.log(user.name);
+     * }
+     * ```
+     */
+    async findById(id: string): Promise<User | null> {
+        if (!isUUID(id)) {
+            throw new BadRequestException('Invalid user ID format');
+        }
+        
+        const user = await this.userRepository.findByPk(id);
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+        
+        return user;
+    }
+
+    /**
+     * Creates a new user account with validated data
+     * @param createUserDto - User creation data transfer object
+     * @param createUserDto.email - User's email address (must be unique)
+     * @param createUserDto.firstName - User's first name
+     * @param createUserDto.lastName - User's last name
+     * @param createUserDto.password - User's password (will be hashed)
+     * @returns Promise resolving to the created user entity
+     * @throws {ConflictException} When email already exists
+     * @throws {BadRequestException} When validation fails
+     * @since 1.0.0
+     */
+    async create(createUserDto: CreateUserDto): Promise<User> {
+        try {
+            const hashedPassword = await this.hashPassword(createUserDto.password);
+            return await this.userRepository.create({
+                ...createUserDto,
+                password: hashedPassword,
+            });
+        } catch (error) {
+            if (error.name === 'SequelizeUniqueConstraintError') {
+                throw new ConflictException('Email already exists');
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * Updates user information with partial data
+     * @param id - The user identifier to update
+     * @param updateUserDto - Partial user data for update
+     * @returns Promise resolving to the updated user entity
+     * @throws {NotFoundException} When user does not exist
+     * @throws {ConflictException} When email conflicts with existing user
+     * @internal Only for admin use
+     */
+    async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+        // Implementation...
+    }
+}
+```
+
+## Controller Documentation
+
+### API Endpoint Documentation
+```typescript
+@Controller('users')
+@ApiTags('Users')
+export class UsersController {
+    /**
+     * Retrieves a paginated list of users
+     * @param page - Page number (1-based, default: 1)
+     * @param limit - Number of items per page (default: 20, max: 100)
+     * @param search - Optional search term for filtering users
+     * @returns Promise resolving to paginated user list
+     * @throws {BadRequestException} When pagination parameters are invalid
+     * @throws {UnauthorizedException} When user is not authenticated
+     * @public
+     * @route GET /users
+     * @access Requires authentication
+     */
+    @Get()
+    @UseGuards(AuthGuard)
+    @ApiOperation({ summary: 'Get paginated users list' })
+    @ApiQuery({ name: 'page', required: false, type: Number })
+    @ApiQuery({ name: 'limit', required: false, type: Number })
+    async findAll(
+        @Query('page') page: number = 1,
+        @Query('limit') limit: number = 20,
+        @Query('search') search?: string,
+    ): Promise<PaginatedResponse<UserDto>> {
+        return this.usersService.findPaginated(page, limit, search);
+    }
+
+    /**
+     * Creates a new user account
+     * @param createUserDto - User creation data
+     * @param request - Express request object containing user context
+     * @returns Promise resolving to created user data
+     * @throws {ConflictException} When email already exists
+     * @throws {BadRequestException} When validation fails
+     * @throws {ForbiddenException} When user lacks create permissions
+     * @route POST /users
+     * @access Requires admin role
+     */
+    @Post()
+    @UseGuards(AuthGuard, CaslGuard)
+    @CheckAbilities({ action: 'create', subject: 'User' })
+    async create(
+        @Body() createUserDto: CreateUserDto,
+        @Req() request: Request,
+    ): Promise<UserDto> {
+        return this.usersService.create(createUserDto);
+    }
+}
+```
+
+## Utility Functions Documentation
+
+### Helper Functions Pattern
+```typescript
+/**
+ * Validates if a string is a valid UUID format
+ * @param value - The string value to validate
+ * @returns True if the value is a valid UUID, false otherwise
+ * @example
+ * ```typescript
+ * isValidUUID('123e4567-e89b-12d3-a456-426614174000'); // true
+ * isValidUUID('invalid-uuid'); // false
+ * ```
+ */
+const isValidUUID = (value: string): boolean => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(value);
+};
+
+/**
+ * Safely extracts nested object properties with default fallback
+ * @param obj - The source object to extract from
+ * @param path - Dot-notation path to the desired property
+ * @param defaultValue - Default value if property doesn't exist
+ * @returns The extracted value or default
+ * @template T - Type of the default/return value
+ * @example
+ * ```typescript
+ * const user = { profile: { name: 'John' } };
+ * safeGet(user, 'profile.name', 'Unknown'); // 'John'
+ * safeGet(user, 'profile.age', 0); // 0
+ * ```
+ */
+const safeGet = <T>(obj: any, path: string, defaultValue: T): T => {
+    return get(obj, path, defaultValue);
+};
+
+/**
+ * Transforms an array of objects into a map keyed by specified property
+ * @param items - Array of objects to transform
+ * @param keyProperty - Property name to use as map keys
+ * @returns Map with keys from specified property
+ * @template T - Type of objects in the array
+ * @template K - Type of the key property
+ * @throws {Error} When keyProperty doesn't exist on objects
+ */
+const arrayToMap = <T, K extends keyof T>(
+    items: T[], 
+    keyProperty: K
+): Map<T[K], T> => {
+    return new Map(items.map(item => [item[keyProperty], item]));
+};
+```
+
+## Class Documentation
+
+### Entity Documentation
+```typescript
+/**
+ * User entity representing registered system users
+ * @class User
+ * @extends Model<User>
+ * @table users
+ * @since 1.0.0
+ * @author NVN Font Team
+ */
+@Table({ 
+    tableName: 'users',
+    timestamps: true,
+    paranoid: true 
+})
+export class User extends Model<User> {
+    /**
+     * Unique user identifier (UUID v4)
+     * @type {string}
+     * @readonly
+     * @primary
+     */
+    @PrimaryKey
+    @Default(DataType.UUIDV4)
+    @Column(DataType.UUID)
+    readonly id: string;
+    
+    /**
+     * User's email address (unique constraint)
+     * @type {string}
+     * @unique
+     * @maxLength 255
+     * @format email
+     */
+    @AllowNull(false)
+    @Unique
+    @Column(DataType.STRING)
+    email: string;
+    
+    /**
+     * User's first name
+     * @type {string}
+     * @maxLength 50
+     */
+    @AllowNull(false)
+    @Column(DataType.STRING(50))
+    firstName: string;
+    
+    /**
+     * Collection of user roles for permission management
+     * @type {UserRole[]}
+     * @relation HasMany
+     * @foreignKey userId
+     */
+    @HasMany(() => UserRole)
+    userRoles: UserRole[];
+}
+```
+
+## Type Definitions Documentation
+
+### Interface Documentation
+```typescript
+/**
+ * Configuration options for JsonLogic to SQL conversion
+ * @interface JsonLogicToSqlOptions
+ * @since 1.2.0
+ */
+interface JsonLogicToSqlOptions {
+    /**
+     * Table alias to use in generated SQL
+     * @type {string}
+     * @default ''
+     * @example 'u' for users table alias
+     */
+    tableAlias?: string;
+    
+    /**
+     * Field name mappings for custom transformations
+     * @type {Record<string, string>}
+     * @default {}
+     * @example { 'fullName': 'CONCAT(first_name, " ", last_name)' }
+     */
+    fieldMappings?: Record<string, string>;
+    
+    /**
+     * Whether to escape field values for security
+     * @type {boolean}
+     * @default true
+     */
+    escapeValues?: boolean;
+}
+
+/**
+ * Result structure for SQL query generation
+ * @interface SqlQueryResult
+ */
+interface SqlQueryResult {
+    /**
+     * Generated SQL WHERE clause
+     * @type {string}
+     * @example "(name = :param0 AND age > :param1)"
+     */
+    sql: string;
+    
+    /**
+     * Parameters for safe SQL execution
+     * @type {Record<string, any>}
+     * @example { param0: 'John', param1: 25 }
+     */
+    parameters: Record<string, any>;
+}
+```
+
+## Complex Method Documentation
+
+### Business Logic Documentation
+```typescript
+/**
+ * Processes bulk user operations with transaction safety
+ * @param operations - Array of user operations to perform
+ * @param options - Processing options and configuration
+ * @param options.batchSize - Number of operations per batch (default: 100)
+ * @param options.skipValidation - Whether to skip additional validation
+ * @param options.onProgress - Callback for progress updates
+ * @returns Promise resolving to operation results summary
+ * @throws {BadRequestException} When operations contain invalid data
+ * @throws {ConflictException} When operations conflict with existing data
+ * @throws {InternalServerErrorException} When database transaction fails
+ * @complexity O(n) where n is number of operations
+ * @performance Uses batching to optimize database operations
+ * @transaction Uses database transactions for atomicity
+ * @example
+ * ```typescript
+ * const results = await userService.processBulkOperations([
+ *   { type: 'create', data: { email: 'user1@example.com' } },
+ *   { type: 'update', id: 'user-id', data: { firstName: 'Updated' } },
+ *   { type: 'delete', id: 'user-id-2' }
+ * ], {
+ *   batchSize: 50,
+ *   onProgress: (progress) => console.log(`${progress}% complete`)
+ * });
+ * ```
+ */
+async processBulkOperations(
+    operations: UserOperation[],
+    options: BulkProcessOptions = {}
+): Promise<BulkOperationResult> {
+    // Implementation with comprehensive error handling
+}
+```
+
+## Documentation Standards
+
+### Required Elements
+1. **Purpose**: Brief description of what the function/class does
+2. **Parameters**: All parameters with types and descriptions
+3. **Returns**: Return value type and description
+4. **Throws**: All possible exceptions with conditions
+5. **Examples**: Code examples showing usage
+6. **Since**: Version when introduced (for public APIs)
+
+### Optional but Recommended
+- **@complexity**: Time/space complexity for algorithms
+- **@performance**: Performance considerations
+- **@security**: Security implications
+- **@deprecated**: For deprecated methods
+- **@internal**: For internal-only methods
+- **@todo**: For incomplete implementations
+
+### Special NestJS Tags
+- **@route**: HTTP route information for controllers
+- **@access**: Access level requirements
+- **@guard**: Required guards for endpoints
+- **@table**: Database table for entities
+- **@relation**: Relationship type for entity associations
+
+## Integration with Development
+
+### Auto-generation Tools
+Use JSDoc comments for:
+- API documentation generation
+- Type checking assistance
+- IDE IntelliSense support
+- Documentation websites
+
+### VSCode Integration
+JSDoc comments appear in:
+- Method hover tooltips
+- Parameter hints
+- Auto-completion suggestions
+- Quick documentation panels
+
+All public methods, complex algorithms, and API endpoints MUST have comprehensive JSDoc documentation following these standards.

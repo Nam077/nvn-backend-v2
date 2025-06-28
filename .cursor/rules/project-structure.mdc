@@ -1,0 +1,65 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# NVN Font Backend - Project Structure
+
+## Project Overview
+This is a NestJS TypeScript backend for a font management system with PostgreSQL database, Sequelize ORM, and RBAC (Role-Based Access Control).
+
+## Key Architecture Files
+- Main entry point: [main.ts](mdc:src/main.ts)
+- App module: [app.module.ts](mdc:src/app.module.ts)
+- Configuration: [config.service.ts](mdc:src/modules/config/config.service.ts)
+- Database setup: [database.module.ts](mdc:src/modules/database/database.module.ts)
+
+## Core Modules Structure
+
+### Authentication & Authorization
+- Auth module: [auth.module.ts](mdc:src/modules/auth/auth.module.ts)
+- CASL permissions: [casl.module.ts](mdc:src/modules/casl/casl.module.ts)
+- User management: [users.module.ts](mdc:src/modules/users/users.module.ts)
+
+### Business Logic Modules
+- Font management: [fonts/](mdc:src/modules/fonts)
+- Collection management: [collections/](mdc:src/modules/collections)
+- Categories: [categories/](mdc:src/modules/categories)
+- Subscriptions: [subscription/](mdc:src/modules/subscription)
+- Analytics: [analytics/](mdc:src/modules/analytics)
+- Payment processing: [payment/](mdc:src/modules/payment)
+
+### Utilities & Common
+- Common utilities: [common/](mdc:src/common)
+- Query builder: [query-builder/](mdc:src/common/query-builder)
+- Validators: [validators/](mdc:src/common/validators)
+- Constants: [constants/](mdc:src/common/constants)
+
+## Module Pattern
+Each module follows this structure:
+```
+module-name/
+├── entities/           # Sequelize models
+├── dto/               # Data Transfer Objects
+├── controllers/       # API endpoints
+├── services/         # Business logic
+├── guards/           # Custom guards
+├── decorators/       # Custom decorators
+└── module.ts         # Module definition
+```
+
+## Configuration Files
+- ESLint config: [eslint.config.mjs](mdc:eslint.config.mjs)
+- TypeScript config: [tsconfig.json](mdc:tsconfig.json)
+- Docker setup: [docker-compose.dev.yml](mdc:docker-compose.dev.yml)
+- Package config: [package.json](mdc:package.json)
+
+## Scripts & Automation
+- Blueprint generator: [generate-blueprint.ts](mdc:scripts/generate-blueprint.ts)
+- Query config generator: [generate-query-configs.ts](mdc:scripts/generate-query-configs.ts)
+- Template files: [templates/](mdc:scripts/templates)
+
+## Documentation
+- Architecture guide: [ARCHITECTURE.md](mdc:ARCHITECTURE.md)
+- RBAC guide: [RBAC-GUIDE.md](mdc:RBAC-GUIDE.md)
+- Cursor setup: [cursor-setup.md](mdc:cursor-setup.md)
