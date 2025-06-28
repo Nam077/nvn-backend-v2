@@ -1,3 +1,4 @@
+import { FindOptions } from 'sequelize';
 import { Model } from 'sequelize-typescript';
 
 /**
@@ -13,3 +14,9 @@ export type NonFunctionPropertyNames<T> = {
  * Represents the data attributes of a Sequelize Model.
  */
 export type ModelAttributes<T extends Model> = Pick<T, NonFunctionPropertyNames<T>>;
+
+/**
+ * Custom type for Sequelize FindOptions, omitting the 'where' clause.
+ * This is used to enforce that a method finds a resource strictly by its primary key.
+ */
+export type FindOneOptions = Omit<FindOptions, 'where'>;

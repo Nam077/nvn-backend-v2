@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
-import { ValidationPipe } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
+import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
+import { NestFactory, Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import cookieParser from 'cookie-parser';
@@ -37,6 +37,9 @@ const bootstrap = async (): Promise<void> => {
             },
         }),
     );
+
+    // Global class serializer interceptor
+    app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
 
     // Global prefix - Set BEFORE Swagger
     app.setGlobalPrefix('api');

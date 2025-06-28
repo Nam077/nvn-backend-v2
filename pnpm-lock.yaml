@@ -12,7 +12,7 @@ importers:
                 version: 6.7.3
             '@casl/prisma':
                 specifier: ^1.5.1
-                version: 1.5.1(@casl/ability@6.7.3)(@prisma/client@6.10.1(typescript@5.8.3))
+                version: 1.5.1(@casl/ability@6.7.3)(@prisma/client@6.10.1(prisma@5.22.0)(typescript@5.8.3))
             '@nestjs/axios':
                 specifier: ^4.0.0
                 version: 4.0.0(@nestjs/common@11.1.3(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(axios@1.10.0)(rxjs@7.8.2)
@@ -52,6 +52,9 @@ importers:
             '@types/qrcode':
                 specifier: ^1.5.5
                 version: 1.5.5
+            '@types/uuid':
+                specifier: ^10.0.0
+                version: 10.0.0
             argon2:
                 specifier: ^0.43.0
                 version: 0.43.0
@@ -118,6 +121,9 @@ importers:
             sequelize-typescript:
                 specifier: ^2.1.6
                 version: 2.1.6(@types/node@22.15.32)(@types/validator@13.15.2)(reflect-metadata@0.2.2)(sequelize@6.37.7(pg-hstore@2.3.4)(pg@8.16.2))
+            uuid:
+                specifier: ^11.1.0
+                version: 11.1.0
         devDependencies:
             '@commitlint/cli':
                 specifier: ^19.8.1
@@ -246,11 +252,17 @@ importers:
                 specifier: ^4.17.21
                 version: 4.17.21
             prettier:
-                specifier: ^3.4.2
+                specifier: ^3.3.3
                 version: 3.5.3
+            prisma:
+                specifier: ^5.17.0
+                version: 5.22.0
+            slugify:
+                specifier: ^1.6.6
+                version: 1.6.6
             sort-package-json:
-                specifier: ^2.12.0
-                version: 2.15.1
+                specifier: ^3.3.1
+                version: 3.3.1
             source-map-support:
                 specifier: ^0.5.21
                 version: 0.5.21
@@ -258,7 +270,7 @@ importers:
                 specifier: ^7.0.0
                 version: 7.1.1
             ts-jest:
-                specifier: ^29.2.5
+                specifier: ^29.2.3
                 version: 29.4.0(@babel/core@7.27.4)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.27.4))(jest-util@29.7.0)(jest@29.7.0(@types/node@22.15.32)(ts-node@10.9.2(@swc/core@1.12.5)(@types/node@22.15.32)(typescript@5.8.3)))(typescript@5.8.3)
             ts-loader:
                 specifier: ^9.5.2
@@ -1698,6 +1710,36 @@ packages:
             typescript:
                 optional: true
 
+    '@prisma/debug@5.22.0':
+        resolution:
+            {
+                integrity: sha512-AUt44v3YJeggO2ZU5BkXI7M4hu9BF2zzH2iF2V5pyXT/lRTyWiElZ7It+bRH1EshoMRxHgpYg4VB6rCM+mG5jQ==,
+            }
+
+    '@prisma/engines-version@5.22.0-44.605197351a3c8bdd595af2d2a9bc3025bca48ea2':
+        resolution:
+            {
+                integrity: sha512-2PTmxFR2yHW/eB3uqWtcgRcgAbG1rwG9ZriSvQw+nnb7c4uCr3RAcGMb6/zfE88SKlC1Nj2ziUvc96Z379mHgQ==,
+            }
+
+    '@prisma/engines@5.22.0':
+        resolution:
+            {
+                integrity: sha512-UNjfslWhAt06kVL3CjkuYpHAWSO6L4kDCVPegV6itt7nD1kSJavd3vhgAEhjglLJJKEdJ7oIqDJ+yHk6qO8gPA==,
+            }
+
+    '@prisma/fetch-engine@5.22.0':
+        resolution:
+            {
+                integrity: sha512-bkrD/Mc2fSvkQBV5EpoFcZ87AvOgDxbG99488a5cexp5Ccny+UM6MAe/UFkUC0wLYD9+9befNOqGiIJhhq+HbA==,
+            }
+
+    '@prisma/get-platform@5.22.0':
+        resolution:
+            {
+                integrity: sha512-pHhpQdr1UPFpt+zFfnPazhulaZYCUqeIcPpJViYoq9R+D/yw4fjE+CtnsnKzPYm0ddUbeXUzjGVGIRVgPDCk4Q==,
+            }
+
     '@scarf/scarf@1.4.0':
         resolution:
             {
@@ -2238,6 +2280,12 @@ packages:
         resolution:
             {
                 integrity: sha512-HsJ+z3QuETzP3cswwtzt2vEIiHBk/dCcHGhbmG5X3ecnwFD/lPrMpliGXxSCg03L9AhrdwA4Oz/qfspkDW+xGQ==,
+            }
+
+    '@types/uuid@10.0.0':
+        resolution:
+            {
+                integrity: sha512-7gqG38EyHgyP1S+7+xomFtL+ZNHcKv6DwNaCZmJmo1vgMugyF3TCnXVg4t1uk89mLNwnLtnY3TpOpCOyp1/xHQ==,
             }
 
     '@types/validator@13.15.2':
@@ -4691,13 +4739,6 @@ packages:
             }
         engines: { node: '>= 0.4' }
 
-    get-stdin@9.0.0:
-        resolution:
-            {
-                integrity: sha512-dVKBjfWisLAicarI2Sf+JuBE/DghV4UzNAVe9yhEJuzeREd3JhOTE9cUaJTeSa77fsbQUK3pcOpJfM59+VKZaA==,
-            }
-        engines: { node: '>=12' }
-
     get-stream@6.0.1:
         resolution:
             {
@@ -4725,10 +4766,10 @@ packages:
                 integrity: sha512-auHyJ4AgMz7vgS8Hp3N6HXSmlMdUyhSUrfBF16w153rxtLIEOE+HGqaBppczZvnHLqQJfiHotCYpNhl0lUROFQ==,
             }
 
-    git-hooks-list@3.2.0:
+    git-hooks-list@4.1.1:
         resolution:
             {
-                integrity: sha512-ZHG9a1gEhUMX1TvGrLdyWb9kDopCBbTnI8z4JgRMYxsijWipgjSEYoPWqBuIB0DnRnvqlQSEeVmzpeuPm7NdFQ==,
+                integrity: sha512-cmP497iLq54AZnv4YRAEMnEyQ1eIn4tGKbmswqwmFV4GBnAqE8NLtWxxdXa++AalfgL5EBH4IxTPyquEuGY/jA==,
             }
 
     git-raw-commits@4.0.0:
@@ -6867,6 +6908,14 @@ packages:
             }
         engines: { node: ^14.15.0 || ^16.10.0 || >=18.0.0 }
 
+    prisma@5.22.0:
+        resolution:
+            {
+                integrity: sha512-vtpjW3XuYCSnMsNVBjLMNkTj6OZbudcPPTPYHqX0CJfpcdWciI1dM8uHETwmDxxiqEwCIE6WvXucWUetJgfu/A==,
+            }
+        engines: { node: '>=16.13' }
+        hasBin: true
+
     prompts@2.4.2:
         resolution:
             {
@@ -7456,6 +7505,13 @@ packages:
             }
         engines: { node: '>=18' }
 
+    slugify@1.6.6:
+        resolution:
+            {
+                integrity: sha512-h+z7HKHYXj6wJU+AnS/+IH8Uh9fdcX1Lrhg1/VMdf9PwoBQXFcXiAdsy2tSK0P6gKwJLXp02r90ahUCqHk9rrw==,
+            }
+        engines: { node: '>=8.0.0' }
+
     sort-keys-length@1.0.1:
         resolution:
             {
@@ -7476,11 +7532,12 @@ packages:
                 integrity: sha512-855pvK+VkU7PaKYPc+Jjnmt4EzejQHyhhF33q31qG8x7maDzkeFhAAThdCYay11CISO+qAMwjOBP+fPZe0IPyg==,
             }
 
-    sort-package-json@2.15.1:
+    sort-package-json@3.3.1:
         resolution:
             {
-                integrity: sha512-9x9+o8krTT2saA9liI4BljNjwAbvUnWf11Wq+i/iZt8nl2UGYnf3TH5uBydE7VALmP7AGwlfszuEeL8BDyb0YA==,
+                integrity: sha512-awjhQR2Iy5UN3NuguAK5+RezcEuUg9Ra4O8y2Aj+DlJa7MywyHaipAPf9bu4qqFj0hsYHHoT9sS3aV7Ucu728g==,
             }
+        engines: { node: '>=20' }
         hasBin: true
 
     source-map-support@0.5.13:
@@ -8179,6 +8236,13 @@ packages:
             }
         engines: { node: '>= 0.4.0' }
 
+    uuid@11.1.0:
+        resolution:
+            {
+                integrity: sha512-0/A9rDy9P7cJ+8w1c9WD9V//9Wj15Ce2MPz8Ri6032usz+NfePxx5AcN3bN+r6ZL6jEo066/yNYB3tn4pQEx+A==,
+            }
+        hasBin: true
+
     uuid@8.3.2:
         resolution:
             {
@@ -8703,10 +8767,10 @@ snapshots:
         dependencies:
             '@ucast/mongo2js': 1.4.0
 
-    '@casl/prisma@1.5.1(@casl/ability@6.7.3)(@prisma/client@6.10.1(typescript@5.8.3))':
+    '@casl/prisma@1.5.1(@casl/ability@6.7.3)(@prisma/client@6.10.1(prisma@5.22.0)(typescript@5.8.3))':
         dependencies:
             '@casl/ability': 6.7.3
-            '@prisma/client': 6.10.1(typescript@5.8.3)
+            '@prisma/client': 6.10.1(prisma@5.22.0)(typescript@5.8.3)
             '@ucast/core': 1.10.2
             '@ucast/js': 3.0.4
 
@@ -9541,9 +9605,31 @@ snapshots:
 
     '@pkgr/core@0.2.7': {}
 
-    '@prisma/client@6.10.1(typescript@5.8.3)':
+    '@prisma/client@6.10.1(prisma@5.22.0)(typescript@5.8.3)':
         optionalDependencies:
+            prisma: 5.22.0
             typescript: 5.8.3
+
+    '@prisma/debug@5.22.0': {}
+
+    '@prisma/engines-version@5.22.0-44.605197351a3c8bdd595af2d2a9bc3025bca48ea2': {}
+
+    '@prisma/engines@5.22.0':
+        dependencies:
+            '@prisma/debug': 5.22.0
+            '@prisma/engines-version': 5.22.0-44.605197351a3c8bdd595af2d2a9bc3025bca48ea2
+            '@prisma/fetch-engine': 5.22.0
+            '@prisma/get-platform': 5.22.0
+
+    '@prisma/fetch-engine@5.22.0':
+        dependencies:
+            '@prisma/debug': 5.22.0
+            '@prisma/engines-version': 5.22.0-44.605197351a3c8bdd595af2d2a9bc3025bca48ea2
+            '@prisma/get-platform': 5.22.0
+
+    '@prisma/get-platform@5.22.0':
+        dependencies:
+            '@prisma/debug': 5.22.0
 
     '@scarf/scarf@1.4.0': {}
 
@@ -9863,6 +9949,8 @@ snapshots:
     '@types/through@0.0.33':
         dependencies:
             '@types/node': 22.15.32
+
+    '@types/uuid@10.0.0': {}
 
     '@types/validator@13.15.2': {}
 
@@ -11463,8 +11551,6 @@ snapshots:
             dunder-proto: 1.0.1
             es-object-atoms: 1.1.1
 
-    get-stdin@9.0.0: {}
-
     get-stream@6.0.1: {}
 
     get-stream@9.0.1:
@@ -11482,7 +11568,7 @@ snapshots:
         dependencies:
             resolve-pkg-maps: 1.0.0
 
-    git-hooks-list@3.2.0: {}
+    git-hooks-list@4.1.1: {}
 
     git-raw-commits@4.0.0:
         dependencies:
@@ -12808,6 +12894,12 @@ snapshots:
             ansi-styles: 5.2.0
             react-is: 18.3.1
 
+    prisma@5.22.0:
+        dependencies:
+            '@prisma/engines': 5.22.0
+        optionalDependencies:
+            fsevents: 2.3.3
+
     prompts@2.4.2:
         dependencies:
             kleur: 3.0.3
@@ -13173,6 +13265,8 @@ snapshots:
             ansi-styles: 6.2.1
             is-fullwidth-code-point: 5.0.0
 
+    slugify@1.6.6: {}
+
     sort-keys-length@1.0.1:
         dependencies:
             sort-keys: 1.1.2
@@ -13183,12 +13277,11 @@ snapshots:
 
     sort-object-keys@1.1.3: {}
 
-    sort-package-json@2.15.1:
+    sort-package-json@3.3.1:
         dependencies:
             detect-indent: 7.0.1
             detect-newline: 4.0.1
-            get-stdin: 9.0.0
-            git-hooks-list: 3.2.0
+            git-hooks-list: 4.1.1
             is-plain-obj: 4.1.0
             semver: 7.7.2
             sort-object-keys: 1.1.3
@@ -13645,6 +13738,8 @@ snapshots:
     util-deprecate@1.0.2: {}
 
     utils-merge@1.0.1: {}
+
+    uuid@11.1.0: {}
 
     uuid@8.3.2: {}
 

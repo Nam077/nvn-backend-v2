@@ -85,3 +85,12 @@ export const SESSION_CONFIG = {
     DEFAULT_EXPIRY: 30 * 24 * 60 * 60, // 30 days in seconds
     CLEANUP_INTERVAL: 60 * 60, // 1 hour in seconds
 } as const;
+
+export const AUTH_TYPE = {
+    JWT: 'jwt',
+    // In the future, we can add more types here
+    // API_KEY: 'apiKey',
+    // OAUTH2: 'oauth2',
+} as const;
+
+export type AuthType = (typeof AUTH_TYPE)[keyof typeof AUTH_TYPE];

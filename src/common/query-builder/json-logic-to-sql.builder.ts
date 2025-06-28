@@ -20,7 +20,21 @@
  * ```
  */
 
-import { isArray, isBoolean, isEmpty, isNumber, isObject, isString, keys, map, some, every } from 'lodash';
+import {
+    isArray,
+    isBoolean,
+    isEmpty,
+    isNumber,
+    isObject,
+    isString,
+    keys,
+    map,
+    some,
+    every,
+    includes,
+    split,
+    join,
+} from 'lodash';
 
 // --- Type definitions for JsonLogic ---
 type JsonLogicPrimitive = string | number | boolean | null;
@@ -99,6 +113,11 @@ export interface SqlBuildOptions {
      * Whether to wrap the final result in parentheses
      */
     wrapInParentheses?: boolean;
+
+    /**
+     * A map of entity names to their SQL aliases
+     */
+    aliasMap?: Map<string, string>;
 }
 
 export interface SqlBuildResult {
@@ -124,11 +143,8 @@ export class JsonLogicToSqlBuilder {
      * @returns SQL build result with query and parameters
      */
     build(rule: JsonLogicRuleNode): SqlBuildResult {
-        this.paramCounter = 0;
-        this.parameters = {};
-
         if (isEmpty(rule)) {
-            return { sql: '1 = 1', parameters: {} };
+            return { sql: '1 = 1', parameters: this.parameters };
         }
 
         const sql = this.buildCondition(rule);
@@ -145,7 +161,7 @@ export class JsonLogicToSqlBuilder {
      * @param rule - JsonLogic rule object
      * @returns SQL condition string
      */
-    protected buildCondition(rule: JsonLogicRuleNode): string {
+    public buildCondition(rule: JsonLogicRuleNode): string {
         const [operator] = keys(rule);
 
         // Security: Validate operator is allowed
@@ -228,7 +244,9 @@ export class JsonLogicToSqlBuilder {
             case 'is_not_empty': {
                 const fieldName = this.extractFieldName(operands);
                 const op = operator === 'is_empty' ? '=' : '!=';
-                return `(${this.mapFieldName(fieldName)} IS ${op === '=' ? '' : 'NOT '}NULL OR ${this.mapFieldName(fieldName)} ${op} '')`;
+                return `(${this.mapFieldName(fieldName)} IS ${op === '=' ? '' : 'NOT '}NULL OR ${this.mapFieldName(
+                    fieldName,
+                )} ${op} '')`;
             }
 
             default:
@@ -342,15 +360,58 @@ export class JsonLogicToSqlBuilder {
      * @returns Mapped field name
      */
     protected mapFieldName(field: string): string {
+        let mappedField = field;
+
+        // Use aliasMap to replace entity name with its alias
+        if (this.options.aliasMap && includes(mappedField, '.')) {
+            const [entity, ...rest] = split(mappedField, '.');
+            const alias = this.options.aliasMap.get(entity);
+            if (alias) {
+                mappedField = join([alias, ...rest], '.');
+            }
+        }
+
         if (this.options.fieldMapper) {
-            return this.options.fieldMapper(field);
+            return this.options.fieldMapper(mappedField);
         }
 
-        if (this.options.tableAlias) {
-            return `${this.options.tableAlias}.${field}`;
+        // Universal quoting function
+        const quoteField = (f: string) => {
+            if (includes(f, '.')) {
+                const parts = split(f, '.');
+                return `${parts[0]}."${parts[1]}"`;
+            }
+            if (this.options.tableAlias) {
+                return `${this.options.tableAlias}."${f}"`;
+            }
+            return `"${f}"`;
+        };
+
+        // Handle JSONB path notation (e.g., "metadata->profile->name")
+        if (includes(mappedField, '->')) {
+            const parts = split(mappedField, '->');
+            const columnName = parts.shift();
+
+            if (!columnName) {
+                throw new Error('Invalid JSONB path: missing column name.');
+            }
+
+            const aliasedColumn = quoteField(columnName);
+
+            if (parts.length > 0) {
+                const pathSegments = map(parts.slice(0, -1), (p) => `'${p}'`);
+                const lastSegment = `'${parts[parts.length - 1]}'`;
+
+                let finalPath = aliasedColumn;
+                if (pathSegments.length > 0) {
+                    finalPath += `->${pathSegments.join('->')}`;
+                }
+                finalPath += `->>${lastSegment}`;
+                return finalPath;
+            }
         }
 
-        return field;
+        return quoteField(mappedField);
     }
 
     /**
@@ -358,21 +419,36 @@ export class JsonLogicToSqlBuilder {
      * @param value - Parameter value
      * @returns Parameter name
      */
-    protected addParameter(value: any): string {
+    public addParameter(value: JsonLogicPrimitive | JsonLogicPrimitive[]): string {
         const paramName = `param${this.paramCounter++}`;
-        // Safe parameter assignment with known parameter name
-        this.setParameter(paramName, value);
+        // The paramName is generated internally from a counter, so it's safe from injection.
+        // eslint-disable-next-line security/detect-object-injection
+        this.parameters[paramName] = value;
         return paramName;
     }
 
     /**
-     * Safely set parameter value
-     * @param paramName - Parameter name
-     * @param value - Parameter value
+     * Gets the current count of parameters.
+     * @returns The number of parameters.
      */
-    private setParameter(paramName: string, value: unknown): void {
-        // Use Map or direct assignment to avoid object injection
-        this.parameters = { ...this.parameters, [paramName]: value };
+    getParamCount(): number {
+        return this.paramCounter;
+    }
+
+    /**
+     * Gets the parameters object.
+     * @returns The parameters record.
+     */
+    getParameters(): Record<string, any> {
+        return this.parameters;
+    }
+
+    /**
+     * Sets the options for the builder.
+     * @param options - The options to set.
+     */
+    setOptions(options: SqlBuildOptions): void {
+        this.options = { ...this.options, ...options };
     }
 
     /**

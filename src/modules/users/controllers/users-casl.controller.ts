@@ -9,9 +9,12 @@ import {
     UseGuards,
     ParseUUIDPipe,
     ForbiddenException,
+    Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 
+import { PaginationDto } from '@/common/dto/pagination.dto';
+import { QueryDto } from '@/common/dto/query.dto';
 import { GetUser } from '@/modules/auth/decorators/get-user.decorator';
 import { JwtAuthGuard } from '@/modules/auth/guards/auth.guard';
 import { SessionService } from '@/modules/auth/services/session.service';
@@ -42,12 +45,20 @@ export class UsersCaslController {
     ) {}
 
     // ✅ Only users with 'read User' ability can access
-    @Get()
+    @Post('query')
     @CommonAbilities.ReadUsers
-    @ApiOperation({ summary: 'Get all users' })
+    @ApiOperation({ summary: 'Query all users' })
     @ApiResponse({ status: 200, description: 'Users retrieved successfully', type: [User] })
-    async findAll(): Promise<{ users: User[]; total: number; totalPages: number }> {
-        return this.usersService.findAll();
+    async findAll(
+        @Query() paginationDto: PaginationDto,
+        @Body() queryDto: QueryDto,
+    ): Promise<{ users: User[]; total: number; totalPages: number }> {
+        const { rows, total } = await this.usersService.findAll(paginationDto, queryDto);
+        return {
+            users: rows,
+            total,
+            totalPages: Math.ceil(total / (paginationDto.limit || 10)),
+        };
     }
 
     // ✅ Users can read own profile, admins can read any profile

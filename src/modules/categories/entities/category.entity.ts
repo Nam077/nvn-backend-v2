@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+import { Expose } from 'class-transformer';
 import { filter, join, size, split } from 'lodash';
 import {
     BelongsTo,
@@ -108,10 +109,14 @@ export class Category extends Model<Category, CategoryCreationAttrs> {
     declare updatedAt: Date;
 
     // Associations
-    @BelongsTo(() => Category, 'parentId')
+    @BelongsTo(() => Category, {
+        as: 'parent',
+    })
     declare parent: Category;
 
-    @HasMany(() => Category, 'parentId')
+    @HasMany(() => Category, {
+        as: 'children',
+    })
     declare children: Category[];
 
     @BelongsToMany(() => Font, () => FontCategory)
@@ -122,26 +127,31 @@ export class Category extends Model<Category, CategoryCreationAttrs> {
 
     // Virtual properties
     @ApiProperty({ description: 'Is root category', example: true })
+    @Expose()
     get isRoot(): boolean {
         return !this.parentId;
     }
 
     @ApiProperty({ description: 'Has children categories', example: true })
+    @Expose()
     get hasChildren(): boolean {
         return size(this.children) > 0;
     }
 
     @ApiProperty({ description: 'Category breadcrumb path', example: ['Typography', 'Sans-serif'] })
+    @Expose()
     get breadcrumb(): string[] {
         return filter(split(this.path, '/'), Boolean);
     }
 
     @ApiProperty({ description: 'Number of direct children', example: 4 })
+    @Expose()
     get childrenCount(): number {
         return size(this.children) || 0;
     }
 
     @ApiProperty({ description: 'Category display path', example: 'Typography > Sans-serif' })
+    @Expose()
     get displayPath(): string {
         return join(this.breadcrumb, ' > ');
     }

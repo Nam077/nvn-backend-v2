@@ -1,296 +1,189 @@
-# JsonLogic to SQL Builder
+# Query Builder Module
 
-Một utility mạnh mẽ để convert JsonLogic expressions thành SQL WHERE clauses với khả năng customize cao.
+## Overview
 
-## Tính năng chính
+This module provides a powerful and flexible way to build SQL queries dynamically from JsonLogic rules. It consists of two main components:
 
-- ✅ Hỗ trợ đầy đủ các operators của JsonLogic
-- ✅ Type-safe và có thể extend
-- ✅ Parameterized queries để tránh SQL injection
-- ✅ Customizable field mapping và table aliases
-- ✅ Comprehensive test coverage
-- ✅ Easy to use với factory functions
+1.  `JsonLogicToSqlBuilder`: Converts JsonLogic rule objects into parameterized SQL `WHERE` clauses.
+2.  `QueryBuilder`: A fluent API to construct full SQL queries (`SELECT`, `FROM`, `JOIN`, `WHERE`, `ORDER BY`, etc.) that integrates with the `JsonLogicToSqlBuilder`.
 
-## Cài đặt và Import
+This combination allows for safe, dynamic query generation, protecting against SQL injection by using parameterized queries.
 
-```typescript
-import { JsonLogicToSqlBuilder, convertJsonLogicToSql, createJsonLogicToSqlBuilder } from '@/common/query-builder';
-```
+## `JsonLogicToSqlBuilder`
 
-## Cách sử dụng cơ bản
+This class is the core of the conversion process. It parses a JsonLogic object and produces an SQL condition string and a corresponding map of parameters.
 
-### 1. Sử dụng utility function (đơn giản nhất)
+### Basic Usage
 
 ```typescript
-const rule = { equals: ['name', 'John'] };
-const result = convertJsonLogicToSql(rule);
+import { JsonLogicToSqlBuilder, JsonLogicRuleNode } from './json-logic-to-sql.builder';
 
-console.log(result.sql); // "(name = :param0)"
-console.log(result.parameters); // { param0: 'John' }
-```
-
-### 2. Sử dụng Builder class
-
-```typescript
-const builder = new JsonLogicToSqlBuilder();
-const rule = {
-    and: [{ equals: ['status', 'active'] }, { gt: ['age', 18] }],
+const rule: JsonLogicRuleNode = {
+    and: [{ '==': [{ var: 'status' }, 'active'] }, { '>': [{ var: 'age' }, 30] }],
 };
 
-const result = builder.build(rule);
-console.log(result.sql); // "((status = :param0) AND (age > :param1))"
-console.log(result.parameters); // { param0: 'active', param1: 18 }
+const builder = new JsonLogicToSqlBuilder({ tableAlias: 'u' });
+const { sql, parameters } = builder.build(rule);
+
+console.log(sql);
+// Output: (u.status = :param0 AND u.age > :param1)
+
+console.log(parameters);
+// Output: { param0: 'active', param1: 30 }
 ```
 
-### 3. Với options customize
+### Options
+
+The builder can be configured with the following options:
+
+- `tableAlias` (string): A prefix to add to all field names (e.g., `u` results in `u.fieldName`).
+- `fieldMapper` ((field: string) => string): A function for custom field name mapping.
+- `valueEscaper` ((value: any) => string): A custom function to escape values (not generally needed as the builder uses parameters).
+- `wrapInParentheses` (boolean, default: `true`): Whether to wrap the final SQL in parentheses.
+
+### Extending the Builder
+
+For more complex scenarios, you can extend `JsonLogicToSqlBuilder` to add custom logic, such as mapping frontend field names to database column names.
 
 ```typescript
-const builder = new JsonLogicToSqlBuilder({
-    tableAlias: 'u',
-    fieldMapper: (field) => `custom_${field}`,
-    wrapInParentheses: false,
-});
+import { JsonLogicToSqlBuilder } from './json-logic-to-sql.builder';
 
-const rule = { equals: ['name', 'John'] };
-const result = builder.build(rule);
-// Result: "u.custom_name = :param0"
-```
-
-## Các operators được hỗ trợ
-
-### Logic Operators
-
-- `and` - AND logic
-- `or` - OR logic
-- `not` - NOT logic
-
-### Comparison Operators
-
-- `equals`, `==` - Equals
-- `not_equals`, `!=` - Not equals
-- `gt`, `>` - Greater than
-- `gte`, `>=` - Greater than or equal
-- `lt`, `<` - Less than
-- `lte`, `<=` - Less than or equal
-
-### String Operators
-
-- `contains` - String contains
-- `not_contains` - String not contains
-- `starts_with` - String starts with
-- `ends_with` - String ends with
-- `like` - SQL LIKE pattern
-- `not_like` - SQL NOT LIKE pattern
-- `is_empty` - String is null or empty
-- `is_not_empty` - String is not null and not empty
-
-### Array Operators
-
-- `in` - Value in array
-- `not_in` - Value not in array
-
-### Null Checks
-
-- `is_null` - Field is null
-- `is_not_null` - Field is not null
-
-### Range Operators
-
-- `between` - Value between range
-- `not_between` - Value not between range
-
-## Ví dụ các operators
-
-### Logic operators
-
-```typescript
-// AND condition
-const andRule = {
-    and: [{ equals: ['status', 'active'] }, { gt: ['loginCount', 5] }],
-};
-// Result: ((status = :param0) AND (loginCount > :param1))
-
-// OR condition
-const orRule = {
-    or: [{ equals: ['role', 'admin'] }, { equals: ['role', 'moderator'] }],
-};
-// Result: ((role = :param0) OR (role = :param1))
-
-// NOT condition
-const notRule = { not: { equals: ['status', 'deleted'] } };
-// Result: (NOT (status = :param0))
-```
-
-### String operators
-
-```typescript
-// Contains
-const containsRule = { contains: ['name', 'John'] };
-// Result: (name LIKE :param0) with param0 = '%John%'
-
-// Starts with
-const startsRule = { starts_with: ['email', 'admin'] };
-// Result: (email LIKE :param0) with param0 = 'admin%'
-
-// Is empty
-const emptyRule = { is_empty: 'description' };
-// Result: (description IS NULL OR description = '')
-```
-
-### Array operators
-
-```typescript
-// In array
-const inRule = { in: ['status', ['active', 'pending', 'processing']] };
-// Result: (status IN (:param0, :param1, :param2))
-
-// Between range
-const betweenRule = { between: ['age', 18, 65] };
-// Result: (age BETWEEN :param0 AND :param1)
-```
-
-## Customization nâng cao
-
-### 1. Custom Field Mapping
-
-```typescript
-class CustomSqlBuilder extends JsonLogicToSqlBuilder {
+class UserQueryBuilder extends JsonLogicToSqlBuilder {
     protected mapFieldName(field: string): string {
-        const mappings = {
-            fullName: "first_name || ' ' || last_name",
-            isActive: "status = 'active'",
-            hasProfile: 'profile_id IS NOT NULL',
+        const fieldMap: Record<string, string> = {
+            userName: 'username',
+            isActive: 'status',
         };
 
-        return mappings[field] || super.mapFieldName(field);
+        const mappedField = fieldMap[field] || field;
+
+        // Always call the super method to apply table alias
+        return super.mapFieldName(mappedField);
     }
 }
+
+const userRule: JsonLogicRuleNode = {
+    '==': [{ var: 'userName' }, 'testuser'],
+};
+
+const customBuilder = new UserQueryBuilder({ tableAlias: 'users' });
+const { sql, parameters } = customBuilder.build(userRule);
+
+console.log(sql);
+// Output: (users.username = :param0)
+
+console.log(parameters);
+// Output: { param0: 'testuser' }
 ```
 
-### 2. Custom Operators
+### Supported Operators
+
+The builder supports a wide range of standard JsonLogic operators, which are internally validated against a safelist to prevent security risks.
+
+- **Logical**: `and`, `or`, `not`
+- **Equality**: `==` (or `equals`), `!=` (or `not_equals`)
+- **Comparison**: `>`, `gt`, `>=`, `gte`, `<`, `lt`, `<=`, `lte`
+- **String**: `contains`, `not_contains`, `starts_with`, `ends_with`, `like`, `not_like`
+- **Array/Set**: `in`, `not_in`
+- **Null/Empty**: `is_null`, `is_not_null`, `is_empty`, `is_not_empty`
+- **Range**: `between`, `not_between`
+
+---
+
+## `QueryBuilder`
+
+`QueryBuilder` is a fluent (chainable) utility to construct complete SQL queries.
+
+### Basic Usage
+
+The `where()` method seamlessly integrates with `JsonLogicToSqlBuilder`.
 
 ```typescript
-class UserSqlBuilder extends JsonLogicToSqlBuilder {
-    protected buildCondition(rule: any): string {
-        if (typeof rule === 'object' && rule !== null) {
-            const operator = Object.keys(rule)[0];
-            const operands = rule[operator];
+import { QueryBuilder } from './query-utils';
+import { JsonLogicRuleNode } from './json-logic-to-sql.builder';
 
-            // Custom operator: is_premium_user
-            if (operator === 'is_premium_user') {
-                return operands
-                    ? "(subscription_type IN ('premium', 'enterprise'))"
-                    : "(subscription_type IS NULL OR subscription_type = 'free')";
-            }
+const rule: JsonLogicRuleNode = {
+    and: [{ '==': [{ var: 'role' }, 'admin'] }, { in: [{ var: 'department' }, ['IT', 'HR']] }],
+};
 
-            // Custom operator: has_permission
-            if (operator === 'has_permission') {
-                const paramName = this.addParameter(operands);
-                return `EXISTS (
-                    SELECT 1 FROM user_permissions up 
-                    WHERE up.user_id = u.id AND up.permission = :${paramName}
-                )`;
-            }
-        }
+const builder = new QueryBuilder();
 
-        return super.buildCondition(rule);
-    }
+const { sql, parameters } = builder
+    .select(['id', 'name', 'email'])
+    .from('users', 'u')
+    .where(rule, { tableAlias: 'u' }) // Pass JsonLogic rule and options here
+    .orderBy('name', 'ASC')
+    .limit(50)
+    .offset(0)
+    .build();
+
+console.log(sql);
+// Output: SELECT id, name, email FROM users AS u WHERE (u.role = :param0 AND u.department IN (:param1, :param2)) ORDER BY name ASC LIMIT 50 OFFSET 0
+
+console.log(parameters);
+// Output: { param0: 'admin', param1: 'IT', param2: 'HR' }
+```
+
+### Methods
+
+- `.select(fields: string | string[])`: Specifies the columns to select.
+- `.from(tableName: string, alias?: string)`: Specifies the main table.
+- `.join(type: 'INNER' | 'LEFT' | 'RIGHT', table: string, on: string)`: Adds a join clause.
+- `.where(rule: JsonLogicRuleNode, options?: SqlBuildOptions)`: Applies a `WHERE` clause from a JsonLogic rule.
+- `.orderBy(field: string, direction: 'ASC' | 'DESC')`: Adds an `ORDER BY` clause.
+- `.limit(limit: number)`: Adds a `LIMIT` clause.
+- `.offset(offset: number)`: Adds an `OFFSET` clause.
+- `.build()`: Constructs the final SQL string and parameters object.
+- `.reset()`: Resets the builder to its initial state for reuse.
+
+---
+
+## JSONB Querying
+
+The builder has built-in support for querying nested fields within `JSONB` columns using `->` notation in your JsonLogic rules. This avoids ambiguity with joined table fields, which use standard dot notation.
+
+- **JSONB paths**: Use `->` (e.g., `metadata->author->name`).
+- **Joined fields**: Use `.` (e.g., `users.profile_id`).
+
+When the builder detects a field name with `->` (e.g., `metadata->author`), it automatically translates it into the correct PostgreSQL `JSONB` path query syntax (`->` for nesting and `->>` for the final text value).
+
+### Example
+
+Suppose you have a `fonts` table with a `metadata` column of type `JSONB`.
+
+```json
+{
+    "license": "OFL",
+    "author": {
+        "name": "Nhan",
+        "website": "nhan.com"
+    },
+    "tags": ["serif", "display"]
 }
 ```
 
-### 3. Sử dụng với Options
+You can write JsonLogic rules to query this structure as follows:
 
 ```typescript
-const options = {
-    tableAlias: 'u', // Add table alias
-    fieldMapper: (field) => `u.${field}`, // Custom field mapping
-    wrapInParentheses: false, // Don't wrap result
+import { convertJsonLogicToSql } from './json-logic-to-sql.builder';
+
+// Query a top-level key
+const rule1: JsonLogicRuleNode = {
+    '==': [{ var: 'metadata->license' }, 'OFL'],
 };
+const result1 = convertJsonLogicToSql(rule1, { tableAlias: 'f' });
+// result1.sql: (f.metadata->>'license' = :param0)
 
-const builder = new JsonLogicToSqlBuilder(options);
-```
-
-## Examples thực tế
-
-### User Management Query
-
-```typescript
-const userQuery = {
-    and: [
-        { equals: ['isActive', true] },
-        {
-            or: [
-                { equals: ['role', 'admin'] },
-                {
-                    and: [{ equals: ['role', 'user'] }, { gt: ['loginCount', 10] }],
-                },
-            ],
-        },
-        { is_not_null: 'emailVerifiedAt' },
-    ],
+// Query a nested key
+const rule2: JsonLogicRuleNode = {
+    starts_with: [{ var: 'metadata->author->website' }, 'nhan'],
 };
+const result2 = convertJsonLogicToSql(rule2, { tableAlias: 'f' });
+// result2.sql: (f.metadata->'author'->>'website' LIKE :param0)
+// result2.parameters: { param0: 'nhan%' }
 
-const result = convertJsonLogicToSql(userQuery, { tableAlias: 'u' });
+// Note: Querying arrays within JSONB is not yet supported with operators like 'in'.
+// For example, `{"in": ["serif", {"var": "metadata->tags"}]}` is not supported.
 ```
 
-### Font Search Query
-
-```typescript
-const fontQuery = {
-    and: [
-        { contains: ['name', 'arial'] },
-        { in: ['category', ['serif', 'sans-serif']] },
-        { equals: ['isActive', true] },
-        { between: ['price', 0, 100] },
-    ],
-};
-
-const result = convertJsonLogicToSql(fontQuery, { tableAlias: 'f' });
-```
-
-## Security Features
-
-- **Parameterized Queries**: Tất cả values được bind qua parameters để tránh SQL injection
-- **Type Safety**: TypeScript support đầy đủ
-- **Validation**: Built-in validation cho operators và operands
-
-## Performance
-
-- Lightweight và fast
-- Minimal dependencies (chỉ dùng lodash utilities)
-- Reusable builder instances với `reset()` method
-- Efficient parameter handling
-
-## Error Handling
-
-Builder sẽ throw descriptive errors cho:
-
-- Unsupported operators
-- Invalid operand structures
-- Missing required parameters
-- Invalid field references
-
-```typescript
-try {
-    const result = builder.build(invalidRule);
-} catch (error) {
-    console.error('JsonLogic to SQL conversion failed:', error.message);
-}
-```
-
-## Best Practices
-
-1. **Reuse Builder Instances**: Tạo một instance và reuse với `reset()`
-2. **Use Factory Functions**: Cho simple use cases, dùng `convertJsonLogicToSql()`
-3. **Custom Builders**: Extend class cho specific business logic
-4. **Table Aliases**: Luôn dùng table aliases cho complex queries
-5. **Error Handling**: Wrap conversion trong try-catch blocks
-
-## Testing
-
-```bash
-# Run tests
-npm test src/common/query-builder/json-logic-to-sql.builder.spec.ts
-```
-
-Test file cũng chứa nhiều examples và best practices để tham khảo.
+This feature works with all existing comparison operators (`==`, `!=`, `contains`, `in`, `>`, `<`, etc.), allowing for powerful and intuitive querying of your `JSONB` data.

@@ -3,5 +3,5 @@
     "test/**/*.{js,jsx,ts,tsx}": ["eslint --fix --max-warnings 0 --no-warn-ignored", "prettier --write"],
     "*.{json,yml,yaml}": ["prettier --write"],
     "*.md": ["prettier --write"],
-    "package.json": ["prettier --write", "sort-package-json"]
+    "package.json": ["prettier --write", "pnpm sort-package-json"]
 }
