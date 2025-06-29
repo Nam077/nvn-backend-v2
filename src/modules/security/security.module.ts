@@ -6,7 +6,6 @@ import { ConfigModule } from '@/modules/config/config.module';
 import { RedisModule } from '@/modules/redis/redis.module';
 import { KeyRotationSchedulerService } from '@/modules/security/services/key-rotation-scheduler.service';
 
-import { SecurityController } from './controllers/security.controller';
 import { KeyRotationHistory } from './entities/key-rotation-history.entity';
 import { SecurityKey } from './entities/security-key.entity';
 import { EnvironmentKeyLoaderService } from './services/environment-key-loader.service';
@@ -19,7 +18,7 @@ import { KeyManagerService } from './services/key-manager.service';
         RedisModule,
         ScheduleModule.forRoot(),
     ],
-    controllers: [SecurityController],
+    // controllers: [SecurityController],
     providers: [EnvironmentKeyLoaderService, KeyManagerService, KeyRotationSchedulerService],
     exports: [EnvironmentKeyLoaderService, KeyManagerService],
 })

@@ -18,7 +18,6 @@ import { User } from '@/modules/users/entities/user.entity';
 export const FILE_TYPE = {
     // Font files
     FONT_FILE: 'font_file',
-    FONT_PREVIEW: 'font_preview',
     FONT_THUMBNAIL: 'font_thumbnail',
     FONT_GALLERY: 'font_gallery',
 
@@ -237,7 +236,6 @@ export class File extends Model<File, FileCreationAttrs> {
     @ApiProperty({ description: 'Is image file', example: false })
     get isImage(): boolean {
         const imageTypes = [
-            FILE_TYPE.FONT_PREVIEW,
             FILE_TYPE.FONT_THUMBNAIL,
             FILE_TYPE.FONT_GALLERY,
             FILE_TYPE.COLLECTION_COVER,

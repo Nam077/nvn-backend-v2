@@ -458,11 +458,22 @@ export class CategoriesService
     // --- Custom Methods ---
 
     // find by ids and return a list ids of existing categories
-    async findByIds(ids: string[]): Promise<string[]> {
-        const categories = await this.categoryModel.findAll({
-            where: { id: { [Op.in]: ids } },
+    async findByIds(ids: string[], transaction?: Transaction): Promise<Category[]> {
+        return this.categoryModel.findAll({
+            where: {
+                id: {
+                    [Op.in]: ids,
+                },
+            },
+            transaction,
         });
-        return map(categories, 'id');
+    }
+
+    async findByName(name: string, transaction?: Transaction): Promise<Category> {
+        return this.categoryModel.findOne({
+            where: { name },
+            transaction,
+        });
     }
 
     async findOneData(options: FindOptions<Category>): Promise<Category> {

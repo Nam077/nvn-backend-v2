@@ -1,6 +1,18 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import { BelongsToMany, Column, CreatedAt, DataType, Model, PrimaryKey, Table, UpdatedAt } from 'sequelize-typescript';
+import {
+    BelongsToMany,
+    Column,
+    CreatedAt,
+    DataType,
+    HasMany,
+    Model,
+    PrimaryKey,
+    Table,
+    UpdatedAt,
+} from 'sequelize-typescript';
+
+import { QueryConfig } from '@/modules/query-configs/entities/query-config.entity';
 
 import { Role } from './role.entity';
 import { UserRole } from './user-role.entity';
@@ -83,6 +95,9 @@ export class User extends Model<User, UserCreationAttrs> {
     @BelongsToMany(() => Role, () => UserRole)
     declare roles: Role[];
 
+    // --- Associations ---
+    @HasMany(() => QueryConfig)
+    declare queryConfigs: QueryConfig[];
     // Virtual properties
     @ApiProperty({ description: 'Full name', example: 'John Doe' })
     get fullName(): string {

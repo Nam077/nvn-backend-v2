@@ -1,12 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import { get, orderBy, size, values } from 'lodash';
+import { orderBy, size, values } from 'lodash';
 import {
     BelongsTo,
     BelongsToMany,
     Column,
     CreatedAt,
     DataType,
+    Default,
     ForeignKey,
     HasMany,
     Model,
@@ -38,10 +39,10 @@ export interface FontAuthor {
 }
 
 export interface FontGalleryImage {
-    fileId: string;
-    caption?: string;
-    order: number;
-    type?: 'preview' | 'showcase' | 'comparison';
+    fileId?: string;
+    order?: number;
+    type?: 'entity' | 'url';
+    url?: string;
 }
 
 @Table({
@@ -50,6 +51,7 @@ export interface FontGalleryImage {
 export class Font extends Model<Font, FontCreationAttrs> {
     @ApiProperty({ description: 'Font ID', example: '123e4567-e89b-12d3-a456-426614174000' })
     @PrimaryKey
+    @Default(DataType.UUIDV4)
     @Column({
         type: DataType.UUID,
         defaultValue: DataType.UUIDV4,
@@ -101,14 +103,6 @@ export class Font extends Model<Font, FontCreationAttrs> {
     })
     declare description: string;
 
-    @ApiProperty({ description: 'Preview text', example: 'The quick brown fox jumps over the lazy dog' })
-    @Column({
-        type: DataType.STRING,
-        defaultValue: 'The quick brown fox jumps over the lazy dog',
-        field: 'previewText',
-    })
-    declare previewText: string;
-
     @ApiProperty({ description: 'Thumbnail file ID', example: '123e4567-e89b-12d3-a456-426614174000' })
     @ForeignKey(() => File)
     @Column({
@@ -118,14 +112,13 @@ export class Font extends Model<Font, FontCreationAttrs> {
     })
     declare thumbnailFileId: string;
 
-    @ApiProperty({ description: 'Preview image file ID', example: '123e4567-e89b-12d3-a456-426614174000' })
-    @ForeignKey(() => File)
+    @ApiProperty({ description: 'Thumbnail URL', example: 'https://example.com/thumbnail.jpg' })
     @Column({
-        type: DataType.UUID,
+        type: DataType.STRING,
         allowNull: true,
-        field: 'previewImageFileId',
+        field: 'thumbnailUrl',
     })
-    declare previewImageFileId: string;
+    declare thumbnailUrl: string;
 
     @ApiProperty({
         description: 'Gallery image file IDs with metadata',
@@ -221,9 +214,14 @@ export class Font extends Model<Font, FontCreationAttrs> {
     @BelongsTo(() => File, 'thumbnailFileId')
     declare thumbnailFile: File;
 
-    @BelongsTo(() => File, 'previewImageFileId')
-    declare previewImageFile: File;
-
+    @ApiProperty({ description: 'Preview text', example: 'The quick brown fox jumps over the lazy dog.' })
+    @Column({
+        type: DataType.TEXT,
+        allowNull: true,
+        field: 'previewText',
+        defaultValue: 'The quick brown fox jumps over the lazy dog.',
+    })
+    declare previewText: string;
     // Virtual properties
     @ApiProperty({ description: 'Is font free', example: true })
     get isFree(): boolean {
@@ -259,16 +257,6 @@ export class Font extends Model<Font, FontCreationAttrs> {
     get hasGallery(): boolean {
         return this.galleryImageCount > 0;
     }
-
-    @ApiProperty({ description: 'Thumbnail URL', example: '/thumbnails/roboto-thumb.jpg' })
-    get thumbnailUrl(): string {
-        return get(this.thumbnailFile, 'bestUrl', '');
-    }
-
-    @ApiProperty({ description: 'Preview image URL', example: '/previews/roboto-preview.jpg' })
-    get previewImageUrl(): string {
-        return get(this.previewImageFile, 'bestUrl', '');
-    }
 }
 
 export interface FontCreationAttrs {
@@ -277,7 +265,7 @@ export interface FontCreationAttrs {
     description?: string;
     previewText?: string;
     thumbnailUrl?: string;
-    previewImageUrl?: string;
+    galleryImages?: FontGalleryImage[];
     creatorId: string;
     fontType?: FontType;
     price?: number;

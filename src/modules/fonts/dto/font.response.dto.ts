@@ -11,6 +11,29 @@ import { UserResponseDto } from '@/modules/users/dto/user.response.dto';
 import { FontAuthor, FontGalleryImage, FontType, FONT_TYPE, Font } from '../entities/font.entity';
 
 @Exclude()
+export class FontGalleryImageDto implements FontGalleryImage {
+    @Expose()
+    @ApiProperty({ description: 'The UUID of the file.', example: 'b7b5c6e8-34a0-4f51-8a19-1c19b9d4c7b8' })
+    fileId?: string;
+
+    @Expose()
+    @ApiProperty({ description: 'The URL of the image.', example: 'https://example.com/image.jpg' })
+    url?: string;
+
+    @Expose()
+    @ApiProperty({ description: 'The type of gallery image.', example: 'entity' })
+    type?: 'entity' | 'url';
+
+    @Expose()
+    @ApiProperty({ description: 'The display order of the image.', example: 1 })
+    order?: number;
+
+    constructor(partial: any) {
+        assign(this, plainToInstance(FontGalleryImageDto, partial, { excludeExtraneousValues: true }));
+    }
+}
+
+@Exclude()
 export class FileResponseDto {
     @Expose()
     @ApiProperty({ description: 'File ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -78,20 +101,13 @@ export class FontResponseDto {
     description: string;
 
     @Expose()
-    @ApiProperty({ example: 'The quick brown fox jumps over the lazy dog.' })
-    previewText: string;
-
-    @Expose()
     @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174001' })
     thumbnailFileId: string;
 
     @Expose()
-    @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174002' })
-    previewImageFileId: string;
-
-    @Expose()
     @ApiProperty({ example: [] })
-    galleryImages: FontGalleryImage[];
+    @Type(() => FontGalleryImageDto)
+    galleryImages: FontGalleryImageDto[];
 
     @Expose()
     @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174003' })
@@ -149,10 +165,6 @@ export class FontResponseDto {
     @ApiProperty({ example: '/files/roboto-thumb.png' })
     thumbnailUrl: string;
 
-    @Expose()
-    @ApiProperty({ example: '/files/roboto-preview.png' })
-    previewImageUrl: string;
-
     // Relations
     @Expose()
     @ApiProperty({ type: () => UserResponseDto, required: false })
@@ -180,9 +192,8 @@ export class FontResponseDto {
     thumbnailFile?: FileResponseDto;
 
     @Expose()
-    @ApiProperty({ type: () => FileResponseDto, required: false })
-    @Type(() => FileResponseDto)
-    previewImageFile?: FileResponseDto;
+    @ApiProperty({ example: 'The quick brown fox jumps over the lazy dog.' })
+    previewText: string;
 
     constructor(font: Font) {
         assign(this, plainToInstance(FontResponseDto, font, { excludeExtraneousValues: true }));

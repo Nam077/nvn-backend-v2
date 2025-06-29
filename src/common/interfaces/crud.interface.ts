@@ -1,9 +1,17 @@
 import { CreateOptions, DestroyOptions, FindOptions, Model, UpdateOptions } from 'sequelize';
 
+import { User } from '@/modules/users/entities/user.entity';
+
 import { IApiResponse } from '../dto/api.response.dto';
 import { IApiPaginatedResponse } from '../dto/paginated.response.dto';
 import { PaginationDto } from '../dto/pagination.dto';
 import { QueryDto } from '../dto/query.dto';
+
+/**
+ * A user object, typically from an authentication guard.
+ */
+export type AuthenticatedUser = User;
+
 /**
  * A generic interface for CRUD services.
  * It standardizes the methods for creating, reading, updating, and deleting entities,
@@ -21,6 +29,7 @@ export interface ICrudService<TEntity extends Model, TResponseDto, TCreateDto, T
      * Creates a new entity.
      * @param createDto DTO for creating the entity.
      * @param options Sequelize create options for customization.
+     * @param authUser The authenticated user performing the action.
      * @returns A promise that resolves to the created entity.
      * @throws {ConflictException} If a resource with a unique constraint already exists.
      * @example
@@ -28,7 +37,7 @@ export interface ICrudService<TEntity extends Model, TResponseDto, TCreateDto, T
      * const newUser = await service.create({ email: 'test@example.com', password: '...' });
      * ```
      */
-    create: (createDto: TCreateDto, options?: CreateOptions) => Promise<TEntity>;
+    create: (createDto: TCreateDto, options?: CreateOptions, authUser?: AuthenticatedUser) => Promise<TEntity>;
 
     /**
      * Finds a single entity by its ID.
@@ -71,6 +80,7 @@ export interface ICrudService<TEntity extends Model, TResponseDto, TCreateDto, T
      * @param id The ID of the entity.
      * @param updateDto DTO for updating the entity.
      * @param options Sequelize update options for customization.
+     * @param authUser The authenticated user performing the action.
      * @returns A promise that resolves to the updated entity.
      * @throws {NotFoundException} If the entity with the specified ID is not found.
      * @throws {ConflictException} If a unique constraint fails on update.
@@ -79,7 +89,12 @@ export interface ICrudService<TEntity extends Model, TResponseDto, TCreateDto, T
      * const updatedUser = await service.update('some-uuid-v4', { firstName: 'John' });
      * ```
      */
-    update: (id: string, updateDto: TUpdateDto, options?: UpdateOptions) => Promise<TEntity>;
+    update: (
+        id: string,
+        updateDto: TUpdateDto,
+        options?: UpdateOptions,
+        authUser?: AuthenticatedUser,
+    ) => Promise<TEntity>;
 
     /**
      * Removes an entity by its ID.
@@ -99,6 +114,7 @@ export interface ICrudService<TEntity extends Model, TResponseDto, TCreateDto, T
     /**
      * Creates a new entity and returns a standardized API response.
      * @param createDto DTO for creating the entity.
+     * @param authUser The authenticated user performing the action.
      * @returns A standardized API response with the created entity's DTO.
      * @example
      * ```typescript
@@ -106,7 +122,7 @@ export interface ICrudService<TEntity extends Model, TResponseDto, TCreateDto, T
      * return service.createApi({ email: 'test@example.com', password: '...' });
      * ```
      */
-    createApi: (createDto: TCreateDto) => Promise<IApiResponse<TResponseDto>>;
+    createApi: (createDto: TCreateDto, authUser?: AuthenticatedUser) => Promise<IApiResponse<TResponseDto>>;
 
     /**
      * Finds a single entity and returns a standardized API response.
@@ -137,6 +153,7 @@ export interface ICrudService<TEntity extends Model, TResponseDto, TCreateDto, T
      * Updates an entity and returns a standardized API response.
      * @param id The ID of the entity.
      * @param updateDto DTO for updating the entity.
+     * @param authUser The authenticated user performing the action.
      * @returns A standardized API response with the updated entity's DTO.
      * @example
      * ```typescript
@@ -144,7 +161,7 @@ export interface ICrudService<TEntity extends Model, TResponseDto, TCreateDto, T
      * return service.updateApi('some-uuid-v4', { firstName: 'John' });
      * ```
      */
-    updateApi: (id: string, updateDto: TUpdateDto) => Promise<IApiResponse<TResponseDto>>;
+    updateApi: (id: string, updateDto: TUpdateDto, authUser?: AuthenticatedUser) => Promise<IApiResponse<TResponseDto>>;
 
     /**
      * Removes an entity and returns a standardized API response.

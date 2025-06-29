@@ -22,12 +22,13 @@ import { FONT_TYPE, FontType, FontGalleryImage, FontAuthor } from '../entities/f
 class FontGalleryImageDto implements FontGalleryImage {
     @ApiProperty({ description: 'The UUID of the file.', example: 'b7b5c6e8-34a0-4f51-8a19-1c19b9d4c7b8' })
     @IsUUID()
-    fileId: string;
+    @IsOptional()
+    fileId?: string;
 
-    @ApiProperty({ description: 'A brief description of the image.', example: 'Font in action on a website header.' })
+    @ApiProperty({ description: 'The URL of the image.', example: 'https://example.com/image.jpg' })
     @IsOptional()
     @IsString()
-    caption?: string;
+    url?: string;
 
     @ApiProperty({ description: 'The display order of the image.', example: 1 })
     @IsNumber()
@@ -36,7 +37,7 @@ class FontGalleryImageDto implements FontGalleryImage {
     @ApiProperty({ description: 'The type of gallery image.', example: 'showcase' })
     @IsOptional()
     @IsString()
-    type?: 'preview' | 'showcase' | 'comparison';
+    type?: 'entity' | 'url';
 }
 
 class FontAuthorDto implements FontAuthor {
@@ -73,6 +74,11 @@ export class CreateFontDto {
     @Type(() => FontAuthorDto)
     authors?: FontAuthorDto[];
 
+    @ApiProperty({ description: 'The URL of the thumbnail image.', example: 'https://example.com/thumbnail.jpg' })
+    @IsOptional()
+    @IsString()
+    thumbnailUrl?: string;
+
     @ApiProperty({
         description: 'A detailed description of the font.',
         example: 'A popular sans-serif font known for its clean and modern look.',
@@ -90,22 +96,14 @@ export class CreateFontDto {
     thumbnailFileId?: string;
 
     @ApiProperty({
-        description: 'The UUID of the main preview image file.',
-        example: 'b2f69a91-4e2a-4f51-a9d7-e6c2b5e4f4c2',
-    })
-    @IsOptional()
-    @IsUUID()
-    previewImageFileId?: string;
-
-    @ApiProperty({
         description: 'A list of gallery images for the font.',
         type: [FontGalleryImageDto],
         example: [
             {
                 fileId: 'b7b5c6e8-34a0-4f51-8a19-1c19b9d4c7b8',
-                caption: 'Font in action on a website header.',
+                url: 'https://example.com/image.jpg',
                 order: 1,
-                type: 'showcase',
+                type: 'entity',
             },
         ],
     })
@@ -161,4 +159,13 @@ export class CreateFontDto {
     @IsOptional()
     @IsUuidOrStringArray()
     tags?: string[];
+
+    @ApiProperty({
+        description: 'The preview text of the font.',
+        example: 'The quick brown fox jumps over the lazy dog.',
+        default: 'The quick brown fox jumps over the lazy dog.',
+    })
+    @IsOptional()
+    @IsString()
+    previewText?: string;
 }

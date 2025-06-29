@@ -235,7 +235,7 @@ export default tseslint.config(
         {
           except: ['find', 'map', 'filter'],
           ignoreMethods: ['find', 'findOne', 'save', 'create', 'update', 'delete'],
-          ignoreObjects: ['repository', 'Repository', 'QueryBuilder'],
+          ignoreObjects: ['repository', 'Repository', 'QueryBuilder', 'bluebird'],
         },
       ],
       'lodash/prefer-get': 'error',

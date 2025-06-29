@@ -7,6 +7,7 @@ import { CollectionCategory } from '@/modules/collections/entities/collection-ca
 import { CollectionFont } from '@/modules/collections/entities/collection-font.entity';
 import { FontCollection } from '@/modules/collections/entities/collection.entity';
 import { File } from '@/modules/files/entities/file.entity';
+import { FileModule } from '@/modules/files/file.module';
 import { Font } from '@/modules/fonts/entities/font.entity';
 import { FontsController } from '@/modules/fonts/fonts.controller';
 import { FontsService } from '@/modules/fonts/fonts.service';
@@ -22,6 +23,7 @@ import { FontWeight } from './entities/font-weight.entity';
         UsersModule,
         TagsModule,
         CategoriesModule,
+        FileModule,
         SequelizeModule.forFeature([
             Font,
             FontWeight,

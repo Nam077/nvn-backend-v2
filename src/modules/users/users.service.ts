@@ -244,6 +244,15 @@ export class UsersService implements ICrudService<User, UserResponseDto, CreateU
     async findOneData(options: FindOptions<User>): Promise<User> {
         return this.userModel.findOne(options);
     }
+
+    async findOneWithRoles(id: string, options?: FindOneOptions): Promise<User> {
+        const user = await this.findOne(id, options);
+        if (!user) {
+            throw new NotFoundException(`User with ID ${id} not found`);
+        }
+        return user;
+    }
+
     // --- Private Methods ---
 
     private _buildUserQuery(options: BuildUserQueryOptions): { sql: string; parameters: Record<string, any> } {

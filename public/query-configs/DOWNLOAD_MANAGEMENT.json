@@ -1,8 +1,0 @@
-{
-    "name": "DOWNLOAD_MANAGEMENT",
-    "fields": {},
-    "sortableFields": ["createdAt"],
-    "selectableFields": ["id", "createdAt"],
-    "defaultSort": [["createdAt", "DESC"]],
-    "generatedAt": "2025-06-29T11:09:46.712Z"
-}

@@ -1,8 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 
-import { isEmpty, map, some, startsWith, values } from 'lodash';
-import { FindOptions } from 'sequelize';
+import { isEmpty, map, size, some, startsWith, values } from 'lodash';
+import { FindOptions, Op } from 'sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import slugify from 'slugify';
 
@@ -13,13 +13,18 @@ import { QueryDto } from '@/common/dto/query.dto';
 import { ICrudService } from '@/common/interfaces/crud.interface';
 import { JsonLogicRuleNode } from '@/common/query-builder/json-logic-to-sql.builder';
 import { QueryBuilder } from '@/common/query-builder/query-utils';
-import { FindOneOptions } from '@/common/types/sequelize.types';
 import { CategoriesService } from '@/modules/categories/categories.service';
+import { Category } from '@/modules/categories/entities/category.entity';
+import { File } from '@/modules/files/entities/file.entity';
+import { FileService } from '@/modules/files/services/file.service';
+import { FontWeight } from '@/modules/fonts/entities/font-weight.entity';
+import { Tag } from '@/modules/tags/entities/tag.entity';
+import { User } from '@/modules/users/entities/user.entity';
 import { UsersService } from '@/modules/users/users.service';
 
 import { TagsService } from '../tags/tags.service';
 import { CreateFontDto } from './dto/create-font.dto';
-import { FontResponseDto } from './dto/font.response.dto';
+import { FontResponseDto, FontGalleryImageDto } from './dto/font.response.dto';
 import { UpdateFontDto } from './dto/update-font.dto';
 import { Font } from './entities/font.entity';
 
@@ -37,7 +42,6 @@ const SELECT_FIELD_MAP = {
     slug: 'f.slug',
     authors: 'f.authors',
     description: 'f.description',
-    previewText: 'f."previewText"',
     fontType: 'f."fontType"',
     price: 'f.price',
     downloadCount: 'f."downloadCount"',
@@ -45,11 +49,11 @@ const SELECT_FIELD_MAP = {
     metadata: 'f.metadata',
     createdAt: 'f."createdAt"',
     updatedAt: 'f."updatedAt"',
+    thumbnailUrl: 'f."thumbnailUrl"',
     // JSONB Aggregated Objects/Arrays
     creator:
         "jsonb_build_object('id', creator.id, 'email', creator.email, 'firstName', creator.\"firstName\", 'lastName', creator.\"lastName\") AS creator",
     thumbnailFile: "jsonb_build_object('id', tf.id, 'url', tf.url) AS \"thumbnailFile\"",
-    previewImageFile: "jsonb_build_object('id', pf.id, 'url', pf.url) AS \"previewImageFile\"",
     categories: "COALESCE(fca.categories, '[]'::jsonb) AS categories",
     tags: "COALESCE(fta.tags, '[]'::jsonb) AS tags",
     weights: "COALESCE(fwa.weights, '[]'::jsonb) AS weights",
@@ -67,46 +71,82 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
         private readonly userService: UsersService,
         private readonly tagsService: TagsService,
         private readonly categoriesService: CategoriesService,
+        private readonly fileService: FileService,
     ) {}
+
+    async checkExistsBySlug(name: string, id?: string, options?: FindOptions<Font>): Promise<boolean> {
+        const font = await this.fontModel.findOne({
+            where: { slug: slugify(name, { lower: true, strict: true }), id: { [Op.ne]: id ?? null } },
+            ...options,
+        });
+        return !!font;
+    }
 
     // --- Entity-Returning Methods for Internal Use ---
 
     async create(createFontDto: CreateFontDto): Promise<Font> {
         const { categoryIds, tags, ...fontData } = createFontDto;
 
-        const user = await this.userService.findOne(fontData.creatorId);
-        if (!user) {
-            throw new NotFoundException(`User with ID ${fontData.creatorId} not found`);
-        }
-
         const font = await this.sequelize.transaction(async (transaction) => {
+            // --- Validation inside transaction ---
+            const user = await this.userService.findOne(fontData.creatorId, { transaction });
+            if (!user) {
+                throw new NotFoundException(`User with ID ${fontData.creatorId} not found`);
+            }
+
+            const existingFont = await this.checkExistsBySlug(createFontDto.name, null, { transaction });
+            if (existingFont) {
+                throw new ConflictException(`Font with name ${createFontDto.name} already exists`);
+            }
+
+            if (!isEmpty(fontData.thumbnailFileId)) {
+                const existingFile = await this.fileService.checkFileExists(fontData.thumbnailFileId, transaction);
+                if (!existingFile) {
+                    throw new NotFoundException(`File with ID ${fontData.thumbnailFileId} not found`);
+                }
+            }
+
+            let validatedGalleryImages: FontGalleryImageDto[];
+            if (fontData.galleryImages && size(fontData.galleryImages) > 0) {
+                validatedGalleryImages = await this.fileService.checkExists(fontData.galleryImages, transaction);
+            }
+
+            // --- Create and associate inside transaction ---
             const newFont = await this.fontModel.create(
                 {
                     ...fontData,
+                    galleryImages: validatedGalleryImages,
                     slug: slugify(createFontDto.name, { lower: true, strict: true }),
                 },
                 { transaction },
             );
 
             if (categoryIds && !isEmpty(categoryIds)) {
-                const existingCategoryIds = await this.categoriesService.findByIds(categoryIds);
-                await newFont.$set('categories', existingCategoryIds, { transaction });
+                const existingCategories = await this.categoriesService.findByIds(categoryIds, transaction);
+                await newFont.$set('categories', existingCategories, { transaction });
             }
 
             if (tags && !isEmpty(tags)) {
-                const tagIdsToSync = await this.tagsService.getTagIdsFromMixedArray(tags);
+                const tagIdsToSync = await this.tagsService.getTagIdsFromMixedArray(tags, transaction);
                 await newFont.$set('tags', tagIdsToSync, { transaction });
             }
+
             return newFont;
         });
 
         // Reload to get associations
-        return this.findOne(font.id, {
-            include: ['creator', 'weights', 'categories', 'tags', 'thumbnailFile', 'previewImageFile'],
+        return font.reload({
+            include: [
+                { model: User, as: 'creator' },
+                { model: FontWeight, as: 'weights' },
+                { model: Category, as: 'categories' },
+                { model: Tag, as: 'tags' },
+                { model: File, as: 'thumbnailFile' },
+            ],
         });
     }
 
-    async findOne(id: string, options?: FindOneOptions): Promise<Font> {
+    async findOne(id: string, options?: FindOptions): Promise<Font> {
         const font = await this.fontModel.findByPk(id, options);
         if (!font) {
             throw new NotFoundException(`Font with ID ${id} not found`);
@@ -169,29 +209,49 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
 
     async update(id: string, updateFontDto: UpdateFontDto): Promise<Font> {
         const { tags, categoryIds, ...fontData } = updateFontDto;
-        const font = await this.findOne(id);
 
+        const font = await this.findOne(id);
         const dataToUpdate: Partial<Font> = { ...fontData };
-        if (updateFontDto.name) {
+
+        if (updateFontDto.name && updateFontDto.name !== font.name) {
             dataToUpdate.slug = slugify(updateFontDto.name, { lower: true, strict: true });
         }
 
         await this.sequelize.transaction(async (transaction) => {
+            if (dataToUpdate.name) {
+                const existingFont = await this.checkExistsBySlug(dataToUpdate.name, id, { transaction });
+                if (existingFont) {
+                    throw new ConflictException(`Font with name ${dataToUpdate.name} already exists`);
+                }
+            }
+
+            if (fontData.galleryImages) {
+                const existingGalleryImages = await this.fileService.checkExists(fontData.galleryImages, transaction);
+                dataToUpdate.galleryImages = existingGalleryImages;
+            }
+
+            if (fontData.thumbnailFileId) {
+                const existingFile = await this.fileService.checkFileExists(fontData.thumbnailFileId, transaction);
+                if (!existingFile) {
+                    throw new NotFoundException(`File with ID ${fontData.thumbnailFileId} not found`);
+                }
+            }
+
             await font.update(dataToUpdate, { transaction });
 
             if (categoryIds) {
-                const existingCategoryIds = await this.categoriesService.findByIds(categoryIds);
-                await font.$set('categories', existingCategoryIds, { transaction });
+                const existingCategories = await this.categoriesService.findByIds(categoryIds, transaction);
+                await font.$set('categories', existingCategories, { transaction });
             }
 
             if (tags) {
-                const tagIdsToSync = await this.tagsService.getTagIdsFromMixedArray(tags);
+                const tagIdsToSync = await this.tagsService.getTagIdsFromMixedArray(tags, transaction);
                 await font.$set('tags', tagIdsToSync, { transaction });
             }
         });
 
         return this.findOne(font.id, {
-            include: ['creator', 'weights', 'categories', 'tags', 'thumbnailFile', 'previewImageFile'],
+            include: ['creator', 'weights', 'categories', 'tags', 'thumbnailFile'],
         });
     }
 
@@ -214,7 +274,7 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
 
     async findOneApi(id: string): Promise<IApiResponse<FontResponseDto>> {
         const font = await this.findOne(id, {
-            include: ['creator', 'weights', 'categories', 'tags', 'thumbnailFile', 'previewImageFile'],
+            include: ['creator', 'weights', 'categories', 'tags', 'thumbnailFile'],
         });
         return {
             statusCode: 200,
@@ -334,7 +394,6 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
             .from('fonts', 'f')
             .join('LEFT', 'users creator', 'f."creatorId" = creator.id')
             .join('LEFT', 'files tf', 'f."thumbnailFileId" = tf.id')
-            .join('LEFT', 'files pf', 'f."previewImageFileId" = pf.id')
             .join('LEFT', 'font_categories_agg fca', 'f.id = fca."fontId"')
             .join('LEFT', 'font_authors_agg faa', 'f.id = faa."fontId"')
             .join('LEFT', 'font_tags_agg fta', 'f.id = fta."fontId"')

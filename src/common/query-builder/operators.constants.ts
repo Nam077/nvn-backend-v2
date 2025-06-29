@@ -68,4 +68,6 @@ export const JSON_OPERATORS = {
 
 export const ARRAY_OPERATORS = {
     OVERLAPS: 'array_overlaps', // Checks if two arrays have elements in common (&& operator in PostgreSQL)
+    IS_EMPTY: 'is_empty', // Checks if array is empty
+    IS_NOT_EMPTY: 'is_not_empty', // Checks if array is not empty
 } as const;

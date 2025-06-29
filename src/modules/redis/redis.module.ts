@@ -2,7 +2,6 @@ import { DynamicModule, Module, Provider, Type, InjectionToken } from '@nestjs/c
 
 import Redis from 'ioredis';
 
-import { RedisController } from '@/modules/redis/redis.controller';
 import { RedisService } from '@/modules/redis/redis.service';
 
 export interface RedisModuleOptions {
@@ -54,7 +53,7 @@ export class RedisModule {
         return {
             module: RedisModule,
             global: true,
-            controllers: [RedisController],
+            // controllers: [RedisController],
             providers: [redisOptionsProvider, redisServiceProvider],
             exports: [RedisService],
         };
@@ -89,7 +88,7 @@ export class RedisModule {
             module: RedisModule,
             global: true,
             imports: options.imports || [],
-            controllers: [RedisController],
+            // controllers: [RedisController],
             providers: [redisOptionsProvider, redisServiceProvider],
             exports: [RedisService],
         };

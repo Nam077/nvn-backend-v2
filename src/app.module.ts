@@ -12,6 +12,7 @@ import { ConfigServiceApp } from '@/modules/config/config.service';
 import { DatabaseModule } from '@/modules/database/database.module';
 import { FontsModule } from '@/modules/fonts/fonts.module';
 import { PaymentModule } from '@/modules/payment/payment.module';
+import { QueryConfigsModule } from '@/modules/query-configs/query-configs.module';
 import { RedisModule } from '@/modules/redis/redis.module';
 import { SecurityModule } from '@/modules/security/security.module';
 import { SubscriptionModule } from '@/modules/subscription/subscription.module';
@@ -46,6 +47,7 @@ import { UsersModule } from '@/modules/users/users.module';
         FontsModule,
         CategoriesModule,
         TagsModule,
+        QueryConfigsModule,
     ],
     controllers: [AppController],
     providers: [

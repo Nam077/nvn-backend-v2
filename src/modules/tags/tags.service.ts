@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 
+import bluebird from 'bluebird';
 import { isUUID } from 'class-validator';
-import { filter, includes, map } from 'lodash';
-import { Op } from 'sequelize';
+import { filter, isEmpty, map, size, trim, uniq } from 'lodash';
+import { Op, Transaction } from 'sequelize';
 import slugify from 'slugify';
 
 import { Tag } from './entities/tag.entity';
@@ -15,62 +16,44 @@ export class TagsService {
         private readonly tagModel: typeof Tag,
     ) {}
 
-    /**
-     * Finds existing tags or creates new ones from a list of names.
-     * This method is "upsert" (update/insert) aware. It prevents creating duplicate tags.
-     * @param tagNames - An array of strings representing the tag names.
-     * @returns A promise that resolves to an array of Tag instances.
-     */
-    async findOrCreateByName(tagNames: string[]): Promise<Tag[]> {
-        if (!tagNames || tagNames.length === 0) {
-            return [];
-        }
-
-        const slugs = map(tagNames, (name) => slugify(name, { lower: true, strict: true }));
-
-        const existingTags = await this.tagModel.findAll({
-            where: {
-                slug: {
-                    [Op.in]: slugs,
-                },
-            },
-        });
-
-        const existingSlugs = map(existingTags, 'slug');
-        const newTagsToCreate = map(
-            filter(tagNames, (name) => {
-                const slug = slugify(name, { lower: true, strict: true });
-                return !includes(existingSlugs, slug);
-            }),
-            (name) => ({
-                name,
-                slug: slugify(name, { lower: true, strict: true }),
-            }),
-        );
-
-        if (newTagsToCreate.length > 0) {
-            const createdTags = await this.tagModel.bulkCreate(newTagsToCreate);
-            return [...existingTags, ...createdTags];
-        }
-
-        return existingTags;
+    async findByIds(ids: string[], transaction?: Transaction): Promise<Tag[]> {
+        return this.tagModel.findAll({ where: { id: { [Op.in]: ids } }, transaction });
     }
 
-    async getTagIdsFromMixedArray(tags: string[]): Promise<string[]> {
-        if (!tags || tags.length === 0) {
+    async findOrCreateByName(name: string, transaction?: Transaction): Promise<Tag> {
+        const [tag] = await this.tagModel.findOrCreate({
+            where: { name: trim(name) },
+            defaults: { name: trim(name), slug: slugify(name, { lower: true, strict: true }) },
+            transaction,
+        });
+        return tag;
+    }
+
+    async getTagIdsFromMixedArray(tags: string[], transaction?: Transaction): Promise<string[]> {
+        if (isEmpty(tags)) {
             return [];
         }
 
-        const tagIds = filter(tags, (tag) => isUUID(tag));
-        const tagNames = filter(tags, (tag) => !isUUID(tag));
-
-        if (tagNames.length === 0) {
-            return tagIds;
+        let existingTagIds = filter(tags, (tag) => isUUID(tag));
+        if (size(existingTagIds) > 0) {
+            const existingTags = await this.findByIds(existingTagIds, transaction);
+            existingTagIds = map(existingTags, 'id');
         }
 
-        const foundOrCreatedTags = await this.findOrCreateByName(tagNames);
-        const newTagIds = map(foundOrCreatedTags, 'id');
+        const newTagNames = filter(tags, (tag) => !isUUID(tag));
 
-        return [...new Set([...tagIds, ...newTagIds])];
+        let createdTagIds: string[] = [];
+        if (size(newTagNames) > 0) {
+            const newTags = await bluebird.map(newTagNames, (name) => this.findOrCreateByName(name, transaction), {
+                concurrency: 10,
+            });
+            createdTagIds = map(newTags, 'id');
+        }
+
+        return uniq([...existingTagIds, ...createdTagIds]);
+    }
+
+    async findByName(name: string, transaction?: Transaction): Promise<Tag> {
+        return this.tagModel.findOne({ where: { name }, transaction });
     }
 }

@@ -175,7 +175,6 @@ export class FontQueryBlueprint extends QueryBlueprint<Font> {
             'updatedAt',
             'creator',
             'thumbnailFile',
-            'previewImageFile',
             'categories',
             'tags',
             'weights',
