@@ -1,8 +1,9 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 
+import { Promise } from 'bluebird';
 import { isEmpty, map, size, some, startsWith, values } from 'lodash';
-import { FindOptions, Op } from 'sequelize';
+import { FindOptions, Op, Transaction } from 'sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import slugify from 'slugify';
 
@@ -88,48 +89,31 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
         const { categoryIds, tags, ...fontData } = createFontDto;
 
         const font = await this.sequelize.transaction(async (transaction) => {
-            // --- Validation inside transaction ---
-            const user = await this.userService.findOne(fontData.creatorId, { transaction });
+            // --- Validation inside transaction (run in parallel) ---
+            const [user, existingFont, { galleryImages }] = await Promise.all([
+                this.userService.findOne(fontData.creatorId, { transaction }),
+                this.checkExistsBySlug(createFontDto.name, null, { transaction }),
+                this._validateFiles(fontData, transaction),
+            ]);
+
             if (!user) {
                 throw new NotFoundException(`User with ID ${fontData.creatorId} not found`);
             }
-
-            const existingFont = await this.checkExistsBySlug(createFontDto.name, null, { transaction });
             if (existingFont) {
                 throw new ConflictException(`Font with name ${createFontDto.name} already exists`);
-            }
-
-            if (!isEmpty(fontData.thumbnailFileId)) {
-                const existingFile = await this.fileService.checkFileExists(fontData.thumbnailFileId, transaction);
-                if (!existingFile) {
-                    throw new NotFoundException(`File with ID ${fontData.thumbnailFileId} not found`);
-                }
-            }
-
-            let validatedGalleryImages: FontGalleryImageDto[];
-            if (fontData.galleryImages && size(fontData.galleryImages) > 0) {
-                validatedGalleryImages = await this.fileService.checkExists(fontData.galleryImages, transaction);
             }
 
             // --- Create and associate inside transaction ---
             const newFont = await this.fontModel.create(
                 {
                     ...fontData,
-                    galleryImages: validatedGalleryImages,
+                    galleryImages,
                     slug: slugify(createFontDto.name, { lower: true, strict: true }),
                 },
                 { transaction },
             );
 
-            if (categoryIds && !isEmpty(categoryIds)) {
-                const existingCategories = await this.categoriesService.findByIds(categoryIds, transaction);
-                await newFont.$set('categories', existingCategories, { transaction });
-            }
-
-            if (tags && !isEmpty(tags)) {
-                const tagIdsToSync = await this.tagsService.getTagIdsFromMixedArray(tags, transaction);
-                await newFont.$set('tags', tagIdsToSync, { transaction });
-            }
+            await this._handleAssociations(newFont, { categoryIds, tags }, transaction);
 
             return newFont;
         });
@@ -218,36 +202,24 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
         }
 
         await this.sequelize.transaction(async (transaction) => {
-            if (dataToUpdate.name) {
-                const existingFont = await this.checkExistsBySlug(dataToUpdate.name, id, { transaction });
-                if (existingFont) {
-                    throw new ConflictException(`Font with name ${dataToUpdate.name} already exists`);
-                }
+            const [existingFont, { galleryImages }] = await Promise.all([
+                dataToUpdate.name
+                    ? this.checkExistsBySlug(dataToUpdate.name, id, { transaction })
+                    : Promise.resolve(false),
+                this._validateFiles(fontData, transaction),
+            ]);
+
+            if (existingFont) {
+                throw new ConflictException(`Font with name ${dataToUpdate.name} already exists`);
             }
 
-            if (fontData.galleryImages) {
-                const existingGalleryImages = await this.fileService.checkExists(fontData.galleryImages, transaction);
-                dataToUpdate.galleryImages = existingGalleryImages;
-            }
-
-            if (fontData.thumbnailFileId) {
-                const existingFile = await this.fileService.checkFileExists(fontData.thumbnailFileId, transaction);
-                if (!existingFile) {
-                    throw new NotFoundException(`File with ID ${fontData.thumbnailFileId} not found`);
-                }
+            if (galleryImages !== undefined) {
+                dataToUpdate.galleryImages = galleryImages;
             }
 
             await font.update(dataToUpdate, { transaction });
 
-            if (categoryIds) {
-                const existingCategories = await this.categoriesService.findByIds(categoryIds, transaction);
-                await font.$set('categories', existingCategories, { transaction });
-            }
-
-            if (tags) {
-                const tagIdsToSync = await this.tagsService.getTagIdsFromMixedArray(tags, transaction);
-                await font.$set('tags', tagIdsToSync, { transaction });
-            }
+            await this._handleAssociations(font, { categoryIds, tags }, transaction);
         });
 
         return this.findOne(font.id, {
@@ -262,7 +234,6 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
     }
 
     // --- API-Facing Methods for Controller Use ---
-
     async createApi(createFontDto: CreateFontDto): Promise<IApiResponse<FontResponseDto>> {
         const newFont = await this.create(createFontDto);
         return {
@@ -271,7 +242,6 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
             data: new FontResponseDto(newFont),
         };
     }
-
     async findOneApi(id: string): Promise<IApiResponse<FontResponseDto>> {
         const font = await this.findOne(id, {
             include: ['creator', 'weights', 'categories', 'tags', 'thumbnailFile'],
@@ -282,7 +252,6 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
             data: new FontResponseDto(font),
         };
     }
-
     async findAllApi(
         paginationDto: PaginationDto,
         queryDto: QueryDto,
@@ -300,7 +269,6 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
             },
         };
     }
-
     async updateApi(id: string, updateFontDto: UpdateFontDto): Promise<IApiResponse<FontResponseDto>> {
         const updatedFont = await this.update(id, updateFontDto);
         return {
@@ -309,7 +277,6 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
             data: new FontResponseDto(updatedFont),
         };
     }
-
     async removeApi(id: string): Promise<IApiResponse<null>> {
         await this.remove(id);
         return {
@@ -318,10 +285,70 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
             data: null,
         };
     }
-
     async findOneData(options: FindOptions<Font>): Promise<Font> {
         return this.fontModel.findOne(options);
     }
+    // --- Helper Methods ---
+
+    private async _validateFiles(
+        data: { thumbnailFileId?: string; galleryImages?: FontGalleryImageDto[] },
+        transaction: Transaction,
+    ): Promise<{ galleryImages?: FontGalleryImageDto[] }> {
+        const thumbnailValidation = async () => {
+            if (data.thumbnailFileId) {
+                const existingFile = await this.fileService.checkFileExists(data.thumbnailFileId, transaction);
+                if (!existingFile) {
+                    throw new NotFoundException(`File with ID ${data.thumbnailFileId} not found`);
+                }
+            }
+        };
+
+        const galleryValidation = async (): Promise<{ galleryImages?: FontGalleryImageDto[] }> => {
+            if (data.galleryImages) {
+                if (size(data.galleryImages) > 0) {
+                    const validatedGalleryImages = await this.fileService.checkExists(data.galleryImages, transaction);
+                    return { galleryImages: validatedGalleryImages };
+                }
+                return { galleryImages: [] };
+            }
+            return {};
+        };
+
+        const [, galleryResult] = await Promise.all([thumbnailValidation(), galleryValidation()]);
+        return galleryResult;
+    }
+
+    private async _handleAssociations(
+        font: Font,
+        data: {
+            categoryIds?: string[];
+            tags?: string[];
+        },
+        transaction: Transaction,
+    ): Promise<void> {
+        const promises = [];
+
+        if (data.categoryIds) {
+            const handleCategories = async () => {
+                const existingCategories = await this.categoriesService.findByIds(data.categoryIds, transaction);
+                await font.$set('categories', existingCategories, { transaction });
+            };
+            promises.push(handleCategories());
+        }
+
+        if (data.tags) {
+            const handleTags = async () => {
+                const tagIdsToSync = await this.tagsService.getTagIdsFromMixedArray(data.tags, transaction);
+                await font.$set('tags', tagIdsToSync, { transaction });
+            };
+            promises.push(handleTags());
+        }
+
+        if (size(promises) > 0) {
+            await Promise.all(promises);
+        }
+    }
+
     // --- Keep private _buildFontQuery method ---
     private _buildFontQuery(options: BuildFontQueryOptions): { sql: string; parameters: Record<string, any> } {
         const { filter, select, order, limit, offset } = options;
