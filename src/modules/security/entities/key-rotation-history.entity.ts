@@ -17,12 +17,11 @@ import { KeyType } from '../types/key.types';
 
 @Table({
     tableName: 'key_rotation_history',
-    underscored: true,
     indexes: [
-        { fields: ['key_type', 'rotated_at'] },
-        { fields: ['rotation_type'] },
-        { fields: ['old_key_id'] },
-        { fields: ['new_key_id'] },
+        { fields: ['keyType', 'rotatedAt'] },
+        { fields: ['rotationType'] },
+        { fields: ['oldKeyId'] },
+        { fields: ['newKeyId'] },
     ],
 })
 export class KeyRotationHistory extends Model<KeyRotationHistory, KeyRotationHistoryCreationAttrs> {
@@ -31,6 +30,8 @@ export class KeyRotationHistory extends Model<KeyRotationHistory, KeyRotationHis
     @Column({
         type: DataType.UUID,
         defaultValue: DataType.UUIDV4,
+        allowNull: false,
+        field: 'id',
     })
     declare id: string;
 
@@ -38,8 +39,9 @@ export class KeyRotationHistory extends Model<KeyRotationHistory, KeyRotationHis
     @ForeignKey(() => SecurityKey)
     @Index
     @Column({
-        type: DataType.STRING(128),
+        type: DataType.UUID,
         allowNull: true,
+        field: 'oldKeyId',
     })
     declare oldKeyId: string;
 
@@ -47,8 +49,9 @@ export class KeyRotationHistory extends Model<KeyRotationHistory, KeyRotationHis
     @ForeignKey(() => SecurityKey)
     @Index
     @Column({
-        type: DataType.STRING(128),
+        type: DataType.UUID,
         allowNull: false,
+        field: 'newKeyId',
     })
     declare newKeyId: string;
 
@@ -67,6 +70,7 @@ export class KeyRotationHistory extends Model<KeyRotationHistory, KeyRotationHis
             'session_encryption',
         ),
         allowNull: false,
+        field: 'keyType',
     })
     declare keyType: KeyType;
 
@@ -75,6 +79,7 @@ export class KeyRotationHistory extends Model<KeyRotationHistory, KeyRotationHis
     @Column({
         type: DataType.ENUM('scheduled', 'emergency', 'manual', 'compromised', 'expired'),
         allowNull: false,
+        field: 'rotationType',
     })
     declare rotationType: 'scheduled' | 'emergency' | 'manual' | 'compromised' | 'expired';
 
@@ -82,6 +87,7 @@ export class KeyRotationHistory extends Model<KeyRotationHistory, KeyRotationHis
     @Column({
         type: DataType.TEXT,
         allowNull: true,
+        field: 'rotationReason',
     })
     declare rotationReason: string;
 
@@ -89,6 +95,7 @@ export class KeyRotationHistory extends Model<KeyRotationHistory, KeyRotationHis
     @Column({
         type: DataType.STRING(100),
         allowNull: true,
+        field: 'rotatedBy',
     })
     declare rotatedBy: string;
 
@@ -96,6 +103,7 @@ export class KeyRotationHistory extends Model<KeyRotationHistory, KeyRotationHis
     @Column({
         type: DataType.STRING(32),
         allowNull: false,
+        field: 'rotatedFromMachine',
     })
     declare rotatedFromMachine: string;
 
@@ -103,6 +111,7 @@ export class KeyRotationHistory extends Model<KeyRotationHistory, KeyRotationHis
     @Column({
         type: DataType.INTEGER,
         allowNull: true,
+        field: 'rotationDurationSeconds',
     })
     declare rotationDurationSeconds: number;
 
@@ -110,6 +119,7 @@ export class KeyRotationHistory extends Model<KeyRotationHistory, KeyRotationHis
     @Column({
         type: DataType.INTEGER,
         defaultValue: 0,
+        field: 'affectedTokensCount',
     })
     declare affectedTokensCount: number;
 
@@ -117,6 +127,7 @@ export class KeyRotationHistory extends Model<KeyRotationHistory, KeyRotationHis
     @Column({
         type: DataType.BOOLEAN,
         defaultValue: true,
+        field: 'rotationSuccess',
     })
     declare rotationSuccess: boolean;
 
@@ -124,6 +135,7 @@ export class KeyRotationHistory extends Model<KeyRotationHistory, KeyRotationHis
     @Column({
         type: DataType.TEXT,
         allowNull: true,
+        field: 'errorDetails',
     })
     declare errorDetails: string;
 
@@ -131,11 +143,13 @@ export class KeyRotationHistory extends Model<KeyRotationHistory, KeyRotationHis
     @Column({
         type: DataType.JSONB,
         defaultValue: {},
+        field: 'metadata',
     })
     declare metadata: Record<string, any>;
 
     @ApiProperty({ description: 'When rotation was completed' })
     @CreatedAt
+    @Column({ field: 'rotatedAt' })
     declare rotatedAt: Date;
 
     // Associations

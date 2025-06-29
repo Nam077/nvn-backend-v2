@@ -33,7 +33,6 @@ export type ItemType = (typeof ITEM_TYPE)[keyof typeof ITEM_TYPE];
 
 @Table({
     tableName: 'purchases',
-    underscored: true,
 })
 export class Purchase extends Model<Purchase, PurchaseCreationAttrs> {
     @ApiProperty({ description: 'Purchase ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -41,6 +40,7 @@ export class Purchase extends Model<Purchase, PurchaseCreationAttrs> {
     @Column({
         type: DataType.UUID,
         defaultValue: DataType.UUIDV4,
+        field: 'id',
     })
     declare id: string;
 
@@ -49,6 +49,7 @@ export class Purchase extends Model<Purchase, PurchaseCreationAttrs> {
     @Column({
         type: DataType.UUID,
         allowNull: false,
+        field: 'userId',
     })
     declare userId: string;
 
@@ -56,6 +57,7 @@ export class Purchase extends Model<Purchase, PurchaseCreationAttrs> {
     @Column({
         type: DataType.UUID,
         allowNull: false,
+        field: 'itemId',
     })
     declare itemId: string;
 
@@ -67,6 +69,7 @@ export class Purchase extends Model<Purchase, PurchaseCreationAttrs> {
     @Column({
         type: DataType.ENUM(...values(ITEM_TYPE)),
         allowNull: false,
+        field: 'itemType',
     })
     declare itemType: ItemType;
 
@@ -74,6 +77,7 @@ export class Purchase extends Model<Purchase, PurchaseCreationAttrs> {
     @Column({
         type: DataType.DECIMAL(10, 2),
         allowNull: false,
+        field: 'amount',
     })
     declare amount: number;
 
@@ -81,6 +85,7 @@ export class Purchase extends Model<Purchase, PurchaseCreationAttrs> {
     @Column({
         type: DataType.STRING,
         allowNull: false,
+        field: 'paymentMethod',
     })
     declare paymentMethod: string;
 
@@ -93,6 +98,7 @@ export class Purchase extends Model<Purchase, PurchaseCreationAttrs> {
         type: DataType.ENUM(...values(PURCHASE_STATUS)),
         allowNull: false,
         defaultValue: PURCHASE_STATUS.PENDING,
+        field: 'status',
     })
     declare status: PurchaseStatus;
 
@@ -100,6 +106,7 @@ export class Purchase extends Model<Purchase, PurchaseCreationAttrs> {
     @Column({
         type: DataType.STRING,
         allowNull: true,
+        field: 'transactionId',
     })
     declare transactionId: string;
 
@@ -107,15 +114,18 @@ export class Purchase extends Model<Purchase, PurchaseCreationAttrs> {
     @Column({
         type: DataType.JSONB,
         defaultValue: {},
+        field: 'paymentMetadata',
     })
     declare paymentMetadata: Record<string, any>;
 
     @ApiProperty({ description: 'Creation date' })
     @CreatedAt
+    @Column({ field: 'createdAt' })
     declare createdAt: Date;
 
     @ApiProperty({ description: 'Last update date' })
     @UpdatedAt
+    @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
 
     // Associations

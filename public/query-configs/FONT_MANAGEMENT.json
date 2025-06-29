@@ -3,12 +3,12 @@
     "fields": {
         "name": {
             "type": "text",
-            "operators": ["contains", "equals"],
+            "operators": ["contains", "equals", "starts_with", "ends_with", "is_empty", "is_not_empty"],
             "label": "Name"
         },
         "slug": {
             "type": "text",
-            "operators": ["equals"],
+            "operators": ["equals", "starts_with", "ends_with", "is_empty", "is_not_empty"],
             "label": "Slug"
         },
         "fontType": {
@@ -61,19 +61,88 @@
             "label": "Last Updated",
             "operators": ["between", "gte"]
         },
+        "authors.name": {
+            "type": "text",
+            "operators": ["contains"],
+            "label": "Author Name"
+        },
+        "categories.id": {
+            "type": "remote_multiselect",
+            "operators": ["array_overlaps"],
+            "label": "Category",
+            "remoteValues": {
+                "blueprint": "CATEGORY_MANAGEMENT",
+                "valueField": "id",
+                "labelField": "name"
+            }
+        },
         "categories.name": {
             "type": "text",
-            "operators": ["equals"],
-            "label": "Categories: Name"
+            "operators": ["contains"],
+            "label": "Category Name"
         },
-        "categories.slug": {
+        "tags.id": {
+            "type": "remote_multiselect",
+            "operators": ["array_overlaps"],
+            "label": "Tag",
+            "remoteValues": {
+                "blueprint": "TAG_MANAGEMENT",
+                "valueField": "id",
+                "labelField": "name"
+            }
+        },
+        "tags.name": {
+            "type": "text",
+            "operators": ["contains"],
+            "label": "Tag Name"
+        },
+        "creator.firstName": {
+            "type": "text",
+            "operators": ["contains"],
+            "label": "Creator: First Name"
+        },
+        "creator.lastName": {
+            "type": "text",
+            "operators": ["contains"],
+            "label": "Creator: Last Name"
+        },
+        "creator.email": {
             "type": "text",
             "operators": ["equals"],
-            "label": "Categories: Slug"
+            "label": "Creator: Email"
+        },
+        "weights.name": {
+            "type": "text",
+            "operators": ["equals"],
+            "label": "Weights: Name"
+        },
+        "weights.weight": {
+            "type": "text",
+            "operators": ["equals", "gte", "lte"],
+            "label": "Weights: Weight"
         }
     },
     "sortableFields": ["name", "price", "downloadCount", "createdAt", "updatedAt"],
-    "selectableFields": ["id", "name", "slug", "fontType", "price", "downloadCount", "isActive", "createdAt"],
+    "selectableFields": [
+        "id",
+        "name",
+        "slug",
+        "authors",
+        "description",
+        "fontType",
+        "price",
+        "downloadCount",
+        "isActive",
+        "createdAt",
+        "updatedAt",
+        "creator",
+        "thumbnailFile",
+        "previewImageFile",
+        "categories",
+        "tags",
+        "weights",
+        "weightCount"
+    ],
     "defaultSort": [["createdAt", "DESC"]],
-    "generatedAt": "2025-06-27T20:05:35.362Z"
+    "generatedAt": "2025-06-29T11:09:46.303Z"
 }

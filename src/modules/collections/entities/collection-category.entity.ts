@@ -7,7 +7,6 @@ import { FontCollection } from '@/modules/collections/entities/collection.entity
 
 @Table({
     tableName: 'collection_categories',
-    underscored: true,
     timestamps: true,
     updatedAt: false,
 })
@@ -18,6 +17,7 @@ export class CollectionCategory extends Model<CollectionCategory, CollectionCate
         type: DataType.UUID,
         allowNull: false,
         primaryKey: true,
+        field: 'collectionId',
     })
     declare collectionId: string;
 
@@ -27,6 +27,7 @@ export class CollectionCategory extends Model<CollectionCategory, CollectionCate
         type: DataType.UUID,
         allowNull: false,
         primaryKey: true,
+        field: 'categoryId',
     })
     declare categoryId: string;
 
@@ -34,11 +35,13 @@ export class CollectionCategory extends Model<CollectionCategory, CollectionCate
     @Column({
         type: DataType.BOOLEAN,
         defaultValue: false,
+        field: 'isPrimary',
     })
     declare isPrimary: boolean;
 
     @ApiProperty({ description: 'Creation date' })
     @CreatedAt
+    @Column({ field: 'createdAt' })
     declare createdAt: Date;
 
     // Associations

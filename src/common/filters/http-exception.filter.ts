@@ -47,10 +47,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
             errorPayload.stack = exception.stack;
         }
 
-        this.logger.error(
-            `[${correlationId}] Status: ${status} | Path: ${request.method} ${request.url}`,
-            exception instanceof Error ? exception.stack : JSON.stringify(exception),
-        );
+        if (exception instanceof HttpException) {
+            this.logger.error(`[${correlationId}] ${status} ${request.method} ${request.url} - ${exception.message}`);
+        } else {
+            this.logger.error(
+                `[${correlationId}] Status: ${status} | Path: ${request.method} ${request.url} | Message: ${
+                    exception instanceof Error ? exception.message : JSON.stringify(exception)
+                }`,
+                exception instanceof Error ? exception.stack : JSON.stringify(exception),
+            );
+        }
 
         response.status(status).json(errorPayload);
     }

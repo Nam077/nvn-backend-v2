@@ -7,7 +7,6 @@ import { UserSubscription } from '@/modules/subscription/entities/user-subscript
 
 @Table({
     tableName: 'subscription_plans',
-    underscored: true,
 })
 export class SubscriptionPlan extends Model<SubscriptionPlan, SubscriptionPlanCreationAttrs> {
     @ApiProperty({ description: 'Plan ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -15,6 +14,7 @@ export class SubscriptionPlan extends Model<SubscriptionPlan, SubscriptionPlanCr
     @Column({
         type: DataType.UUID,
         defaultValue: DataType.UUIDV4,
+        field: 'id',
     })
     declare id: string;
 
@@ -22,6 +22,7 @@ export class SubscriptionPlan extends Model<SubscriptionPlan, SubscriptionPlanCr
     @Column({
         type: DataType.STRING,
         allowNull: false,
+        field: 'name',
     })
     declare name: string;
 
@@ -30,6 +31,7 @@ export class SubscriptionPlan extends Model<SubscriptionPlan, SubscriptionPlanCr
         type: DataType.STRING,
         allowNull: false,
         unique: true,
+        field: 'slug',
     })
     declare slug: string;
 
@@ -37,6 +39,7 @@ export class SubscriptionPlan extends Model<SubscriptionPlan, SubscriptionPlanCr
     @Column({
         type: DataType.TEXT,
         allowNull: true,
+        field: 'description',
     })
     declare description: string;
 
@@ -44,6 +47,7 @@ export class SubscriptionPlan extends Model<SubscriptionPlan, SubscriptionPlanCr
     @Column({
         type: DataType.DECIMAL(10, 2),
         allowNull: false,
+        field: 'basePrice',
     })
     declare basePrice: number;
 
@@ -51,6 +55,7 @@ export class SubscriptionPlan extends Model<SubscriptionPlan, SubscriptionPlanCr
     @Column({
         type: DataType.BOOLEAN,
         defaultValue: true,
+        field: 'isActive',
     })
     declare isActive: boolean;
 
@@ -58,15 +63,18 @@ export class SubscriptionPlan extends Model<SubscriptionPlan, SubscriptionPlanCr
     @Column({
         type: DataType.INTEGER,
         defaultValue: 0,
+        field: 'sortOrder',
     })
     declare sortOrder: number;
 
     @ApiProperty({ description: 'Creation date' })
     @CreatedAt
+    @Column({ field: 'createdAt' })
     declare createdAt: Date;
 
     @ApiProperty({ description: 'Last update date' })
     @UpdatedAt
+    @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
 
     // Associations

@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 import { Exclude, Expose, Type } from 'class-transformer';
-import { assign, filter, isArray, isEmpty, isObject, isUndefined, join, map, split } from 'lodash';
+import { assign, filter, get, isArray, isEmpty, isObject, isUndefined, join, map, split } from 'lodash';
 
 import { Category } from '../entities/category.entity';
 import { CategoryTreeNode } from '../types/category.types';
@@ -76,20 +76,20 @@ export class CategoryResponseDto {
     constructor(partial: CategoryInput) {
         assign(this, partial);
 
-        if (isArray(partial.children)) {
-            this.children = map(partial.children, (child) => new CategoryResponseDto(child));
+        if (isArray(get(partial, 'children')) && !isUndefined(this.children)) {
+            this.children = map(get(partial, 'children'), (child) => new CategoryResponseDto(child));
         }
 
-        if (isObject(partial.parent)) {
-            this.parent = new CategoryResponseDto(partial.parent);
+        if (isObject(get(partial, 'parent')) && !isUndefined(this.parent)) {
+            this.parent = new CategoryResponseDto(get(partial, 'parent'));
         }
 
-        if (partial.path && isUndefined(this.displayPath)) {
-            this.displayPath = join(filter(split(partial.path, '/'), Boolean), ' > ');
+        if (get(partial, 'path') && isUndefined(this.displayPath)) {
+            this.displayPath = join(filter(split(get(partial, 'path'), '/'), Boolean), ' > ');
         }
 
         if (isUndefined(this.isRoot)) {
-            this.isRoot = !partial.parentId;
+            this.isRoot = !get(partial, 'parentId');
         }
 
         if (isUndefined(this.hasChildren)) {

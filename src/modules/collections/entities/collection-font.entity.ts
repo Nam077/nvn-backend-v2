@@ -7,7 +7,6 @@ import { Font } from '@/modules/fonts/entities/font.entity';
 
 @Table({
     tableName: 'collection_fonts',
-    underscored: true,
     timestamps: true,
     updatedAt: false,
 })
@@ -18,6 +17,7 @@ export class CollectionFont extends Model<CollectionFont, CollectionFontCreation
         type: DataType.UUID,
         allowNull: false,
         primaryKey: true,
+        field: 'collectionId',
     })
     declare collectionId: string;
 
@@ -27,6 +27,7 @@ export class CollectionFont extends Model<CollectionFont, CollectionFontCreation
         type: DataType.UUID,
         allowNull: false,
         primaryKey: true,
+        field: 'fontId',
     })
     declare fontId: string;
 
@@ -34,11 +35,13 @@ export class CollectionFont extends Model<CollectionFont, CollectionFontCreation
     @Column({
         type: DataType.INTEGER,
         defaultValue: 0,
+        field: 'sortOrder',
     })
     declare sortOrder: number;
 
     @ApiProperty({ description: 'Date font was added to collection' })
     @CreatedAt
+    @Column({ field: 'addedAt' })
     declare addedAt: Date;
 
     // Associations

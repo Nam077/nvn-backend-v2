@@ -144,7 +144,6 @@ export class SessionService {
             'accessTokenExpiry',
             'refreshTokenExpiry',
             'createdAt',
-            'lastUsedAt',
             'userAgent',
             'ipAddress',
         ]);
@@ -164,7 +163,6 @@ export class SessionService {
             'accessTokenExpiry',
             'refreshTokenExpiry',
             'createdAt',
-            'lastUsedAt',
             'userAgent',
             'ipAddress',
         ]);

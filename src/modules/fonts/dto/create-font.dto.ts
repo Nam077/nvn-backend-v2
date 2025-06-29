@@ -15,7 +15,9 @@ import {
     ValidateNested,
 } from 'class-validator';
 
-import { FONT_TYPE, FontType, FontGalleryImage } from '../entities/font.entity';
+import { IsUuidOrStringArray } from '@/common/validators/is-uuid-or-string.validator';
+
+import { FONT_TYPE, FontType, FontGalleryImage, FontAuthor } from '../entities/font.entity';
 
 class FontGalleryImageDto implements FontGalleryImage {
     @ApiProperty({ description: 'The UUID of the file.', example: 'b7b5c6e8-34a0-4f51-8a19-1c19b9d4c7b8' })
@@ -37,16 +39,39 @@ class FontGalleryImageDto implements FontGalleryImage {
     type?: 'preview' | 'showcase' | 'comparison';
 }
 
+class FontAuthorDto implements FontAuthor {
+    @ApiProperty({ description: 'The name of the author.', example: 'John Doe' })
+    @IsString()
+    @IsNotEmpty()
+    name: string;
+
+    @ApiProperty({ description: 'The URL for the author profile or portfolio.', example: 'https://johndoe.com' })
+    @IsOptional()
+    @IsString()
+    url?: string;
+}
+
 export class CreateFontDto {
     @ApiProperty({ description: 'The name of the font.', example: 'Proxima Nova' })
     @IsString()
     @IsNotEmpty()
     name: string;
 
-    @ApiProperty({ description: 'A URL-friendly slug for the font.', example: 'proxima-nova' })
-    @IsString()
-    @IsNotEmpty()
-    slug: string;
+    @ApiProperty({
+        description: 'A list of authors for the font.',
+        type: [FontAuthorDto],
+        example: [
+            {
+                name: 'Christian Robertson',
+                url: 'https://example.com',
+            },
+        ],
+    })
+    @IsOptional()
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => FontAuthorDto)
+    authors?: FontAuthorDto[];
 
     @ApiProperty({
         description: 'A detailed description of the font.',
@@ -127,4 +152,13 @@ export class CreateFontDto {
     @IsArray()
     @IsUUID('all', { each: true })
     categoryIds?: string[];
+
+    @ApiProperty({
+        description: 'An array of tag UUIDs (for existing tags) or names (for new tags).',
+        example: ['d4f7b3c2-1e9a-4b0e-9a7a-3e2c1b0d9f6e', 'New Modern Tag', 'Vintage'],
+        type: [String],
+    })
+    @IsOptional()
+    @IsUuidOrStringArray()
+    tags?: string[];
 }

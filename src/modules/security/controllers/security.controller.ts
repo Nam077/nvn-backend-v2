@@ -2,7 +2,7 @@
 import { Controller, Post, Get, Body, Param, Query, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 
-import { isEmpty, isString, defaultTo, toNumber, clamp } from 'lodash';
+import { isEmpty, isString } from 'lodash';
 
 import { DateUtils } from '@/common/utils';
 import { KeyManagerService } from '../services/key-manager.service';
@@ -194,8 +194,6 @@ export class SecurityController {
                     expiresAt: key.expiresAt,
                     createdAt: key.createdAt,
                     activatedAt: key.activatedAt,
-                    usageCount: key.usageCount,
-                    lastUsedAt: key.lastUsedAt,
                     metadata: key.metadata,
                 })),
             },
@@ -327,7 +325,6 @@ export class SecurityController {
         // 7. Get updated key info
         const afterUsage = await this.keyManagerService.getKeysByType(keyType, 'active', 1, 0);
         const keyInfo = afterUsage.keys[0];
-        workflow.push(`📊 Usage count: ${keyInfo?.usageCount || 0}`);
 
         return {
             success: true,
@@ -340,10 +337,8 @@ export class SecurityController {
                           keyId: keyInfo.keyId,
                           status: keyInfo.status,
                           algorithm: keyInfo.algorithm,
-                          usageCount: keyInfo.usageCount,
                           createdAt: keyInfo.createdAt,
                           activatedAt: keyInfo.activatedAt,
-                          lastUsedAt: keyInfo.lastUsedAt,
                       }
                     : null,
                 workflow,

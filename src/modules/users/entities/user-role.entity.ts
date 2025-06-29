@@ -17,7 +17,6 @@ import { User } from './user.entity';
 
 @Table({
     tableName: 'user_roles',
-    underscored: true,
 })
 export class UserRole extends Model<UserRole, UserRoleCreationAttrs> {
     @ApiProperty({ description: 'User Role ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -25,6 +24,7 @@ export class UserRole extends Model<UserRole, UserRoleCreationAttrs> {
     @Column({
         type: DataType.UUID,
         defaultValue: DataType.UUIDV4,
+        field: 'id',
     })
     declare id: string;
 
@@ -33,6 +33,7 @@ export class UserRole extends Model<UserRole, UserRoleCreationAttrs> {
     @Column({
         type: DataType.UUID,
         allowNull: false,
+        field: 'userId',
     })
     declare userId: string;
 
@@ -41,6 +42,7 @@ export class UserRole extends Model<UserRole, UserRoleCreationAttrs> {
     @Column({
         type: DataType.UUID,
         allowNull: false,
+        field: 'roleId',
     })
     declare roleId: string;
 
@@ -49,6 +51,7 @@ export class UserRole extends Model<UserRole, UserRoleCreationAttrs> {
         type: DataType.DATE,
         allowNull: true,
         defaultValue: DataType.NOW,
+        field: 'assignedAt',
     })
     declare assignedAt: Date;
 
@@ -56,6 +59,7 @@ export class UserRole extends Model<UserRole, UserRoleCreationAttrs> {
     @Column({
         type: DataType.DATE,
         allowNull: true,
+        field: 'expiresAt',
     })
     declare expiresAt: Date;
 
@@ -63,6 +67,7 @@ export class UserRole extends Model<UserRole, UserRoleCreationAttrs> {
     @Column({
         type: DataType.UUID,
         allowNull: true,
+        field: 'assignedBy',
     })
     declare assignedBy: string;
 
@@ -70,15 +75,18 @@ export class UserRole extends Model<UserRole, UserRoleCreationAttrs> {
     @Column({
         type: DataType.BOOLEAN,
         defaultValue: true,
+        field: 'isActive',
     })
     declare isActive: boolean;
 
     @ApiProperty({ description: 'Creation date' })
     @CreatedAt
+    @Column({ field: 'createdAt' })
     declare createdAt: Date;
 
     @ApiProperty({ description: 'Last update date' })
     @UpdatedAt
+    @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
 
     // Associations

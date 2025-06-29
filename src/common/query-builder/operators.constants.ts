@@ -56,5 +56,16 @@ export const ENUM_OPERATORS = {
 
 export const BOOLEAN_OPERATORS = {
     EQUALS: 'equals',
+    IN: 'in',
     ...NULL_CHECK_OPERATORS,
+} as const;
+
+export const JSON_OPERATORS = {
+    JSON_EQUALS: 'json_equals',
+    JSON_CONTAINS: 'json_contains',
+    JSON_IN: 'json_in',
+} as const;
+
+export const ARRAY_OPERATORS = {
+    OVERLAPS: 'array_overlaps', // Checks if two arrays have elements in common (&& operator in PostgreSQL)
 } as const;

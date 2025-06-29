@@ -74,7 +74,6 @@ export interface SessionData {
     accessTokenExpiry: Date;
     refreshTokenExpiry: Date;
     createdAt: Date;
-    lastUsedAt: Date;
     userAgent?: string;
     ipAddress?: string;
 }

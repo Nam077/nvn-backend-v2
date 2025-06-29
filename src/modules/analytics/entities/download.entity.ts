@@ -14,7 +14,6 @@ export type ItemType = (typeof ITEM_TYPE)[keyof typeof ITEM_TYPE];
 
 @Table({
     tableName: 'downloads',
-    underscored: true,
     timestamps: true,
     updatedAt: false,
 })
@@ -24,6 +23,7 @@ export class Download extends Model<Download, DownloadCreationAttrs> {
     @Column({
         type: DataType.UUID,
         defaultValue: DataType.UUIDV4,
+        field: 'id',
     })
     declare id: string;
 
@@ -32,6 +32,7 @@ export class Download extends Model<Download, DownloadCreationAttrs> {
     @Column({
         type: DataType.UUID,
         allowNull: true, // Allow anonymous downloads
+        field: 'userId',
     })
     declare userId: string;
 
@@ -39,6 +40,7 @@ export class Download extends Model<Download, DownloadCreationAttrs> {
     @Column({
         type: DataType.UUID,
         allowNull: false,
+        field: 'itemId',
     })
     declare itemId: string;
 
@@ -50,6 +52,7 @@ export class Download extends Model<Download, DownloadCreationAttrs> {
     @Column({
         type: DataType.ENUM(...values(ITEM_TYPE)),
         allowNull: false,
+        field: 'itemType',
     })
     declare itemType: ItemType;
 
@@ -57,6 +60,7 @@ export class Download extends Model<Download, DownloadCreationAttrs> {
     @Column({
         type: DataType.STRING,
         allowNull: false,
+        field: 'ipAddress',
     })
     declare ipAddress: string;
 
@@ -64,11 +68,13 @@ export class Download extends Model<Download, DownloadCreationAttrs> {
     @Column({
         type: DataType.TEXT,
         allowNull: true,
+        field: 'userAgent',
     })
     declare userAgent: string;
 
     @ApiProperty({ description: 'Download date' })
     @CreatedAt
+    @Column({ field: 'createdAt' })
     declare createdAt: Date;
 
     // Associations

@@ -9,7 +9,6 @@ import { User } from './user.entity';
 
 @Table({
     tableName: 'roles',
-    underscored: true,
 })
 export class Role extends Model<Role, RoleCreationAttrs> {
     @ApiProperty({ description: 'Role ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -17,6 +16,7 @@ export class Role extends Model<Role, RoleCreationAttrs> {
     @Column({
         type: DataType.UUID,
         defaultValue: DataType.UUIDV4,
+        field: 'id',
     })
     declare id: string;
 
@@ -25,6 +25,7 @@ export class Role extends Model<Role, RoleCreationAttrs> {
         type: DataType.STRING,
         allowNull: false,
         unique: true,
+        field: 'name',
     })
     declare name: string;
 
@@ -32,6 +33,7 @@ export class Role extends Model<Role, RoleCreationAttrs> {
     @Column({
         type: DataType.STRING,
         allowNull: false,
+        field: 'displayName',
     })
     declare displayName: string;
 
@@ -39,6 +41,7 @@ export class Role extends Model<Role, RoleCreationAttrs> {
     @Column({
         type: DataType.TEXT,
         allowNull: true,
+        field: 'description',
     })
     declare description: string;
 
@@ -46,6 +49,7 @@ export class Role extends Model<Role, RoleCreationAttrs> {
     @Column({
         type: DataType.BOOLEAN,
         defaultValue: true,
+        field: 'isActive',
     })
     declare isActive: boolean;
 
@@ -53,6 +57,7 @@ export class Role extends Model<Role, RoleCreationAttrs> {
     @Column({
         type: DataType.INTEGER,
         defaultValue: 0,
+        field: 'priority',
     })
     declare priority: number;
 
@@ -60,15 +65,18 @@ export class Role extends Model<Role, RoleCreationAttrs> {
     @Column({
         type: DataType.BOOLEAN,
         defaultValue: false,
+        field: 'isSystem',
     })
     declare isSystem: boolean;
 
     @ApiProperty({ description: 'Creation date' })
     @CreatedAt
+    @Column({ field: 'createdAt' })
     declare createdAt: Date;
 
     @ApiProperty({ description: 'Last update date' })
     @UpdatedAt
+    @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
 
     // Associations

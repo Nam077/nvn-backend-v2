@@ -1,8 +1,48 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import { Exclude, Expose } from 'class-transformer';
+import { Exclude, Expose, Type, plainToInstance } from 'class-transformer';
+import { assign } from 'lodash';
 
-import { Font, FontGalleryImage, FontType, FONT_TYPE } from '../entities/font.entity';
+import { CategoryResponseDto } from '@/modules/categories/dto/category.response.dto';
+import { File } from '@/modules/files/entities/file.entity';
+import { TagResponseDto } from '@/modules/tags/dto/tag.response.dto';
+import { UserResponseDto } from '@/modules/users/dto/user.response.dto';
+
+import { FontAuthor, FontGalleryImage, FontType, FONT_TYPE, Font } from '../entities/font.entity';
+
+@Exclude()
+export class FileResponseDto {
+    @Expose()
+    @ApiProperty({ description: 'File ID', example: '123e4567-e89b-12d3-a456-426614174000' })
+    id: string;
+
+    @Expose()
+    @ApiProperty({ description: 'File URL', example: '/files/roboto-thumb.png' })
+    url: string;
+
+    constructor(partial: Partial<File>) {
+        assign(this, plainToInstance(FileResponseDto, partial, { excludeExtraneousValues: true }));
+    }
+}
+
+@Exclude()
+export class WeightResponseDto {
+    @Expose()
+    @ApiProperty()
+    id: string;
+
+    @Expose()
+    @ApiProperty()
+    name: string;
+
+    @Expose()
+    @ApiProperty()
+    weight: number;
+
+    constructor(partial: any) {
+        assign(this, plainToInstance(WeightResponseDto, partial, { excludeExtraneousValues: true }));
+    }
+}
 
 @Exclude()
 export class FontResponseDto {
@@ -17,6 +57,21 @@ export class FontResponseDto {
     @Expose()
     @ApiProperty({ example: 'roboto' })
     slug: string;
+
+    @Expose()
+    @ApiProperty({
+        description: 'Authors of the font',
+        example: '[{"name": "Christian Robertson", "url": "https://example.com"}]',
+        type: 'array',
+        items: {
+            type: 'object',
+            properties: {
+                name: { type: 'string' },
+                url: { type: 'string' },
+            },
+        },
+    })
+    authors: FontAuthor[];
 
     @Expose()
     @ApiProperty({ example: 'A modern sans-serif font.' })
@@ -98,29 +153,38 @@ export class FontResponseDto {
     @ApiProperty({ example: '/files/roboto-preview.png' })
     previewImageUrl: string;
 
+    // Relations
+    @Expose()
+    @ApiProperty({ type: () => UserResponseDto, required: false })
+    @Type(() => UserResponseDto)
+    creator?: UserResponseDto;
+
+    @Expose()
+    @ApiProperty({ type: () => [WeightResponseDto], required: false })
+    @Type(() => WeightResponseDto)
+    weights?: WeightResponseDto[];
+
+    @Expose()
+    @ApiProperty({ type: () => [CategoryResponseDto], required: false })
+    @Type(() => CategoryResponseDto)
+    categories?: CategoryResponseDto[];
+
+    @Expose()
+    @ApiProperty({ type: () => [TagResponseDto], required: false })
+    @Type(() => TagResponseDto)
+    tags?: TagResponseDto[];
+
+    @Expose()
+    @ApiProperty({ type: () => FileResponseDto, required: false })
+    @Type(() => FileResponseDto)
+    thumbnailFile?: FileResponseDto;
+
+    @Expose()
+    @ApiProperty({ type: () => FileResponseDto, required: false })
+    @Type(() => FileResponseDto)
+    previewImageFile?: FileResponseDto;
+
     constructor(font: Font) {
-        this.id = font.id;
-        this.name = font.name;
-        this.slug = font.slug;
-        this.description = font.description;
-        this.previewText = font.previewText;
-        this.thumbnailFileId = font.thumbnailFileId;
-        this.previewImageFileId = font.previewImageFileId;
-        this.galleryImages = font.galleryImages;
-        this.creatorId = font.creatorId;
-        this.fontType = font.fontType;
-        this.price = font.price;
-        this.downloadCount = font.downloadCount;
-        this.isActive = font.isActive;
-        this.metadata = font.metadata;
-        this.createdAt = font.createdAt;
-        this.updatedAt = font.updatedAt;
-        this.isFree = font.isFree;
-        this.isVip = font.isVip;
-        this.isPaid = font.isPaid;
-        this.weightCount = font.weightCount;
-        this.galleryImageCount = font.galleryImageCount;
-        this.thumbnailUrl = font.thumbnailUrl;
-        this.previewImageUrl = font.previewImageUrl;
+        assign(this, plainToInstance(FontResponseDto, font, { excludeExtraneousValues: true }));
     }
 }

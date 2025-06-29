@@ -7,7 +7,6 @@ import { Role } from '@/modules/users/entities/role.entity';
 
 @Table({
     tableName: 'permissions',
-    underscored: true,
 })
 export class Permission extends Model<Permission, PermissionCreationAttrs> {
     @ApiProperty({ description: 'Permission ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -15,6 +14,7 @@ export class Permission extends Model<Permission, PermissionCreationAttrs> {
     @Column({
         type: DataType.UUID,
         defaultValue: DataType.UUIDV4,
+        field: 'id',
     })
     declare id: string;
 
@@ -23,6 +23,7 @@ export class Permission extends Model<Permission, PermissionCreationAttrs> {
         type: DataType.STRING,
         allowNull: false,
         unique: true,
+        field: 'name',
     })
     declare name: string;
 
@@ -30,6 +31,7 @@ export class Permission extends Model<Permission, PermissionCreationAttrs> {
     @Column({
         type: DataType.STRING,
         allowNull: true,
+        field: 'description',
     })
     declare description: string;
 
@@ -37,6 +39,7 @@ export class Permission extends Model<Permission, PermissionCreationAttrs> {
     @Column({
         type: DataType.STRING,
         allowNull: false,
+        field: 'resource',
     })
     declare resource: string;
 
@@ -44,6 +47,7 @@ export class Permission extends Model<Permission, PermissionCreationAttrs> {
     @Column({
         type: DataType.STRING,
         allowNull: false,
+        field: 'action',
     })
     declare action: string;
 
@@ -51,15 +55,18 @@ export class Permission extends Model<Permission, PermissionCreationAttrs> {
     @Column({
         type: DataType.BOOLEAN,
         defaultValue: true,
+        field: 'isActive',
     })
     declare isActive: boolean;
 
     @ApiProperty({ description: 'Creation date' })
     @CreatedAt
+    @Column({ field: 'createdAt' })
     declare createdAt: Date;
 
     @ApiProperty({ description: 'Last update date' })
     @UpdatedAt
+    @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
 
     // Associations

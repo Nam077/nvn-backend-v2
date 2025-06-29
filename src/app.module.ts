@@ -15,6 +15,7 @@ import { PaymentModule } from '@/modules/payment/payment.module';
 import { RedisModule } from '@/modules/redis/redis.module';
 import { SecurityModule } from '@/modules/security/security.module';
 import { SubscriptionModule } from '@/modules/subscription/subscription.module';
+import { TagsModule } from '@/modules/tags/tags.module';
 import { UsersModule } from '@/modules/users/users.module';
 
 @Module({
@@ -44,6 +45,7 @@ import { UsersModule } from '@/modules/users/users.module';
         PaymentModule,
         FontsModule,
         CategoriesModule,
+        TagsModule,
     ],
     controllers: [AppController],
     providers: [

@@ -7,7 +7,6 @@ import { UserRole } from './user-role.entity';
 
 @Table({
     tableName: 'users',
-    underscored: true,
 })
 export class User extends Model<User, UserCreationAttrs> {
     @ApiProperty({ description: 'User ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -15,6 +14,7 @@ export class User extends Model<User, UserCreationAttrs> {
     @Column({
         type: DataType.UUID,
         defaultValue: DataType.UUIDV4,
+        field: 'id',
     })
     declare id: string;
 
@@ -26,12 +26,14 @@ export class User extends Model<User, UserCreationAttrs> {
         validate: {
             isEmail: true,
         },
+        field: 'email',
     })
     declare email: string;
 
     @Column({
         type: DataType.STRING,
         allowNull: false,
+        field: 'password',
     })
     declare password: string;
 
@@ -39,6 +41,7 @@ export class User extends Model<User, UserCreationAttrs> {
     @Column({
         type: DataType.STRING,
         allowNull: true,
+        field: 'firstName',
     })
     declare firstName: string;
 
@@ -46,6 +49,7 @@ export class User extends Model<User, UserCreationAttrs> {
     @Column({
         type: DataType.STRING,
         allowNull: true,
+        field: 'lastName',
     })
     declare lastName: string;
 
@@ -53,29 +57,26 @@ export class User extends Model<User, UserCreationAttrs> {
     @Column({
         type: DataType.BOOLEAN,
         defaultValue: true,
+        field: 'isActive',
     })
     declare isActive: boolean;
 
-    @ApiProperty({ description: 'Email verified status', example: false })
+    @ApiProperty({ description: 'Email verification status', example: true })
     @Column({
         type: DataType.BOOLEAN,
         defaultValue: false,
+        field: 'emailVerified',
     })
     declare emailVerified: boolean;
 
-    @ApiProperty({ description: 'Last login date' })
-    @Column({
-        type: DataType.DATE,
-        allowNull: true,
-    })
-    declare lastLoginAt: Date;
-
     @ApiProperty({ description: 'Creation date' })
     @CreatedAt
+    @Column({ field: 'createdAt' })
     declare createdAt: Date;
 
     @ApiProperty({ description: 'Last update date' })
     @UpdatedAt
+    @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
 
     // Associations

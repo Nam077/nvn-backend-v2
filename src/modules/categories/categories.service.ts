@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 
-import { filter, forEach, map, replace, split, startsWith } from 'lodash';
+import { filter, forEach, get, isEmpty, map, replace, split, startsWith } from 'lodash';
 import { Op, CreateOptions, DestroyOptions, FindOptions, Transaction, UpdateOptions } from 'sequelize';
 import slugify from 'slugify';
 
@@ -12,6 +12,8 @@ import { QueryDto } from '@/common/dto/query.dto';
 import { ICrudService } from '@/common/interfaces/crud.interface';
 import { QueryBuilder } from '@/common/query-builder/query-utils';
 import { FindOneOptions } from '@/common/types/sequelize.types';
+import { FontCollection } from '@/modules/collections/entities/collection.entity';
+import { Font } from '@/modules/fonts/entities/font.entity';
 
 import { CategoryResponseDto } from './dto/category.response.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -93,7 +95,7 @@ export class CategoriesService
         const { filter, order, select } = queryDto || {};
         const offset = (page - 1) * limit;
 
-        const createBuilder = () => new QueryBuilder().setCaseConversion('snake').from('categories', 'c');
+        const createBuilder = () => new QueryBuilder().from('categories', 'c');
 
         const countQueryBuilder = createBuilder().select('COUNT(c.id) as count').where(filter);
         const selectQueryBuilder = createBuilder().select(select).where(filter);
@@ -233,9 +235,27 @@ export class CategoriesService
     }
 
     async remove(id: string, options?: DestroyOptions): Promise<void> {
-        const categoryEntity = await this.categoryModel.findByPk(id);
+        const categoryEntity = (
+            await this.findOneData({
+                where: { id },
+                include: [
+                    { model: Category, as: 'children' },
+                    { model: Font, as: 'fonts' },
+                    { model: FontCollection, as: 'collections' },
+                ],
+            })
+        ).toJSON();
         if (!categoryEntity) {
             throw new NotFoundException(`Category with ID ${id} not found`);
+        }
+        if (!isEmpty(get(categoryEntity, 'children', []))) {
+            throw new ConflictException(`Category with ID ${id} has children`);
+        }
+        if (!isEmpty(get(categoryEntity, 'fonts', []))) {
+            throw new ConflictException(`Category with ID ${id} has fonts`);
+        }
+        if (!isEmpty(get(categoryEntity, 'collections', []))) {
+            throw new ConflictException(`Category with ID ${id} has collections`);
         }
         await categoryEntity.destroy(options);
     }
@@ -433,5 +453,19 @@ export class CategoriesService
             message: 'Category retrieved successfully.',
             data: new CategoryResponseDto(category),
         };
+    }
+
+    // --- Custom Methods ---
+
+    // find by ids and return a list ids of existing categories
+    async findByIds(ids: string[]): Promise<string[]> {
+        const categories = await this.categoryModel.findAll({
+            where: { id: { [Op.in]: ids } },
+        });
+        return map(categories, 'id');
+    }
+
+    async findOneData(options: FindOptions<Category>): Promise<Category> {
+        return this.categoryModel.findOne(options);
     }
 }

@@ -80,7 +80,6 @@ export class AuthService {
             accessTokenExpiry: DateUtils.createExpiryUtc(getTokenConfig(KEY_TYPES.ACCESS_TOKEN).seconds),
             refreshTokenExpiry: DateUtils.createExpiryUtc(getTokenConfig(KEY_TYPES.REFRESH_TOKEN).seconds),
             createdAt: DateUtils.nowUtc(),
-            lastUsedAt: DateUtils.nowUtc(),
         };
 
         // 🔥 DELEGATED: Cache session data and track user session
@@ -123,7 +122,6 @@ export class AuthService {
         // Update session with new access token JTI and timestamps
         sessionData.accessTokenJti = newAccessPayload.jti;
         sessionData.accessTokenExpiry = DateUtils.createExpiryUtc(getTokenConfig(KEY_TYPES.ACCESS_TOKEN).seconds);
-        sessionData.lastUsedAt = DateUtils.nowUtc();
 
         // 🔥 DELEGATED: Update session cache
         await this.sessionService.cacheSessionData(sessionData.sid, sessionData);

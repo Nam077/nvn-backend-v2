@@ -1,8 +1,84 @@
 {
     "name": "USER_MANAGEMENT",
-    "fields": {},
-    "sortableFields": ["createdAt"],
-    "selectableFields": ["id", "createdAt"],
+    "fields": {
+        "email": {
+            "type": "text",
+            "operators": ["contains", "equals", "starts_with", "ends_with", "is_empty", "is_not_empty"],
+            "label": "Email"
+        },
+        "firstName": {
+            "type": "text",
+            "operators": ["contains"],
+            "label": "First Name"
+        },
+        "lastName": {
+            "type": "text",
+            "operators": ["contains"],
+            "label": "Last Name"
+        },
+        "isActive": {
+            "type": "select",
+            "operators": ["equals", "in"],
+            "fieldSettings": {
+                "defaultValue": true,
+                "listValues": [
+                    {
+                        "title": "Yes",
+                        "value": true
+                    },
+                    {
+                        "title": "No",
+                        "value": false
+                    }
+                ]
+            },
+            "label": "Is Active"
+        },
+        "emailVerified": {
+            "type": "select",
+            "operators": ["equals", "in"],
+            "fieldSettings": {
+                "listValues": [
+                    {
+                        "title": "Yes",
+                        "value": true
+                    },
+                    {
+                        "title": "No",
+                        "value": false
+                    }
+                ]
+            },
+            "label": "Email Verified"
+        },
+        "createdAt": {
+            "type": "datetime",
+            "label": "Creation Date",
+            "operators": ["between", "gte"]
+        },
+        "roles.name": {
+            "type": "text",
+            "operators": ["json_equals", "json_in"],
+            "label": "Roles: Name"
+        },
+        "permissions.name": {
+            "type": "text",
+            "operators": ["json_equals", "json_in"],
+            "label": "Permissions: Name"
+        }
+    },
+    "sortableFields": ["email", "firstName", "lastName", "createdAt"],
+    "selectableFields": [
+        "id",
+        "email",
+        "firstName",
+        "lastName",
+        "isActive",
+        "emailVerified",
+        "createdAt",
+        "roles",
+        "permissions"
+    ],
     "defaultSort": [["createdAt", "DESC"]],
-    "generatedAt": "2025-06-27T20:05:34.481Z"
+    "generatedAt": "2025-06-29T11:09:45.254Z"
 }

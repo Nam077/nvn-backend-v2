@@ -157,4 +157,7 @@ export interface ICrudService<TEntity extends Model, TResponseDto, TCreateDto, T
      * ```
      */
     removeApi: (id: string) => Promise<IApiResponse<null>>;
+
+    // findOneData
+    findOneData: (options: FindOptions<TEntity>) => Promise<TEntity>;
 }

@@ -34,6 +34,7 @@ import {
     includes,
     split,
     join,
+    get,
 } from 'lodash';
 
 // --- Type definitions for JsonLogic ---
@@ -91,6 +92,12 @@ const ALLOWED_OPERATORS = new Set([
     'not_between',
     'is_empty',
     'is_not_empty',
+    // Custom JSONB operators
+    'json_equals',
+    'json_contains',
+    'json_in',
+    // Custom Array operators
+    'array_overlaps',
 ]);
 
 export interface SqlBuildOptions {
@@ -118,6 +125,7 @@ export interface SqlBuildOptions {
      * A map of entity names to their SQL aliases
      */
     aliasMap?: Map<string, string>;
+    jsonbFieldAliasMap?: Record<string, string>;
 }
 
 export interface SqlBuildResult {
@@ -249,6 +257,18 @@ export class JsonLogicToSqlBuilder {
                 )} ${op} '')`;
             }
 
+            // --- Custom JSONB Operators ---
+            case 'json_equals':
+                return this.buildJsonbQuery('equals', operands);
+            case 'json_contains':
+                return this.buildJsonbQuery('contains', operands);
+            case 'json_in':
+                return this.buildJsonbQuery('in', operands);
+
+            // --- Custom Array Operators ---
+            case 'array_overlaps':
+                return this.buildArrayOverlapCondition(operands, false);
+
             default:
                 throw new Error(`Unsupported JsonLogic operator: ${operator}`);
         }
@@ -318,6 +338,81 @@ export class JsonLogicToSqlBuilder {
         return `${this.mapFieldName(field)} ${not ? 'NOT ' : ''}BETWEEN :${minParam} AND :${maxParam}`;
     }
 
+    protected buildArrayOverlapCondition(operands: JsonLogicArgument, not: boolean = false): string {
+        const [field, values] = this.extractFieldAndValue(operands);
+
+        if (!isArray(values) || some(values, (v) => !this.isJsonLogicPrimitive(v))) {
+            throw new Error('OVERLAPS operator requires an array of primitive values');
+        }
+
+        if (isEmpty(values)) {
+            return not ? '1 = 1' : '1 = 0'; // Or handle as an error
+        }
+
+        const paramName = this.addParameter(values);
+        const mappedField = this.mapFieldName(field);
+
+        // Assuming UUIDs for now, as this is the primary use case for category IDs.
+        // A more robust solution might infer type or take it as an option.
+        const condition = `${mappedField} && ARRAY[:${paramName}]::uuid[]`;
+
+        return not ? `NOT (${condition})` : condition;
+    }
+
+    protected buildJsonbQuery(operator: 'equals' | 'contains' | 'in', operands: JsonLogicArgument): string {
+        if (!isArray(operands) || operands.length !== 2) {
+            throw new Error('Invalid operands for json operator');
+        }
+
+        const field = this.extractFieldName(operands[0]);
+        const value = this.extractValue(operands[1]);
+
+        if (!includes(field, '.')) {
+            throw new Error(`Invalid field for JSONB query: ${field}. Must be in format 'column.path'.`);
+        }
+
+        const [columnName, ...pathParts] = split(field, '.');
+        const jsonFieldKey = join(pathParts, '.'); // e.g., "name" or "profile.firstName"
+
+        if (columnName === '__proto__') {
+            throw new Error('Invalid field specified for JSONB query.');
+        }
+
+        if (isEmpty(jsonFieldKey)) {
+            throw new Error(`Invalid path for JSONB query: ${field}. Path is empty.`);
+        }
+
+        const alias = get(this.options.jsonbFieldAliasMap, columnName, this.options.tableAlias);
+        if (!alias) {
+            throw new Error(`Could not determine alias for JSONB column: ${columnName}`);
+        }
+        const sqlColumn = `${alias}."${columnName}"`;
+
+        const recordAlias = 'item';
+        // We assume the path is simple (not nested) for defining the record type, e.g., "name text".
+        // For nested paths like "profile.name", this would need to be more complex.
+        const recordDefinition = `${recordAlias}(${jsonFieldKey} text)`;
+
+        let whereClause = '';
+
+        if (operator === 'in') {
+            if (!isArray(value) || value.length === 0) return '1 = 0';
+            const paramName = this.addParameter(value);
+            whereClause = `${recordAlias}.${jsonFieldKey} IN (:${paramName})`;
+        } else if (operator === 'equals') {
+            const paramName = this.addParameter(value);
+            whereClause = `${recordAlias}.${jsonFieldKey} = :${paramName}`;
+        } else if (operator === 'contains') {
+            if (typeof value !== 'string' && typeof value !== 'number') {
+                throw new Error('The "json_contains" operator requires a string or number value.');
+            }
+            const paramName = this.addParameter(`%${value}%`);
+            whereClause = `${recordAlias}.${jsonFieldKey} ILIKE :${paramName}`;
+        }
+
+        return `EXISTS (SELECT 1 FROM jsonb_to_recordset(${sqlColumn}) AS ${recordDefinition} WHERE ${whereClause})`;
+    }
+
     // Helper methods
     protected extractFieldAndValue(operands: JsonLogicArgument): FieldValueTuple {
         if (!isArray(operands) || operands.length !== 2) {
@@ -371,47 +466,64 @@ export class JsonLogicToSqlBuilder {
             }
         }
 
+        // If field doesn't have a table prefix and we have a tableAlias, add it
+        if (!includes(mappedField, '.') && this.options.tableAlias) {
+            mappedField = `${this.options.tableAlias}.${mappedField}`;
+        }
+
         if (this.options.fieldMapper) {
             return this.options.fieldMapper(mappedField);
         }
 
-        // Universal quoting function
-        const quoteField = (f: string) => {
-            if (includes(f, '.')) {
-                const parts = split(f, '.');
-                return `${parts[0]}."${parts[1]}"`;
-            }
-            if (this.options.tableAlias) {
-                return `${this.options.tableAlias}."${f}"`;
-            }
-            return `"${f}"`;
-        };
-
         // Handle JSONB path notation (e.g., "metadata->profile->name")
         if (includes(mappedField, '->')) {
-            const parts = split(mappedField, '->');
-            const columnName = parts.shift();
-
-            if (!columnName) {
-                throw new Error('Invalid JSONB path: missing column name.');
-            }
-
-            const aliasedColumn = quoteField(columnName);
-
-            if (parts.length > 0) {
-                const pathSegments = map(parts.slice(0, -1), (p) => `'${p}'`);
-                const lastSegment = `'${parts[parts.length - 1]}'`;
-
-                let finalPath = aliasedColumn;
-                if (pathSegments.length > 0) {
-                    finalPath += `->${pathSegments.join('->')}`;
-                }
-                finalPath += `->>${lastSegment}`;
-                return finalPath;
-            }
+            return this.handleJsonbPath(mappedField);
         }
 
-        return quoteField(mappedField);
+        // Apply quoting to the final mapped field
+        return this.applyQuoting(mappedField);
+    }
+
+    private handleJsonbPath(mappedField: string): string {
+        const parts = split(mappedField, '->');
+        const columnName = parts.shift();
+
+        if (!columnName) {
+            throw new Error('Invalid JSONB path: missing column name.');
+        }
+
+        // Apply quoting to the column name
+        const aliasedColumn = includes(columnName, '.')
+            ? `${split(columnName, '.')[0]}."${split(columnName, '.')[1]}"`
+            : `"${columnName}"`;
+
+        if (parts.length > 0) {
+            const pathSegments = map(parts.slice(0, -1), (p) => `'${p}'`);
+            const lastSegment = `'${parts[parts.length - 1]}'`;
+
+            let finalPath = aliasedColumn;
+            if (pathSegments.length > 0) {
+                finalPath += `->${pathSegments.join('->')}`;
+            }
+            finalPath += `->>${lastSegment}`;
+            return finalPath;
+        }
+        return aliasedColumn;
+    }
+
+    private applyQuoting(mappedField: string): string {
+        // Check if field already has quotes to avoid double quoting
+        if (includes(mappedField, '"')) {
+            return mappedField;
+        }
+
+        // Apply quoting to the final mapped field
+        if (includes(mappedField, '.')) {
+            const parts = split(mappedField, '.');
+            return `${parts[0]}."${parts[1]}"`;
+        }
+
+        return `"${mappedField}"`;
     }
 
     /**

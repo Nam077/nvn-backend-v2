@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InjectModel } from '@nestjs/sequelize';
 
 import * as bcrypt from 'bcryptjs';
-import { map, omit, size } from 'lodash';
+import { map, omit, values } from 'lodash';
 import { CreateOptions, DestroyOptions, FindOptions, UpdateOptions } from 'sequelize';
 
 import { IApiResponse } from '@/common/dto/api.response.dto';
@@ -10,12 +10,39 @@ import { IApiPaginatedResponse } from '@/common/dto/paginated.response.dto';
 import { PaginationDto } from '@/common/dto/pagination.dto';
 import { QueryDto } from '@/common/dto/query.dto';
 import { ICrudService } from '@/common/interfaces/crud.interface';
+import { JsonLogicRuleNode } from '@/common/query-builder/json-logic-to-sql.builder';
 import { QueryBuilder } from '@/common/query-builder/query-utils';
 import { FindOneOptions } from '@/common/types/sequelize.types';
 import { CreateUserDto } from '@/modules/users/dto/create-user.dto';
 import { UpdateUserDto } from '@/modules/users/dto/update-user.dto';
 import { UserResponseDto } from '@/modules/users/dto/user.response.dto';
 import { User } from '@/modules/users/entities/user.entity';
+
+interface BuildUserQueryOptions {
+    filter?: JsonLogicRuleNode;
+    select?: string[];
+    order?: Array<{ field: string; direction: 1 | -1 }>;
+    limit?: number;
+    offset?: number;
+}
+
+// --- Constants for User Service ---
+// Defines the mapping from simple client-facing field names to complex SQL expressions.
+const SELECT_FIELD_MAP = {
+    id: 'u.id',
+    email: 'u.email',
+    firstName: 'u."firstName"',
+    lastName: 'u."lastName"',
+    isActive: 'u."isActive"',
+    emailVerified: 'u."emailVerified"',
+    createdAt: 'u."createdAt"',
+    updatedAt: 'u."updatedAt"',
+    permissions: "COALESCE(up.permissions, '[]'::jsonb) as permissions",
+    roles: "COALESCE(up.roles, '[]'::jsonb) as roles",
+};
+
+// Default select fields are derived from the values of the map.
+const DEFAULT_USER_SELECT_FIELDS = values(SELECT_FIELD_MAP);
 
 @Injectable()
 export class UsersService implements ICrudService<User, UserResponseDto, CreateUserDto, UpdateUserDto> {
@@ -58,41 +85,80 @@ export class UsersService implements ICrudService<User, UserResponseDto, CreateU
         const { filter, order, select } = queryDto || {};
         const offset = (page - 1) * limit;
 
-        // Helper to create a fully configured builder instance
-        const createBuilder = () =>
-            new QueryBuilder()
-                .setCaseConversion('snake')
-                .from('users', 'u')
-                .join('INNER', 'user_roles AS ur', 'u.id = ur.user_id')
-                .join('INNER', 'roles AS r', 'ur.role_id = r.id');
-
-        const countQueryBuilder = createBuilder().select('COUNT(DISTINCT u.id) as count').where(filter);
-
-        const selectQueryBuilder = createBuilder().select(select).where(filter);
-
+        // Build filter with search query
+        let finalFilter = filter;
         if (q) {
             const searchQuery = {
                 or: [
-                    { var: 'email', contains: q },
-                    { var: 'firstName', contains: q },
-                    { var: 'lastName', contains: q },
+                    { contains: [{ var: 'email' }, q] },
+                    { contains: [{ var: 'firstName' }, q] },
+                    { contains: [{ var: 'lastName' }, q] },
                 ],
             };
-            // When searching, apply to the user table
-            selectQueryBuilder.andWhere(searchQuery, { tableAlias: 'u' });
-            countQueryBuilder.andWhere(searchQuery, { tableAlias: 'u' });
+            finalFilter = finalFilter ? { and: [filter, searchQuery] } : searchQuery;
         }
 
-        if (order && size(order) > 0) {
-            selectQueryBuilder.orderByArray(order);
-        } else {
-            selectQueryBuilder.orderBy('createdAt', 'DESC');
+        // Use CTE-based query for better performance
+        const { sql: selectSql, parameters: selectParams } = this._buildUserQuery({
+            filter: finalFilter,
+            select: select || DEFAULT_USER_SELECT_FIELDS,
+            order,
+            limit,
+            offset,
+        });
+
+        const JSONB_FIELD_ALIAS_MAP = {
+            roles: 'up',
+            permissions: 'up',
+        };
+
+        // Create count query using same CTE structure but with COUNT
+        const countBuilder = new QueryBuilder();
+        countBuilder.addCTE({
+            name: 'user_permissions',
+            query: `
+                SELECT 
+                    u.id as "userId",
+                    COALESCE(
+                        jsonb_agg(
+                            DISTINCT jsonb_build_object(
+                                'id', p.id,
+                                'name', p.name,
+                                'description', p.description
+                            )
+                        ) FILTER (WHERE p.id IS NOT NULL),
+                        '[]'::jsonb
+                    ) as permissions,
+                    COALESCE(
+                        jsonb_agg(
+                            DISTINCT jsonb_build_object(
+                                'id', r.id,
+                                'name', r.name,
+                                'description', r.description
+                            )
+                        ) FILTER (WHERE r.id IS NOT NULL),
+                        '[]'::jsonb
+                    ) as roles
+                FROM users u
+                LEFT JOIN user_roles ur ON u.id = ur."userId"
+                LEFT JOIN roles r ON ur."roleId" = r.id
+                LEFT JOIN role_permissions rp ON r.id = rp."roleId"
+                LEFT JOIN permissions p ON rp."permissionId" = p.id
+                WHERE u."isActive" = true
+                GROUP BY u.id
+            `,
+        });
+
+        countBuilder
+            .select('COUNT(DISTINCT u.id) as count')
+            .from('users', 'u')
+            .join('LEFT', 'user_permissions up', 'u.id = up."userId"');
+
+        if (finalFilter) {
+            countBuilder.where(finalFilter, { tableAlias: 'u', jsonbFieldAliasMap: JSONB_FIELD_ALIAS_MAP });
         }
 
-        selectQueryBuilder.limit(limit).offset(offset);
-
-        const { sql: countSql, parameters: countParams } = countQueryBuilder.build();
-        const { sql: selectSql, parameters: selectParams } = selectQueryBuilder.build();
+        const { sql: countSql, parameters: countParams } = countBuilder.build();
 
         const [results, totalResult] = await Promise.all([
             this.userModel.sequelize.query<User>(selectSql, {
@@ -154,7 +220,7 @@ export class UsersService implements ICrudService<User, UserResponseDto, CreateU
         return {
             statusCode: 200,
             message: 'Users retrieved successfully.',
-            data: map(rows, (user) => new UserResponseDto(user)),
+            data: map(rows, (user) => new UserResponseDto(user.toJSON())),
             paging: {
                 page: paginationDto.page,
                 limit: paginationDto.limit,
@@ -221,5 +287,77 @@ export class UsersService implements ICrudService<User, UserResponseDto, CreateU
     async promoteUser(id: string): Promise<User> {
         const user = await this.findOne(id);
         return user.update({ isActive: true });
+    }
+
+    async findOneData(options: FindOptions<User>): Promise<User> {
+        return this.userModel.findOne(options);
+    }
+    // --- Private Methods ---
+
+    private _buildUserQuery(options: BuildUserQueryOptions): { sql: string; parameters: Record<string, any> } {
+        const { filter, select, order, limit, offset } = options;
+        const builder = new QueryBuilder({ fieldMap: SELECT_FIELD_MAP });
+
+        const JSONB_FIELD_ALIAS_MAP = {
+            roles: 'up',
+            permissions: 'up',
+        };
+
+        // Add CTE for user permissions (pre-computed for performance)
+        builder.addCTE({
+            name: 'user_permissions',
+            query: `
+                SELECT 
+                    u.id as "userId",
+                    COALESCE(
+                        jsonb_agg(
+                            DISTINCT jsonb_build_object(
+                                'id', p.id,
+                                'name', p.name,
+                                'description', p.description
+                            )
+                        ) FILTER (WHERE p.id IS NOT NULL),
+                        '[]'::jsonb
+                    ) as permissions,
+                    COALESCE(
+                        jsonb_agg(
+                            DISTINCT jsonb_build_object(
+                                'id', r.id,
+                                'name', r.name,
+                                'description', r.description
+                            )
+                        ) FILTER (WHERE r.id IS NOT NULL),
+                        '[]'::jsonb
+                    ) as roles
+                FROM users u
+                LEFT JOIN user_roles ur ON u.id = ur."userId"
+                LEFT JOIN roles r ON ur."roleId" = r.id
+                LEFT JOIN role_permissions rp ON r.id = rp."roleId"
+                LEFT JOIN permissions p ON rp."permissionId" = p.id
+                WHERE u."isActive" = true
+                GROUP BY u.id
+            `,
+        });
+
+        // Main query using CTE
+        builder
+            .select(select || DEFAULT_USER_SELECT_FIELDS)
+            .from('users', 'u')
+            .join('LEFT', 'user_permissions up', 'u.id = up."userId"');
+
+        if (filter) {
+            builder.where(filter, { tableAlias: 'u', jsonbFieldAliasMap: JSONB_FIELD_ALIAS_MAP });
+        }
+
+        if (order && order.length > 0) {
+            builder.orderByArray(order);
+        } else {
+            builder.orderBy('createdAt', 'DESC');
+        }
+
+        if (limit) builder.limit(limit);
+        if (offset) builder.offset(offset);
+
+        return builder.build();
     }
 }

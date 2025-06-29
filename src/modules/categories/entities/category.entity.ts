@@ -23,7 +23,6 @@ import { Font } from '@/modules/fonts/entities/font.entity';
 
 @Table({
     tableName: 'categories',
-    underscored: true,
 })
 export class Category extends Model<Category, CategoryCreationAttrs> {
     @ApiProperty({ description: 'Category ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -31,6 +30,7 @@ export class Category extends Model<Category, CategoryCreationAttrs> {
     @Column({
         type: DataType.UUID,
         defaultValue: DataType.UUIDV4,
+        field: 'id',
     })
     declare id: string;
 
@@ -38,6 +38,7 @@ export class Category extends Model<Category, CategoryCreationAttrs> {
     @Column({
         type: DataType.STRING,
         allowNull: false,
+        field: 'name',
     })
     declare name: string;
 
@@ -46,6 +47,7 @@ export class Category extends Model<Category, CategoryCreationAttrs> {
         type: DataType.STRING,
         allowNull: false,
         unique: true,
+        field: 'slug',
     })
     declare slug: string;
 
@@ -53,6 +55,7 @@ export class Category extends Model<Category, CategoryCreationAttrs> {
     @Column({
         type: DataType.TEXT,
         allowNull: true,
+        field: 'description',
     })
     declare description: string;
 
@@ -60,6 +63,7 @@ export class Category extends Model<Category, CategoryCreationAttrs> {
     @Column({
         type: DataType.STRING,
         allowNull: true,
+        field: 'iconUrl',
     })
     declare iconUrl: string;
 
@@ -68,6 +72,7 @@ export class Category extends Model<Category, CategoryCreationAttrs> {
     @Column({
         type: DataType.UUID,
         allowNull: true,
+        field: 'parentId',
     })
     declare parentId: string;
 
@@ -75,6 +80,7 @@ export class Category extends Model<Category, CategoryCreationAttrs> {
     @Column({
         type: DataType.INTEGER,
         defaultValue: 0,
+        field: 'level',
     })
     declare level: number;
 
@@ -83,6 +89,7 @@ export class Category extends Model<Category, CategoryCreationAttrs> {
         type: DataType.STRING,
         allowNull: false,
         unique: true,
+        field: 'path',
     })
     declare path: string;
 
@@ -90,6 +97,7 @@ export class Category extends Model<Category, CategoryCreationAttrs> {
     @Column({
         type: DataType.INTEGER,
         defaultValue: 0,
+        field: 'sortOrder',
     })
     declare sortOrder: number;
 
@@ -97,15 +105,18 @@ export class Category extends Model<Category, CategoryCreationAttrs> {
     @Column({
         type: DataType.BOOLEAN,
         defaultValue: true,
+        field: 'isActive',
     })
     declare isActive: boolean;
 
     @ApiProperty({ description: 'Creation date' })
     @CreatedAt
+    @Column({ field: 'createdAt' })
     declare createdAt: Date;
 
     @ApiProperty({ description: 'Last update date' })
     @UpdatedAt
+    @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
 
     // Associations

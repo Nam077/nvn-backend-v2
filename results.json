@@ -1,0 +1,89 @@
+[
+    {
+        "id": "0aef346d-aee7-4d7f-9049-33cfc77d20c7",
+        "name": "Proxima Nova",
+        "slug": "proxima-nova",
+        "categories": [
+            {
+                "id": "82bee7f4-87e8-4d32-94f8-dd7ea1be846a",
+                "name": "Vintage Fonts1",
+                "slug": "vintage-fonts1"
+            },
+            {
+                "id": "b8e3af05-af31-4198-a248-8ba6387aea2a",
+                "name": "Vintage Fonts",
+                "slug": "vintage-fonts"
+            }
+        ],
+        "weightCount": "0",
+        "tags": []
+    },
+    {
+        "id": "2c3e5b1c-9968-42f0-8553-860dd5ec3609",
+        "name": "Proxima Nova1",
+        "slug": "proxima-nova1",
+        "categories": [
+            {
+                "id": "82bee7f4-87e8-4d32-94f8-dd7ea1be846a",
+                "name": "Vintage Fonts1",
+                "slug": "vintage-fonts1"
+            },
+            {
+                "id": "b8e3af05-af31-4198-a248-8ba6387aea2a",
+                "name": "Vintage Fonts",
+                "slug": "vintage-fonts"
+            }
+        ],
+        "weightCount": "0",
+        "tags": []
+    },
+    {
+        "id": "2e1e2d97-5963-4e3b-8874-6aafd4f5de4d",
+        "name": "Proxima Nova11",
+        "slug": "proxima-nova11",
+        "categories": [
+            {
+                "id": "82bee7f4-87e8-4d32-94f8-dd7ea1be846a",
+                "name": "Vintage Fonts1",
+                "slug": "vintage-fonts1"
+            },
+            {
+                "id": "b8e3af05-af31-4198-a248-8ba6387aea2a",
+                "name": "Vintage Fonts",
+                "slug": "vintage-fonts"
+            }
+        ],
+        "weightCount": "0",
+        "tags": []
+    },
+    {
+        "id": "fe904095-e3e7-491f-ac28-8bde56845a1f",
+        "name": "NVN Proxima Nova11",
+        "slug": "nvn-proxima-nova11",
+        "categories": [
+            {
+                "id": "82bee7f4-87e8-4d32-94f8-dd7ea1be846a",
+                "name": "Vintage Fonts1",
+                "slug": "vintage-fonts1"
+            },
+            {
+                "id": "b8e3af05-af31-4198-a248-8ba6387aea2a",
+                "name": "Vintage Fonts",
+                "slug": "vintage-fonts"
+            }
+        ],
+        "weightCount": "0",
+        "tags": [
+            {
+                "id": "3a379015-34f1-4b85-8181-004649c2c119",
+                "name": "New Modern Tag",
+                "slug": "new-modern-tag"
+            },
+            {
+                "id": "91462d82-0882-4f03-b938-5c1af0af44d1",
+                "name": "Vintage",
+                "slug": "vintage"
+            }
+        ]
+    }
+]

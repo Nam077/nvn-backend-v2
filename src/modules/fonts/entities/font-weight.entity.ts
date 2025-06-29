@@ -18,7 +18,6 @@ import { Font } from '@/modules/fonts/entities/font.entity';
 
 @Table({
     tableName: 'font_weights',
-    underscored: true,
 })
 export class FontWeight extends Model<FontWeight, FontWeightCreationAttrs> {
     @ApiProperty({ description: 'Weight ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -26,6 +25,7 @@ export class FontWeight extends Model<FontWeight, FontWeightCreationAttrs> {
     @Column({
         type: DataType.UUID,
         defaultValue: DataType.UUIDV4,
+        field: 'id',
     })
     declare id: string;
 
@@ -34,6 +34,7 @@ export class FontWeight extends Model<FontWeight, FontWeightCreationAttrs> {
     @Column({
         type: DataType.UUID,
         allowNull: false,
+        field: 'fontId',
     })
     declare fontId: string;
 
@@ -41,6 +42,7 @@ export class FontWeight extends Model<FontWeight, FontWeightCreationAttrs> {
     @Column({
         type: DataType.STRING,
         allowNull: false,
+        field: 'weightName',
     })
     declare weightName: string;
 
@@ -48,6 +50,7 @@ export class FontWeight extends Model<FontWeight, FontWeightCreationAttrs> {
     @Column({
         type: DataType.INTEGER,
         allowNull: false,
+        field: 'weightValue',
     })
     declare weightValue: number;
 
@@ -56,6 +59,7 @@ export class FontWeight extends Model<FontWeight, FontWeightCreationAttrs> {
     @Column({
         type: DataType.UUID,
         allowNull: false,
+        field: 'fileId',
     })
     declare fileId: string;
 
@@ -63,15 +67,18 @@ export class FontWeight extends Model<FontWeight, FontWeightCreationAttrs> {
     @Column({
         type: DataType.BOOLEAN,
         defaultValue: true,
+        field: 'isActive',
     })
     declare isActive: boolean;
 
     @ApiProperty({ description: 'Creation date' })
     @CreatedAt
+    @Column({ field: 'createdAt' })
     declare createdAt: Date;
 
     @ApiProperty({ description: 'Last update date' })
     @UpdatedAt
+    @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
 
     // Associations

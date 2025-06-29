@@ -19,7 +19,9 @@ import { Category } from '@/modules/categories/entities/category.entity';
 import { CollectionFont } from '@/modules/collections/entities/collection-font.entity';
 import { File } from '@/modules/files/entities/file.entity';
 import { FontCategory } from '@/modules/fonts/entities/font-category.entity';
+import { FontTag } from '@/modules/fonts/entities/font-tag.entity';
 import { FontWeight } from '@/modules/fonts/entities/font-weight.entity';
+import { Tag } from '@/modules/tags/entities/tag.entity';
 import { User } from '@/modules/users/entities/user.entity';
 
 export const FONT_TYPE = {
@@ -30,6 +32,11 @@ export const FONT_TYPE = {
 
 export type FontType = (typeof FONT_TYPE)[keyof typeof FONT_TYPE];
 
+export interface FontAuthor {
+    name: string;
+    url?: string;
+}
+
 export interface FontGalleryImage {
     fileId: string;
     caption?: string;
@@ -39,7 +46,6 @@ export interface FontGalleryImage {
 
 @Table({
     tableName: 'fonts',
-    underscored: true,
 })
 export class Font extends Model<Font, FontCreationAttrs> {
     @ApiProperty({ description: 'Font ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -47,6 +53,7 @@ export class Font extends Model<Font, FontCreationAttrs> {
     @Column({
         type: DataType.UUID,
         defaultValue: DataType.UUIDV4,
+        field: 'id',
     })
     declare id: string;
 
@@ -54,6 +61,7 @@ export class Font extends Model<Font, FontCreationAttrs> {
     @Column({
         type: DataType.STRING,
         allowNull: false,
+        field: 'name',
     })
     declare name: string;
 
@@ -62,13 +70,34 @@ export class Font extends Model<Font, FontCreationAttrs> {
         type: DataType.STRING,
         allowNull: false,
         unique: true,
+        field: 'slug',
     })
     declare slug: string;
+
+    @ApiProperty({
+        description: 'Authors of the font',
+        example: '[{"name": "Christian Robertson", "url": "https://example.com"}]',
+        type: 'array',
+        items: {
+            type: 'object',
+            properties: {
+                name: { type: 'string' },
+                url: { type: 'string' },
+            },
+        },
+    })
+    @Column({
+        type: DataType.JSONB,
+        defaultValue: [],
+        field: 'authors',
+    })
+    declare authors: FontAuthor[];
 
     @ApiProperty({ description: 'Font description', example: 'Modern sans-serif font family' })
     @Column({
         type: DataType.TEXT,
         allowNull: true,
+        field: 'description',
     })
     declare description: string;
 
@@ -76,6 +105,7 @@ export class Font extends Model<Font, FontCreationAttrs> {
     @Column({
         type: DataType.STRING,
         defaultValue: 'The quick brown fox jumps over the lazy dog',
+        field: 'previewText',
     })
     declare previewText: string;
 
@@ -84,6 +114,7 @@ export class Font extends Model<Font, FontCreationAttrs> {
     @Column({
         type: DataType.UUID,
         allowNull: true,
+        field: 'thumbnailFileId',
     })
     declare thumbnailFileId: string;
 
@@ -92,6 +123,7 @@ export class Font extends Model<Font, FontCreationAttrs> {
     @Column({
         type: DataType.UUID,
         allowNull: true,
+        field: 'previewImageFileId',
     })
     declare previewImageFileId: string;
 
@@ -102,6 +134,7 @@ export class Font extends Model<Font, FontCreationAttrs> {
     @Column({
         type: DataType.JSONB,
         defaultValue: [],
+        field: 'galleryImages',
     })
     declare galleryImages: FontGalleryImage[];
 
@@ -110,6 +143,7 @@ export class Font extends Model<Font, FontCreationAttrs> {
     @Column({
         type: DataType.UUID,
         allowNull: false,
+        field: 'creatorId',
     })
     declare creatorId: string;
 
@@ -122,6 +156,7 @@ export class Font extends Model<Font, FontCreationAttrs> {
         type: DataType.ENUM(...values(FONT_TYPE)),
         allowNull: false,
         defaultValue: FONT_TYPE.FREE,
+        field: 'fontType',
     })
     declare fontType: FontType;
 
@@ -129,6 +164,7 @@ export class Font extends Model<Font, FontCreationAttrs> {
     @Column({
         type: DataType.DECIMAL(10, 2),
         defaultValue: 0,
+        field: 'price',
     })
     declare price: number;
 
@@ -136,6 +172,7 @@ export class Font extends Model<Font, FontCreationAttrs> {
     @Column({
         type: DataType.INTEGER,
         defaultValue: 0,
+        field: 'downloadCount',
     })
     declare downloadCount: number;
 
@@ -143,6 +180,7 @@ export class Font extends Model<Font, FontCreationAttrs> {
     @Column({
         type: DataType.BOOLEAN,
         defaultValue: true,
+        field: 'isActive',
     })
     declare isActive: boolean;
 
@@ -150,15 +188,18 @@ export class Font extends Model<Font, FontCreationAttrs> {
     @Column({
         type: DataType.JSONB,
         defaultValue: {},
+        field: 'metadata',
     })
     declare metadata: Record<string, any>;
 
     @ApiProperty({ description: 'Creation date' })
     @CreatedAt
+    @Column({ field: 'createdAt' })
     declare createdAt: Date;
 
     @ApiProperty({ description: 'Last update date' })
     @UpdatedAt
+    @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
 
     // Associations
@@ -170,6 +211,9 @@ export class Font extends Model<Font, FontCreationAttrs> {
 
     @BelongsToMany(() => Category, () => FontCategory)
     declare categories: Category[];
+
+    @BelongsToMany(() => Tag, () => FontTag)
+    declare tags: Tag[];
 
     @HasMany(() => CollectionFont)
     declare collectionFonts: CollectionFont[];
@@ -239,4 +283,5 @@ export interface FontCreationAttrs {
     price?: number;
     isActive?: boolean;
     metadata?: Record<string, any>;
+    authors?: FontAuthor[];
 }

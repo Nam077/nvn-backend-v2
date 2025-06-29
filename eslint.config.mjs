@@ -79,9 +79,9 @@ export default tseslint.config(
         'warn',
         {
           vars: 'all',
-          varsIgnorePattern: '^_',
+          varsIgnorePattern: '^_.*',
           args: 'after-used',
-          argsIgnorePattern: '^_',
+          argsIgnorePattern: '^_.*',
         },
       ],
     },
@@ -145,6 +145,7 @@ export default tseslint.config(
   // TypeScript Specific
   {
     rules: {
+      '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',

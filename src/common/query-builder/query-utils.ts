@@ -1,10 +1,38 @@
 /* eslint-disable prefer-destructuring */
-import { isArray, compact, replace, trim, join, isEmpty, map, includes, split, set, get, toLower } from 'lodash';
+import {
+    isArray,
+    compact,
+    replace,
+    trim,
+    join,
+    isEmpty,
+    map,
+    includes,
+    split,
+    set,
+    get,
+    toLower,
+    assign,
+    some,
+} from 'lodash';
 
 import { SqlBuildOptions, JsonLogicRuleNode, JsonLogicToSqlBuilder } from './json-logic-to-sql.builder';
 import { convertCase, deepConvertCase } from '../utils/case-converter.utils';
 
 type CaseConversionType = 'snake';
+
+export interface CTEDefinition {
+    name: string;
+    query: string;
+    parameters?: Record<string, any>;
+    recursive?: boolean;
+}
+
+export interface QueryBuilderOptions {
+    useCTE?: boolean;
+    cteDefinitions?: CTEDefinition[];
+    fieldMap?: Record<string, string>;
+}
 
 /**
  * Simple utility to build SQL queries with WHERE filters
@@ -22,6 +50,19 @@ export class QueryBuilder {
     private parameters: Record<string, any> = {};
     private paramCounter = 0;
     private caseConversion: CaseConversionType | null = null;
+    private cteDefinitions: CTEDefinition[] = [];
+    private options: QueryBuilderOptions = {};
+    private fieldMap: Record<string, string> = {};
+
+    constructor(options: QueryBuilderOptions = {}) {
+        this.options = options;
+        if (options.cteDefinitions) {
+            this.cteDefinitions = [...options.cteDefinitions];
+        }
+        if (options.fieldMap) {
+            this.fieldMap = options.fieldMap;
+        }
+    }
 
     setCaseConversion(type: CaseConversionType): QueryBuilder {
         this.caseConversion = type;
@@ -39,6 +80,11 @@ export class QueryBuilder {
         }
 
         this.fields = map(fields, (field) => {
+            // Check if the field is a key in the fieldMap
+            if (get(this.fieldMap, field)) {
+                return get(this.fieldMap, field);
+            }
+
             if (includes(field, '(') || includes(field, '*')) {
                 return field; // Let raw SQL expressions pass through
             }
@@ -118,7 +164,11 @@ export class QueryBuilder {
             this.paramCounter = 0;
         }
 
-        const builderOptions: SqlBuildOptions = { ...options, aliasMap: this.aliasMap };
+        const builderOptions: SqlBuildOptions = {
+            ...options,
+            aliasMap: this.aliasMap,
+            tableAlias: this.mainTableAlias || undefined,
+        };
 
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const convertedRule = this.caseConversion ? deepConvertCase(rule, this.caseConversion) : rule;
@@ -135,7 +185,11 @@ export class QueryBuilder {
             return this;
         }
 
-        const builderOptions: SqlBuildOptions = { ...options, aliasMap: this.aliasMap };
+        const builderOptions: SqlBuildOptions = {
+            ...options,
+            aliasMap: this.aliasMap,
+            tableAlias: this.mainTableAlias || undefined,
+        };
 
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const convertedRule = this.caseConversion ? deepConvertCase(rule, this.caseConversion) : rule;
@@ -238,6 +292,17 @@ export class QueryBuilder {
             };
         }
 
+        const parts: string[] = [];
+
+        // Build CTE clause if we have CTEs
+        if (this.cteDefinitions.length > 0) {
+            const hasRecursive = some(this.cteDefinitions, (cte) => cte.recursive);
+            const cteKeyword = hasRecursive ? 'WITH RECURSIVE' : 'WITH';
+
+            const cteQueries = map(this.cteDefinitions, (cte) => `${cte.name} AS (${cte.query})`);
+            parts.push(`${cteKeyword} ${cteQueries.join(', ')}`);
+        }
+
         const selectFields = isArray(this.fields) ? join(this.fields, ', ') : this.fields;
 
         const selectClause = `SELECT ${selectFields}`;
@@ -245,6 +310,7 @@ export class QueryBuilder {
         const joinClause = join(this.joins, ' ');
 
         const sql = compact([
+            ...parts,
             selectClause,
             fromClause,
             joinClause,
@@ -273,6 +339,7 @@ export class QueryBuilder {
         this.parameters = {};
         this.paramCounter = 0;
         this.caseConversion = null;
+        this.cteDefinitions = [];
         return this;
     }
 
@@ -280,11 +347,36 @@ export class QueryBuilder {
         if (includes(field, '*') || includes(field, '(') || / AS /i.test(field)) {
             return field;
         }
+
+        // Check if field already has quotes to avoid double quoting
+        if (includes(field, '"')) {
+            return field;
+        }
+
         if (includes(field, '.')) {
             const parts = split(field, '.');
             return `${parts[0]}."${parts[1]}"`;
         }
         return `"${field}"`;
+    }
+
+    // CTE Methods
+    addCTE(cte: CTEDefinition): this {
+        this.cteDefinitions.push(cte);
+        if (cte.parameters) {
+            assign(this.parameters, cte.parameters);
+        }
+        return this;
+    }
+
+    addRecursiveCTE(name: string, baseQuery: string, recursiveQuery: string, parameters?: Record<string, any>): this {
+        const fullQuery = `${baseQuery} UNION ALL ${recursiveQuery}`;
+        return this.addCTE({
+            name,
+            query: fullQuery,
+            parameters,
+            recursive: true,
+        });
     }
 }
 

@@ -8,7 +8,6 @@ import { Font } from './font.entity';
 
 @Table({
     tableName: 'font_categories',
-    underscored: true,
     timestamps: true,
     updatedAt: false,
 })
@@ -19,6 +18,7 @@ export class FontCategory extends Model<FontCategory, FontCategoryCreationAttrs>
         type: DataType.UUID,
         allowNull: false,
         primaryKey: true,
+        field: 'fontId',
     })
     declare fontId: string;
 
@@ -28,6 +28,7 @@ export class FontCategory extends Model<FontCategory, FontCategoryCreationAttrs>
         type: DataType.UUID,
         allowNull: false,
         primaryKey: true,
+        field: 'categoryId',
     })
     declare categoryId: string;
 
@@ -35,11 +36,13 @@ export class FontCategory extends Model<FontCategory, FontCategoryCreationAttrs>
     @Column({
         type: DataType.BOOLEAN,
         defaultValue: false,
+        field: 'isPrimary',
     })
     declare isPrimary: boolean;
 
     @ApiProperty({ description: 'Creation date' })
     @CreatedAt
+    @Column({ field: 'createdAt' })
     declare createdAt: Date;
 
     // Associations

@@ -75,6 +75,9 @@ export type BlueprintFields<T extends Model> = {
 export interface BlueprintDefinition<T extends Model> {
     model: ModelCtor<T>;
     fields: BlueprintFields<T>;
+    customFields?: {
+        [fieldName: string]: Partial<Omit<UiFieldDefinition, 'defaultValue'>>;
+    };
     relations?: {
         [relationName: string]: {
             model: ModelCtor<any>;
@@ -102,6 +105,7 @@ export abstract class QueryBlueprint<T extends Model> {
     abstract readonly name: string;
     protected abstract readonly definition: BlueprintDefinition<T>;
 
+    // eslint-disable-next-line sonarjs/cognitive-complexity
     private getProcessedFields(): Record<string, UiFieldDefinition> {
         const flatFields: Record<string, UiFieldDefinition> = {};
 
@@ -118,7 +122,22 @@ export abstract class QueryBlueprint<T extends Model> {
             }
         }
 
-        // 2. Process relational fields - create flat keys
+        // 2. Process custom fields (not directly on the model)
+        for (const fieldName in this.definition.customFields) {
+            if (Object.prototype.hasOwnProperty.call(this.definition.customFields, fieldName)) {
+                const config = get(this.definition.customFields, fieldName);
+                assign(flatFields, {
+                    [fieldName]: {
+                        type: 'text', // Default type
+                        operators: [],
+                        ...config,
+                        label: get(config, 'label') ?? startCase(fieldName),
+                    },
+                });
+            }
+        }
+
+        // 3. Process relational fields - create flat keys
         for (const relationName in this.definition.relations) {
             if (Object.prototype.hasOwnProperty.call(this.definition.relations, relationName)) {
                 const relation = get(this.definition.relations, relationName);

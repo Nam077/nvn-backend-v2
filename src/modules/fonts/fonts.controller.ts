@@ -17,14 +17,13 @@ import { AUTH_TYPE } from '@/common/constants/auth.constants';
 import { PAGINATION_TYPE } from '@/common/constants/pagination.constants';
 import { ApiEndpoint } from '@/common/decorators/api-endpoint.decorator';
 import { IApiResponse } from '@/common/dto/api.response.dto';
-import { IApiCursorPaginatedResponse, IApiPaginatedResponse } from '@/common/dto/paginated.response.dto';
+import { IApiPaginatedResponse } from '@/common/dto/paginated.response.dto';
 import { PaginationDto } from '@/common/dto/pagination.dto';
 import { QueryDto } from '@/common/dto/query.dto';
 import { CaslGuard } from '@/modules/casl/guards/casl.guard';
 
 import { CreateFontDto } from './dto/create-font.dto';
 import { FontResponseDto } from './dto/font.response.dto';
-import { QueryFontsCursorDto } from './dto/query-fonts-cursor.dto';
 import { UpdateFontDto } from './dto/update-font.dto';
 import { FontsService } from './fonts.service';
 
@@ -44,7 +43,7 @@ export class FontsController {
         errors: [HttpStatus.CONFLICT, HttpStatus.BAD_REQUEST],
     })
     async create(@Body(ValidationPipe) createFontDto: CreateFontDto): Promise<IApiResponse<FontResponseDto>> {
-        return this.fontsService.create(createFontDto);
+        return this.fontsService.createApi(createFontDto);
     }
 
     @Post('query')
@@ -55,25 +54,11 @@ export class FontsController {
         paginationType: PAGINATION_TYPE.OFFSET,
         errors: [HttpStatus.BAD_REQUEST],
     })
-    async query(
+    async findAll(
         @Query(ValidationPipe) paginationDto: PaginationDto,
         @Body(ValidationPipe) queryDto: QueryDto,
     ): Promise<IApiPaginatedResponse<FontResponseDto>> {
-        return this.fontsService.query(paginationDto, queryDto);
-    }
-
-    @Post('query-cursor')
-    @ApiEndpoint({
-        summary: 'Query fonts with cursor pagination',
-        description: 'Retrieves fonts based on a JSON logic query with cursor-based pagination.',
-        response: FontResponseDto,
-        paginationType: PAGINATION_TYPE.CURSOR,
-        errors: [HttpStatus.BAD_REQUEST],
-    })
-    async queryWithCursor(
-        @Body() queryFontsCursorDto: QueryFontsCursorDto,
-    ): Promise<IApiCursorPaginatedResponse<FontResponseDto>> {
-        return this.fontsService.queryWithCursor(queryFontsCursorDto);
+        return this.fontsService.findAllApi(paginationDto, queryDto);
     }
 
     @Get(':id')
@@ -85,7 +70,7 @@ export class FontsController {
     })
     @ApiParam({ name: 'id', description: 'Font ID' })
     async findOne(@Param('id') id: string): Promise<IApiResponse<FontResponseDto>> {
-        return this.fontsService.findOne(id);
+        return this.fontsService.findOneApi(id);
     }
 
     @Patch(':id')
@@ -102,7 +87,7 @@ export class FontsController {
         @Param('id') id: string,
         @Body(ValidationPipe) updateFontDto: UpdateFontDto,
     ): Promise<IApiResponse<FontResponseDto>> {
-        return this.fontsService.update(id, updateFontDto);
+        return this.fontsService.updateApi(id, updateFontDto);
     }
 
     @Delete(':id')
@@ -116,6 +101,6 @@ export class FontsController {
     })
     @ApiParam({ name: 'id', description: 'Font ID' })
     async remove(@Param('id') id: string): Promise<IApiResponse<null>> {
-        return this.fontsService.remove(id);
+        return this.fontsService.removeApi(id);
     }
 }

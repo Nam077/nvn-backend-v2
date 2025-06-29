@@ -1,4 +1,12 @@
+import {
+    BOOLEAN_OPERATORS,
+    DATE_OPERATORS,
+    JSON_OPERATORS,
+    STRING_OPERATORS,
+} from '@/common/query-builder/operators.constants';
 import { BlueprintDefinition, QueryBlueprint } from '@/common/query-builder/query-blueprint.base';
+import { Permission } from '@/modules/users/entities/permission.entity';
+import { Role } from '@/modules/users/entities/role.entity';
 import { User } from '@/modules/users/entities/user.entity';
 
 export class UserQueryBlueprint extends QueryBlueprint<User> {
@@ -7,30 +15,82 @@ export class UserQueryBlueprint extends QueryBlueprint<User> {
     protected readonly definition: BlueprintDefinition<User> = {
         model: User,
         fields: {
-            // TODO: Add fields from User that you want to query
-            // Example:
-            // name: {
-            //     type: 'text',
-            //     operators: [STRING_OPERATORS.CONTAINS],
-            // },
+            email: {
+                type: 'text',
+                operators: [
+                    STRING_OPERATORS.CONTAINS,
+                    STRING_OPERATORS.EQUALS,
+                    STRING_OPERATORS.STARTS_WITH,
+                    STRING_OPERATORS.ENDS_WITH,
+                    STRING_OPERATORS.IS_EMPTY,
+                    STRING_OPERATORS.IS_NOT_EMPTY,
+                ],
+            },
+            firstName: {
+                type: 'text',
+                operators: [STRING_OPERATORS.CONTAINS],
+            },
+            lastName: {
+                type: 'text',
+                operators: [STRING_OPERATORS.CONTAINS],
+            },
+            isActive: {
+                type: 'select',
+                operators: [BOOLEAN_OPERATORS.EQUALS, BOOLEAN_OPERATORS.IN],
+                fieldSettings: {
+                    defaultValue: true,
+                    listValues: [
+                        { title: 'Yes', value: true },
+                        { title: 'No', value: false },
+                    ],
+                },
+            },
+            emailVerified: {
+                type: 'select',
+                operators: [BOOLEAN_OPERATORS.EQUALS, BOOLEAN_OPERATORS.IN],
+                fieldSettings: {
+                    listValues: [
+                        { title: 'Yes', value: true },
+                        { title: 'No', value: false },
+                    ],
+                },
+            },
+            createdAt: {
+                type: 'datetime',
+                label: 'Creation Date',
+                operators: [DATE_OPERATORS.BETWEEN, DATE_OPERATORS.GTE],
+            },
         },
-        // TODO: Define which fields from the model and its relations can be selected
-        selectableFields: ['id', 'createdAt'],
-
-        // TODO: Define which fields can be used for sorting
-        sortableFields: ['createdAt'],
-
-        // TODO: Define the default sort order
+        relations: {
+            roles: {
+                model: Role,
+                fields: {
+                    name: {
+                        operators: [JSON_OPERATORS.JSON_EQUALS, JSON_OPERATORS.JSON_IN],
+                    },
+                },
+            },
+            permissions: {
+                model: Permission,
+                fields: {
+                    name: {
+                        operators: [JSON_OPERATORS.JSON_EQUALS, JSON_OPERATORS.JSON_IN],
+                    },
+                },
+            },
+        },
+        selectableFields: [
+            'id',
+            'email',
+            'firstName',
+            'lastName',
+            'isActive',
+            'emailVerified',
+            'createdAt',
+            'roles',
+            'permissions',
+        ],
+        sortableFields: ['email', 'firstName', 'lastName', 'createdAt'],
         defaultSort: [['createdAt', 'DESC']],
-
-        // TODO: (Optional) Define relations to other models
-        // relations: {
-        //     relationName: {
-        //         model: OtherModel,
-        //         fields: {
-        //             fieldName: { operators: [STRING_OPERATORS.EQUALS] },
-        //         }
-        //     }
-        // }
     };
 }

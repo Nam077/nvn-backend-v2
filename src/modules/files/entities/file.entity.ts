@@ -47,7 +47,6 @@ export type FileStatus = (typeof FILE_STATUS)[keyof typeof FILE_STATUS];
 
 @Table({
     tableName: 'files',
-    underscored: true,
 })
 export class File extends Model<File, FileCreationAttrs> {
     @ApiProperty({ description: 'File ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -55,6 +54,7 @@ export class File extends Model<File, FileCreationAttrs> {
     @Column({
         type: DataType.UUID,
         defaultValue: DataType.UUIDV4,
+        field: 'id',
     })
     declare id: string;
 
@@ -62,6 +62,7 @@ export class File extends Model<File, FileCreationAttrs> {
     @Column({
         type: DataType.STRING,
         allowNull: false,
+        field: 'originalName',
     })
     declare originalName: string;
 
@@ -70,6 +71,7 @@ export class File extends Model<File, FileCreationAttrs> {
         type: DataType.STRING,
         allowNull: false,
         unique: true,
+        field: 'storedName',
     })
     declare storedName: string;
 
@@ -77,6 +79,7 @@ export class File extends Model<File, FileCreationAttrs> {
     @Column({
         type: DataType.STRING,
         allowNull: false,
+        field: 'url',
     })
     declare url: string;
 
@@ -84,6 +87,7 @@ export class File extends Model<File, FileCreationAttrs> {
     @Column({
         type: DataType.STRING,
         allowNull: true,
+        field: 'cdnUrl',
     })
     declare cdnUrl: string;
 
@@ -95,6 +99,7 @@ export class File extends Model<File, FileCreationAttrs> {
     @Column({
         type: DataType.ENUM(...values(FILE_TYPE)),
         allowNull: false,
+        field: 'fileType',
     })
     declare fileType: FileType;
 
@@ -102,6 +107,7 @@ export class File extends Model<File, FileCreationAttrs> {
     @Column({
         type: DataType.STRING,
         allowNull: false,
+        field: 'mimeType',
     })
     declare mimeType: string;
 
@@ -109,6 +115,7 @@ export class File extends Model<File, FileCreationAttrs> {
     @Column({
         type: DataType.STRING,
         allowNull: false,
+        field: 'extension',
     })
     declare extension: string;
 
@@ -116,6 +123,7 @@ export class File extends Model<File, FileCreationAttrs> {
     @Column({
         type: DataType.INTEGER,
         allowNull: false,
+        field: 'fileSize',
     })
     declare fileSize: number;
 
@@ -128,6 +136,7 @@ export class File extends Model<File, FileCreationAttrs> {
         type: DataType.ENUM(...values(FILE_STATUS)),
         allowNull: false,
         defaultValue: FILE_STATUS.UPLOADING,
+        field: 'status',
     })
     declare status: FileStatus;
 
@@ -135,6 +144,7 @@ export class File extends Model<File, FileCreationAttrs> {
     @Column({
         type: DataType.STRING,
         allowNull: true,
+        field: 'storagePath',
     })
     declare storagePath: string;
 
@@ -142,6 +152,7 @@ export class File extends Model<File, FileCreationAttrs> {
     @Column({
         type: DataType.STRING,
         defaultValue: 'local',
+        field: 'storageProvider',
     })
     declare storageProvider: string;
 
@@ -149,6 +160,7 @@ export class File extends Model<File, FileCreationAttrs> {
     @Column({
         type: DataType.STRING,
         allowNull: true,
+        field: 'fileHash',
     })
     declare fileHash: string;
 
@@ -157,6 +169,7 @@ export class File extends Model<File, FileCreationAttrs> {
     @Column({
         type: DataType.UUID,
         allowNull: true,
+        field: 'uploadedBy',
     })
     declare uploadedBy: string;
 
@@ -164,15 +177,18 @@ export class File extends Model<File, FileCreationAttrs> {
     @Column({
         type: DataType.JSONB,
         defaultValue: {},
+        field: 'metadata',
     })
     declare metadata: Record<string, any>;
 
     @ApiProperty({ description: 'Upload date' })
     @CreatedAt
+    @Column({ field: 'createdAt' })
     declare createdAt: Date;
 
     @ApiProperty({ description: 'Last update date' })
     @UpdatedAt
+    @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
 
     // Associations

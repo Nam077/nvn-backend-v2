@@ -30,7 +30,6 @@ export type CollectionType = (typeof COLLECTION_TYPE)[keyof typeof COLLECTION_TY
 
 @Table({
     tableName: 'collections',
-    underscored: true,
 })
 export class FontCollection extends Model<FontCollection, FontCollectionCreationAttrs> {
     @ApiProperty({ description: 'Collection ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -38,6 +37,7 @@ export class FontCollection extends Model<FontCollection, FontCollectionCreation
     @Column({
         type: DataType.UUID,
         defaultValue: DataType.UUIDV4,
+        field: 'id',
     })
     declare id: string;
 
@@ -45,6 +45,7 @@ export class FontCollection extends Model<FontCollection, FontCollectionCreation
     @Column({
         type: DataType.STRING,
         allowNull: false,
+        field: 'name',
     })
     declare name: string;
 
@@ -53,6 +54,7 @@ export class FontCollection extends Model<FontCollection, FontCollectionCreation
         type: DataType.STRING,
         allowNull: false,
         unique: true,
+        field: 'slug',
     })
     declare slug: string;
 
@@ -60,6 +62,7 @@ export class FontCollection extends Model<FontCollection, FontCollectionCreation
     @Column({
         type: DataType.TEXT,
         allowNull: true,
+        field: 'description',
     })
     declare description: string;
 
@@ -67,6 +70,7 @@ export class FontCollection extends Model<FontCollection, FontCollectionCreation
     @Column({
         type: DataType.STRING,
         allowNull: true,
+        field: 'coverImageUrl',
     })
     declare coverImageUrl: string;
 
@@ -75,6 +79,7 @@ export class FontCollection extends Model<FontCollection, FontCollectionCreation
     @Column({
         type: DataType.UUID,
         allowNull: false,
+        field: 'creatorId',
     })
     declare creatorId: string;
 
@@ -87,6 +92,7 @@ export class FontCollection extends Model<FontCollection, FontCollectionCreation
         type: DataType.ENUM(...values(COLLECTION_TYPE)),
         allowNull: false,
         defaultValue: COLLECTION_TYPE.FREE,
+        field: 'collectionType',
     })
     declare collectionType: CollectionType;
 
@@ -94,6 +100,7 @@ export class FontCollection extends Model<FontCollection, FontCollectionCreation
     @Column({
         type: DataType.DECIMAL(10, 2),
         defaultValue: 0,
+        field: 'price',
     })
     declare price: number;
 
@@ -101,6 +108,7 @@ export class FontCollection extends Model<FontCollection, FontCollectionCreation
     @Column({
         type: DataType.INTEGER,
         defaultValue: 0,
+        field: 'downloadCount',
     })
     declare downloadCount: number;
 
@@ -108,6 +116,7 @@ export class FontCollection extends Model<FontCollection, FontCollectionCreation
     @Column({
         type: DataType.BOOLEAN,
         defaultValue: true,
+        field: 'isActive',
     })
     declare isActive: boolean;
 
@@ -115,15 +124,18 @@ export class FontCollection extends Model<FontCollection, FontCollectionCreation
     @Column({
         type: DataType.JSONB,
         defaultValue: {},
+        field: 'metadata',
     })
     declare metadata: Record<string, any>;
 
     @ApiProperty({ description: 'Creation date' })
     @CreatedAt
+    @Column({ field: 'createdAt' })
     declare createdAt: Date;
 
     @ApiProperty({ description: 'Last update date' })
     @UpdatedAt
+    @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
 
     // Associations

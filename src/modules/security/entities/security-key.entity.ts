@@ -8,8 +8,7 @@ import { KeyType, KeyAlgorithm, KeyStatus } from '../types/key.types';
 
 @Table({
     tableName: 'security_keys',
-    underscored: true,
-    indexes: [{ fields: ['key_type', 'status'] }, { fields: ['status', 'expires_at'] }, { fields: ['created_at'] }],
+    indexes: [{ fields: ['keyType', 'status'] }, { fields: ['status', 'expiresAt'] }, { fields: ['createdAt'] }],
 })
 export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
     @ApiProperty({ description: 'Key ID (UUID)', example: '550e8400-e29b-41d4-a716-446655440000' })
@@ -18,6 +17,7 @@ export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
         type: DataType.UUID,
         defaultValue: DataType.UUIDV4,
         allowNull: false,
+        field: 'keyId',
     })
     declare keyId: string;
 
@@ -35,6 +35,7 @@ export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
             'session_encryption',
         ),
         allowNull: false,
+        field: 'keyType',
     })
     declare keyType: KeyType;
 
@@ -42,6 +43,7 @@ export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
     @Column({
         type: DataType.ENUM('RS256', 'RS384', 'RS512', 'ES256', 'ES384', 'ES512', 'HS256', 'HS384', 'HS512'),
         allowNull: false,
+        field: 'algorithm',
     })
     declare algorithm: KeyAlgorithm;
 
@@ -49,6 +51,7 @@ export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
     @Column({
         type: DataType.TEXT,
         allowNull: false,
+        field: 'encryptedPrivateKey',
     })
     declare encryptedPrivateKey: string;
 
@@ -56,6 +59,7 @@ export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
     @Column({
         type: DataType.TEXT,
         allowNull: true,
+        field: 'encryptedPublicKey',
     })
     declare encryptedPublicKey: string;
 
@@ -63,6 +67,7 @@ export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
     @Column({
         type: DataType.BIGINT,
         allowNull: false,
+        field: 'creationTimestamp',
     })
     declare creationTimestamp: number;
 
@@ -70,6 +75,7 @@ export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
     @Column({
         type: DataType.BLOB,
         allowNull: false,
+        field: 'randomSalt',
     })
     declare randomSalt: Buffer;
 
@@ -77,6 +83,7 @@ export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
     @Column({
         type: DataType.STRING(128),
         allowNull: false,
+        field: 'integritySignature',
     })
     declare integritySignature: string;
 
@@ -85,6 +92,7 @@ export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
     @Column({
         type: DataType.ENUM('pending', 'active', 'rotating', 'revoked', 'expired', 'compromised'),
         defaultValue: 'pending',
+        field: 'status',
     })
     declare status: KeyStatus;
 
@@ -93,6 +101,7 @@ export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
     @Column({
         type: DataType.DATE,
         allowNull: false,
+        field: 'expiresAt',
     })
     declare expiresAt: Date;
 
@@ -100,6 +109,7 @@ export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
     @Column({
         type: DataType.DATE,
         allowNull: true,
+        field: 'activatedAt',
     })
     declare activatedAt: Date;
 
@@ -107,6 +117,7 @@ export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
     @Column({
         type: DataType.DATE,
         allowNull: true,
+        field: 'revokedAt',
     })
     declare revokedAt: Date;
 
@@ -114,6 +125,7 @@ export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
     @Column({
         type: DataType.TEXT,
         allowNull: true,
+        field: 'revocationReason',
     })
     declare revocationReason: string;
 
@@ -121,6 +133,7 @@ export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
     @Column({
         type: DataType.INTEGER,
         defaultValue: 1,
+        field: 'encryptionVersion',
     })
     declare encryptionVersion: number;
 
@@ -128,6 +141,7 @@ export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
     @Column({
         type: DataType.JSONB,
         defaultValue: {},
+        field: 'metadata',
     })
     declare metadata: Record<string, any>;
 
@@ -135,29 +149,18 @@ export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
     @Column({
         type: DataType.STRING(100),
         allowNull: true,
+        field: 'createdBy',
     })
     declare createdBy: string;
 
-    @ApiProperty({ description: 'Last used timestamp' })
-    @Column({
-        type: DataType.DATE,
-        allowNull: true,
-    })
-    declare lastUsedAt: Date;
-
-    @ApiProperty({ description: 'Usage count' })
-    @Column({
-        type: DataType.INTEGER,
-        defaultValue: 0,
-    })
-    declare usageCount: number;
-
     @ApiProperty({ description: 'Creation date' })
     @CreatedAt
+    @Column({ field: 'createdAt' })
     declare createdAt: Date;
 
     @ApiProperty({ description: 'Last update date' })
     @UpdatedAt
+    @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
 
     // Virtual properties

@@ -20,7 +20,6 @@ import { User } from '@/modules/users/entities/user.entity';
 
 @Table({
     tableName: 'user_subscriptions',
-    underscored: true,
 })
 export class UserSubscription extends Model<UserSubscription, UserSubscriptionCreationAttrs> {
     @ApiProperty({ description: 'Subscription ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -28,6 +27,7 @@ export class UserSubscription extends Model<UserSubscription, UserSubscriptionCr
     @Column({
         type: DataType.UUID,
         defaultValue: DataType.UUIDV4,
+        field: 'id',
     })
     declare id: string;
 
@@ -36,6 +36,7 @@ export class UserSubscription extends Model<UserSubscription, UserSubscriptionCr
     @Column({
         type: DataType.UUID,
         allowNull: false,
+        field: 'userId',
     })
     declare userId: string;
 
@@ -44,6 +45,7 @@ export class UserSubscription extends Model<UserSubscription, UserSubscriptionCr
     @Column({
         type: DataType.UUID,
         allowNull: false,
+        field: 'planId',
     })
     declare planId: string;
 
@@ -52,6 +54,7 @@ export class UserSubscription extends Model<UserSubscription, UserSubscriptionCr
     @Column({
         type: DataType.UUID,
         allowNull: false,
+        field: 'durationId',
     })
     declare durationId: string;
 
@@ -59,6 +62,7 @@ export class UserSubscription extends Model<UserSubscription, UserSubscriptionCr
     @Column({
         type: DataType.DATE,
         allowNull: false,
+        field: 'startedAt',
     })
     declare startedAt: Date;
 
@@ -66,6 +70,7 @@ export class UserSubscription extends Model<UserSubscription, UserSubscriptionCr
     @Column({
         type: DataType.DATE,
         allowNull: false,
+        field: 'expiresAt',
     })
     declare expiresAt: Date;
 
@@ -78,6 +83,7 @@ export class UserSubscription extends Model<UserSubscription, UserSubscriptionCr
         type: DataType.ENUM(...values(SUBSCRIPTION_STATUS)),
         allowNull: false,
         defaultValue: SUBSCRIPTION_STATUS.ACTIVE,
+        field: 'status',
     })
     declare status: SubscriptionStatus;
 
@@ -85,6 +91,7 @@ export class UserSubscription extends Model<UserSubscription, UserSubscriptionCr
     @Column({
         type: DataType.DECIMAL(10, 2),
         allowNull: false,
+        field: 'paidAmount',
     })
     declare paidAmount: number;
 
@@ -92,6 +99,7 @@ export class UserSubscription extends Model<UserSubscription, UserSubscriptionCr
     @Column({
         type: DataType.STRING,
         allowNull: true,
+        field: 'paymentMethod',
     })
     declare paymentMethod: string;
 
@@ -99,6 +107,7 @@ export class UserSubscription extends Model<UserSubscription, UserSubscriptionCr
     @Column({
         type: DataType.STRING,
         allowNull: true,
+        field: 'transactionId',
     })
     declare transactionId: string;
 
@@ -106,15 +115,18 @@ export class UserSubscription extends Model<UserSubscription, UserSubscriptionCr
     @Column({
         type: DataType.BOOLEAN,
         defaultValue: false,
+        field: 'autoRenew',
     })
     declare autoRenew: boolean;
 
     @ApiProperty({ description: 'Creation date' })
     @CreatedAt
+    @Column({ field: 'createdAt' })
     declare createdAt: Date;
 
     @ApiProperty({ description: 'Last update date' })
     @UpdatedAt
+    @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
 
     // Associations

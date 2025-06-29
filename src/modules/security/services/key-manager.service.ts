@@ -127,14 +127,7 @@ export class KeyManagerService {
         await this.validateKeyAccess(keyRecord);
 
         // Decrypt private key (always fresh from DB)
-        const privateKey = await this.decryptPrivateKey(keyRecord);
-
-        // REMOVED: No caching at all for maximum security
-
-        // Update usage statistics
-        await this.updateKeyUsage(keyId);
-
-        return privateKey;
+        return await this.decryptPrivateKey(keyRecord);
     }
 
     async getPublicKey(keyId: string): Promise<string | null> {
@@ -453,18 +446,6 @@ export class KeyManagerService {
 
     // REMOVED: clearExpiredCache - No longer using memory cache for security
     // REMOVED: getPerformanceMetrics - Unnecessary placeholder method
-
-    private updateKeyUsage(keyId: string): Promise<void> {
-        return this.securityKeyModel
-            .update(
-                {
-                    lastUsedAt: DateUtils.nowUtc(),
-                    usageCount: this.securityKeyModel.sequelize.literal('usage_count + 1'),
-                },
-                { where: { keyId } },
-            )
-            .then(() => void 0);
-    }
 
     private formatKeyStatistics(
         stats: Array<{ keyType: string; status: string; count: number; total: number }>,

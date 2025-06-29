@@ -1,8 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import { Exclude, Expose, plainToInstance } from 'class-transformer';
+import { Exclude, Expose, Type, plainToInstance } from 'class-transformer';
 import { assign } from 'lodash';
 
+import { PermissionResponseDto } from './permission.response.dto';
+import { RoleResponseDto } from './role.response.dto';
 import { User } from '../entities/user.entity';
 
 @Exclude()
@@ -32,10 +34,6 @@ export class UserResponseDto {
     emailVerified: boolean;
 
     @Expose()
-    @ApiProperty({ description: 'Last login date' })
-    lastLoginAt: Date;
-
-    @Expose()
     @ApiProperty({ description: 'Creation date' })
     createdAt: Date;
 
@@ -43,7 +41,27 @@ export class UserResponseDto {
     @ApiProperty({ description: 'Last update date' })
     updatedAt: Date;
 
+    @Expose()
+    @Type(() => RoleResponseDto)
+    @ApiProperty({
+        description: 'User roles with full details',
+        type: [RoleResponseDto],
+        example: [{ id: 'role-id', name: 'admin', description: 'Administrator role' }],
+    })
+    roles: RoleResponseDto[];
+
+    @Expose()
+    @Type(() => PermissionResponseDto)
+    @ApiProperty({
+        description: 'User permissions with full details',
+        type: [PermissionResponseDto],
+        example: [{ id: 'perm-id', name: 'read_users', description: 'Can read user data' }],
+    })
+    permissions: PermissionResponseDto[];
+
     constructor(user: User) {
+        if (!user) return;
+
         assign(this, plainToInstance(UserResponseDto, user, { excludeExtraneousValues: true }));
     }
 }
