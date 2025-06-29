@@ -1,8 +1,8 @@
 import {
     BOOLEAN_OPERATORS,
     DATE_OPERATORS,
-    JSON_OPERATORS,
     STRING_OPERATORS,
+    ARRAY_OPERATORS,
 } from '@/common/query-builder/operators.constants';
 import { BlueprintDefinition, QueryBlueprint } from '@/common/query-builder/query-blueprint.base';
 import { Permission } from '@/modules/users/entities/permission.entity';
@@ -65,16 +65,40 @@ export class UserQueryBlueprint extends QueryBlueprint<User> {
             roles: {
                 model: Role,
                 fields: {
+                    id: {
+                        type: 'remote_multiselect',
+                        label: 'Role',
+                        operators: [ARRAY_OPERATORS.OVERLAPS],
+                        remoteValues: {
+                            blueprint: 'ROLE_MANAGEMENT',
+                            valueField: 'id',
+                            labelField: 'name',
+                        },
+                    },
                     name: {
-                        operators: [JSON_OPERATORS.JSON_EQUALS, JSON_OPERATORS.JSON_IN],
+                        type: 'text',
+                        label: 'Role Name',
+                        operators: [STRING_OPERATORS.CONTAINS],
                     },
                 },
             },
             permissions: {
                 model: Permission,
                 fields: {
+                    id: {
+                        type: 'remote_multiselect',
+                        label: 'Permission',
+                        operators: [ARRAY_OPERATORS.OVERLAPS],
+                        remoteValues: {
+                            blueprint: 'PERMISSION_MANAGEMENT',
+                            valueField: 'id',
+                            labelField: 'name',
+                        },
+                    },
                     name: {
-                        operators: [JSON_OPERATORS.JSON_EQUALS, JSON_OPERATORS.JSON_IN],
+                        type: 'text',
+                        label: 'Permission Name',
+                        operators: [STRING_OPERATORS.CONTAINS],
                     },
                 },
             },

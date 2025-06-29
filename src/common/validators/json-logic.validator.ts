@@ -6,14 +6,16 @@ import {
     has,
     includes,
     isArray,
+    isNumber,
     isObject,
     isPlainObject,
+    isString,
     keys,
     map,
     size,
 } from 'lodash';
 
-import { OPERATOR_FRIENDLY_TO_JSON_LOGIC } from '../constants/operator.constants';
+import { ALL_OPERATORS_MAP } from '../constants/operator.constants';
 
 // A subset of json-logic-js types for validation purposes
 // This can be expanded as needed.
@@ -63,18 +65,21 @@ export class JsonLogicValidator {
             throw new Error('Invalid blueprint configuration provided.');
         }
 
-        const mappedFieldEntries: [string, QueryFieldConfig][] = map(
+        const mappedFieldEntries = map(
             blueprint.fields,
             (config: QueryFieldConfig, fieldName: string): [string, QueryFieldConfig] => {
-                const mappedOperators = map(config.operators, (op: string) =>
-                    has(OPERATOR_FRIENDLY_TO_JSON_LOGIC, op) ? get(OPERATOR_FRIENDLY_TO_JSON_LOGIC, op) : op,
-                );
+                const mappedOperators = map(config.operators, (op: string) => {
+                    const mappedOp = get(ALL_OPERATORS_MAP, op);
+                    if (!mappedOp) {
+                        throw new Error(`Operator "${op}" in blueprint is not defined in ALL_OPERATORS_MAP.`);
+                    }
+                    return mappedOp;
+                });
                 return [fieldName, { ...config, operators: mappedOperators }];
             },
         );
 
         this.queryableFields = new Map(mappedFieldEntries);
-
         this.allAllowedOperators = new Set(mappedFieldEntries.flatMap(([, config]) => config.operators));
     }
 
@@ -151,11 +156,11 @@ export class JsonLogicValidator {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const fieldName: string = isArray(varValue) ? first(varValue) : varValue;
 
-        if (typeof fieldName !== 'string') {
+        if (!isString(fieldName)) {
             throw new Error("'var' path must be a string.");
         }
 
-        if (!this.queryableFields.has(fieldName)) {
+        if (!has(this.queryableFields, fieldName)) {
             throw new Error(`Field "${fieldName}" is not queryable.`);
         }
     }
@@ -180,9 +185,12 @@ export class JsonLogicValidator {
         const referencedFieldNames = this.findVarsInArgs(values);
 
         if (referencedFieldNames.length === 0) {
-            // This could be a rule like `{"==": [1, 1]}`. While odd, it's valid json-logic.
-            // No fields to validate against, so we can exit.
-            return;
+            // If this is a data operator, it MUST operate on at least one field.
+            // A rule like `{"==": [1, 1]}` is valid json-logic but not useful for our query context,
+            // and could indicate a client-side error. We enforce that a field must be present.
+            throw new Error(
+                `Operator "${operator}" must operate on at least one queryable field using the 'var' keyword.`,
+            );
         }
 
         // For each referenced field, ensure it allows the operator.
@@ -287,7 +295,7 @@ export class JsonLogicValidator {
             const minValue = get(values, 1) as unknown;
             const maxValue = get(values, 2) as unknown;
 
-            if (typeof minValue === 'number' && typeof maxValue === 'number' && minValue > maxValue) {
+            if (isNumber(minValue) && isNumber(maxValue) && minValue > maxValue) {
                 throw new Error(
                     `Range operator "${operator}" requires min value (${minValue}) to be less than or equal to max value (${maxValue}).`,
                 );
@@ -311,7 +319,7 @@ export class JsonLogicValidator {
                     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
                     const fieldName = isArray(values) ? first(values) : values;
 
-                    if (typeof fieldName === 'string') {
+                    if (isString(fieldName)) {
                         fieldNames.add(fieldName);
                     }
                 } else if (isArray(values)) {

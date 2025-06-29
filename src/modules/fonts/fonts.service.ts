@@ -125,13 +125,22 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
 
         let finalFilter = filter;
         if (q) {
-            const searchQuery = { or: [{ contains: [{ var: 'name' }, q] }] };
+            const searchQuery = {
+                or: [
+                    { contains: [{ var: 'name' }, q] },
+                    { contains: [{ var: 'description' }, q] },
+                    { contains: [{ var: 'authors.name' }, q] },
+                    { contains: [{ var: 'tags.name' }, q] },
+                    { contains: [{ var: 'categories.name' }, q] },
+                    { contains: [{ var: 'weights.name' }, q] },
+                ],
+            };
             finalFilter = finalFilter ? { and: [finalFilter, searchQuery] } : searchQuery;
         }
 
         const { sql: selectSql, parameters: selectParams } = this._buildFontQuery({
             filter: finalFilter,
-            select: select,
+            select: isEmpty(select) ? DEFAULT_FONT_SELECT_FIELDS : select,
             order,
             limit,
             offset,
@@ -311,6 +320,8 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
                 SELECT 
                     fw."fontId",
                     jsonb_agg(DISTINCT jsonb_build_object('id', fw.id, 'name', fw."weightName", 'weight', fw."weightValue")) FILTER (WHERE fw.id IS NOT NULL) as weights,
+                    array_agg(DISTINCT fw.id) FILTER (WHERE fw.id IS NOT NULL) as "weightIds",
+                    string_agg(DISTINCT fw."weightName", ' ') as "weightNames",
                     count(fw.id) as "weightCount"
                 FROM font_weights fw
                 GROUP BY fw."fontId"
@@ -347,6 +358,12 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
                     }
                     if (field === 'tags.name') {
                         return 'fta."tagNames"';
+                    }
+                    if (field === 'weights.id') {
+                        return 'fwa."weightIds"';
+                    }
+                    if (field === 'weights.name') {
+                        return 'fwa."weightNames"';
                     }
                     return null; // Fallback to default behavior
                 },

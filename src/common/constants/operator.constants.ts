@@ -1,39 +1,47 @@
 /**
- * A mapping from user-friendly operator names used in blueprint definitions
- * to the actual operators required by json-logic.
+ * A comprehensive mapping from user-friendly operator names used in blueprint definitions
+ * to the actual operators required by json-logic. This is the single source of truth for all operators.
  */
-export const OPERATOR_FRIENDLY_TO_JSON_LOGIC: Record<string, string> = {
-    // Basic comparison operators
+export const ALL_OPERATORS_MAP: Record<string, string> = {
+    // --- Standard Comparison ---
     equals: '==',
     not_equals: '!=',
+
+    // --- Strict Comparison (rarely used in this context but included for completeness) ---
     strict_equals: '===',
     strict_not_equals: '!==',
 
-    // Numeric comparison operators
+    // --- Numeric Comparison ---
     gt: '>',
     gte: '>=',
     lt: '<',
     lte: '<=',
+    between: 'between',
+    not_between: 'not_between',
 
-    // Text search operators
+    // --- Text Search ---
+    contains: 'contains',
+    not_contains: 'not_contains',
     like: 'like',
     not_like: 'not_like',
     starts_with: 'starts_with',
     ends_with: 'ends_with',
-    not_contains: 'not_contains',
 
-    // Empty/null check operators
+    // --- Null & Empty Checks ---
     is_empty: 'is_empty',
     is_not_empty: 'is_not_empty',
     is_null: 'is_null',
     is_not_null: 'is_not_null',
 
-    // Array/set operators
+    // --- Array & Set Operations ---
+    in: 'in',
     not_in: 'not_in',
+    array_overlaps: 'array_overlaps',
 
-    // Range operators
-    between: 'between',
-    not_between: 'not_between',
+    // --- JSONB Operations (Custom) ---
+    json_equals: 'json_equals',
+    json_contains: 'json_contains',
+    json_in: 'json_in',
 };
 
 /**

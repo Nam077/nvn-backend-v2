@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InjectModel } from '@nestjs/sequelize';
 
 import * as bcrypt from 'bcryptjs';
-import { map, omit, values } from 'lodash';
+import { map, omit, values, some, startsWith, isEmpty } from 'lodash';
 import { CreateOptions, DestroyOptions, FindOptions, UpdateOptions } from 'sequelize';
 
 import { IApiResponse } from '@/common/dto/api.response.dto';
@@ -98,67 +98,19 @@ export class UsersService implements ICrudService<User, UserResponseDto, CreateU
             finalFilter = finalFilter ? { and: [filter, searchQuery] } : searchQuery;
         }
 
-        // Use CTE-based query for better performance
+        // Use CTE-based query for both data and count for consistency
         const { sql: selectSql, parameters: selectParams } = this._buildUserQuery({
             filter: finalFilter,
-            select: select || DEFAULT_USER_SELECT_FIELDS,
+            select: isEmpty(select) ? DEFAULT_USER_SELECT_FIELDS : select,
             order,
             limit,
             offset,
         });
 
-        const JSONB_FIELD_ALIAS_MAP = {
-            roles: 'up',
-            permissions: 'up',
-        };
-
-        // Create count query using same CTE structure but with COUNT
-        const countBuilder = new QueryBuilder();
-        countBuilder.addCTE({
-            name: 'user_permissions',
-            query: `
-                SELECT 
-                    u.id as "userId",
-                    COALESCE(
-                        jsonb_agg(
-                            DISTINCT jsonb_build_object(
-                                'id', p.id,
-                                'name', p.name,
-                                'description', p.description
-                            )
-                        ) FILTER (WHERE p.id IS NOT NULL),
-                        '[]'::jsonb
-                    ) as permissions,
-                    COALESCE(
-                        jsonb_agg(
-                            DISTINCT jsonb_build_object(
-                                'id', r.id,
-                                'name', r.name,
-                                'description', r.description
-                            )
-                        ) FILTER (WHERE r.id IS NOT NULL),
-                        '[]'::jsonb
-                    ) as roles
-                FROM users u
-                LEFT JOIN user_roles ur ON u.id = ur."userId"
-                LEFT JOIN roles r ON ur."roleId" = r.id
-                LEFT JOIN role_permissions rp ON r.id = rp."roleId"
-                LEFT JOIN permissions p ON rp."permissionId" = p.id
-                WHERE u."isActive" = true
-                GROUP BY u.id
-            `,
+        const { sql: countSql, parameters: countParams } = this._buildUserQuery({
+            filter: finalFilter,
+            select: ['COUNT(DISTINCT u.id) as count'],
         });
-
-        countBuilder
-            .select('COUNT(DISTINCT u.id) as count')
-            .from('users', 'u')
-            .join('LEFT', 'user_permissions up', 'u.id = up."userId"');
-
-        if (finalFilter) {
-            countBuilder.where(finalFilter, { tableAlias: 'u', jsonbFieldAliasMap: JSONB_FIELD_ALIAS_MAP });
-        }
-
-        const { sql: countSql, parameters: countParams } = countBuilder.build();
 
         const [results, totalResult] = await Promise.all([
             this.userModel.sequelize.query<User>(selectSql, {
@@ -298,37 +250,22 @@ export class UsersService implements ICrudService<User, UserResponseDto, CreateU
         const { filter, select, order, limit, offset } = options;
         const builder = new QueryBuilder({ fieldMap: SELECT_FIELD_MAP });
 
-        const JSONB_FIELD_ALIAS_MAP = {
-            roles: 'up',
-            permissions: 'up',
-        };
-
-        // Add CTE for user permissions (pre-computed for performance)
+        // CTE for aggregated user permissions and roles
         builder.addCTE({
             name: 'user_permissions',
             query: `
-                SELECT 
+                SELECT
                     u.id as "userId",
                     COALESCE(
-                        jsonb_agg(
-                            DISTINCT jsonb_build_object(
-                                'id', p.id,
-                                'name', p.name,
-                                'description', p.description
-                            )
-                        ) FILTER (WHERE p.id IS NOT NULL),
-                        '[]'::jsonb
+                        jsonb_agg(DISTINCT jsonb_build_object('id', p.id, 'name', p.name, 'description', p.description))
+                        FILTER (WHERE p.id IS NOT NULL), '[]'::jsonb
                     ) as permissions,
                     COALESCE(
-                        jsonb_agg(
-                            DISTINCT jsonb_build_object(
-                                'id', r.id,
-                                'name', r.name,
-                                'description', r.description
-                            )
-                        ) FILTER (WHERE r.id IS NOT NULL),
-                        '[]'::jsonb
-                    ) as roles
+                        jsonb_agg(DISTINCT jsonb_build_object('id', r.id, 'name', r.name, 'description', r.description))
+                        FILTER (WHERE r.id IS NOT NULL), '[]'::jsonb
+                    ) as roles,
+                    string_agg(DISTINCT r.name, ' ') as "roleNames",
+                    string_agg(DISTINCT p.name, ' ') as "permissionNames"
                 FROM users u
                 LEFT JOIN user_roles ur ON u.id = ur."userId"
                 LEFT JOIN roles r ON ur."roleId" = r.id
@@ -339,19 +276,31 @@ export class UsersService implements ICrudService<User, UserResponseDto, CreateU
             `,
         });
 
-        // Main query using CTE
+        // Main query
         builder
             .select(select || DEFAULT_USER_SELECT_FIELDS)
             .from('users', 'u')
             .join('LEFT', 'user_permissions up', 'u.id = up."userId"');
 
         if (filter) {
-            builder.where(filter, { tableAlias: 'u', jsonbFieldAliasMap: JSONB_FIELD_ALIAS_MAP });
+            const jsonLogicOptions = {
+                tableAlias: 'u',
+                fieldMapper: (field: string) => {
+                    if (field === 'roles.name') {
+                        return 'up."roleNames"';
+                    }
+                    if (field === 'permissions.name') {
+                        return 'up."permissionNames"';
+                    }
+                    return null; // Fallback to default behavior
+                },
+            };
+            builder.where(filter, jsonLogicOptions);
         }
 
         if (order && order.length > 0) {
             builder.orderByArray(order);
-        } else {
+        } else if (!select || !some(select, (s) => startsWith(s, 'COUNT'))) {
             builder.orderBy('createdAt', 'DESC');
         }
 

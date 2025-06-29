@@ -35,7 +35,15 @@ import {
     split,
     join,
     get,
+    values,
+    isNull,
+    size,
+    endsWith,
+    filter,
 } from 'lodash';
+
+import { ALL_OPERATORS_MAP } from '../constants/operator.constants';
+import { QueryBuilderException } from '../exceptions/query-builder.exception';
 
 // --- Type definitions for JsonLogic ---
 type JsonLogicPrimitive = string | number | boolean | null;
@@ -57,48 +65,12 @@ const isJsonLogicVarNode = (arg: unknown): arg is JsonLogicVarNode =>
     isObject(arg) && 'var' in arg && isString((arg as JsonLogicVarNode).var);
 
 const isJsonLogicRuleNode = (arg: unknown): arg is JsonLogicRuleNode =>
-    isObject(arg) && !isJsonLogicVarNode(arg) && !isArray(arg) && keys(arg).length === 1;
+    isObject(arg) && !isJsonLogicVarNode(arg) && !isArray(arg) && size(arg) === 1;
 
 type FieldValueTuple = [string, JsonLogicPrimitive | JsonLogicPrimitive[]];
 
-// Allowed operators for security
-const ALLOWED_OPERATORS = new Set([
-    'and',
-    'or',
-    'not',
-    '==',
-    'equals',
-    '!=',
-    'not_equals',
-    '>',
-    'gt',
-    '>=',
-    'gte',
-    '<',
-    'lt',
-    '<=',
-    'lte',
-    'contains',
-    'not_contains',
-    'starts_with',
-    'ends_with',
-    'like',
-    'not_like',
-    'in',
-    'not_in',
-    'is_null',
-    'is_not_null',
-    'between',
-    'not_between',
-    'is_empty',
-    'is_not_empty',
-    // Custom JSONB operators
-    'json_equals',
-    'json_contains',
-    'json_in',
-    // Custom Array operators
-    'array_overlaps',
-]);
+// Allowed operators are now derived from our single source of truth, plus structural operators.
+const ALLOWED_OPERATORS = new Set(['and', 'or', 'not', ...values(ALL_OPERATORS_MAP)]);
 
 export interface SqlBuildOptions {
     /**
@@ -174,7 +146,7 @@ export class JsonLogicToSqlBuilder {
 
         // Security: Validate operator is allowed
         if (!ALLOWED_OPERATORS.has(operator)) {
-            throw new Error(`Unsupported JsonLogic operator: ${operator}`);
+            throw new QueryBuilderException(`Unsupported JsonLogic operator: ${operator}`);
         }
 
         const operands = rule[operator as keyof typeof rule];
@@ -183,36 +155,31 @@ export class JsonLogicToSqlBuilder {
             // Logical operators
             case 'and':
             case 'or': {
-                if (!isArray(operands)) throw new Error('AND/OR operator requires an array of operands');
+                if (!isArray(operands))
+                    throw new QueryBuilderException('AND/OR operator requires an array of operands');
                 const conditions = map(operands, (op) => {
-                    if (!isJsonLogicRuleNode(op)) throw new Error('Invalid operand for AND/OR');
+                    if (!isJsonLogicRuleNode(op)) throw new QueryBuilderException('Invalid operand for AND/OR');
                     return this.buildCondition(op);
                 });
                 return `(${conditions.join(operator === 'and' ? ' AND ' : ' OR ')})`;
             }
             case 'not': {
-                if (!isJsonLogicRuleNode(operands)) throw new Error('Invalid operand for NOT');
+                if (!isJsonLogicRuleNode(operands)) throw new QueryBuilderException('Invalid operand for NOT');
                 return `NOT (${this.buildCondition(operands)})`;
             }
 
             // Comparison operators
             case '==':
-            case 'equals':
                 return this.buildComparisonCondition('=', operands);
             case '!=':
-            case 'not_equals':
                 return this.buildComparisonCondition('!=', operands);
             case '>':
-            case 'gt':
                 return this.buildComparisonCondition('>', operands);
             case '>=':
-            case 'gte':
                 return this.buildComparisonCondition('>=', operands);
             case '<':
-            case 'lt':
                 return this.buildComparisonCondition('<', operands);
             case '<=':
-            case 'lte':
                 return this.buildComparisonCondition('<=', operands);
 
             // String operators
@@ -270,14 +237,14 @@ export class JsonLogicToSqlBuilder {
                 return this.buildArrayOverlapCondition(operands, false);
 
             default:
-                throw new Error(`Unsupported JsonLogic operator: ${operator}`);
+                throw new QueryBuilderException(`Unsupported JsonLogic operator: ${operator}`);
         }
     }
 
     protected buildComparisonCondition(sqlOp: string, operands: JsonLogicArgument): string {
         const [field, value] = this.extractFieldAndValue(operands);
 
-        if (value === null) {
+        if (isNull(value)) {
             return `${this.mapFieldName(field)} IS ${sqlOp === '=' ? 'NULL' : 'NOT NULL'}`;
         }
 
@@ -293,8 +260,8 @@ export class JsonLogicToSqlBuilder {
     ): string {
         const [field, value] = this.extractFieldAndValue(operands);
 
-        if (typeof value !== 'string') {
-            throw new Error('LIKE operator requires a string value');
+        if (!isString(value)) {
+            throw new QueryBuilderException('LIKE operator requires a string value');
         }
 
         let pattern = value;
@@ -309,11 +276,22 @@ export class JsonLogicToSqlBuilder {
         const [field, values] = this.extractFieldAndValue(operands);
 
         if (!isArray(values) || some(values, (v) => !this.isJsonLogicPrimitive(v))) {
-            throw new Error('IN operator requires an array of primitive values');
+            throw new QueryBuilderException('IN operator requires an array of primitive values');
         }
 
         if (isEmpty(values)) {
             return not ? '1 = 1' : '1 = 0';
+        }
+
+        // Validate UUID format if the field appears to be an ID field
+        if (includes(field, '.id') || endsWith(field, 'Id')) {
+            const invalidUuids = this.validateUuidFormat(values, field);
+
+            if (invalidUuids.length > 0) {
+                throw new QueryBuilderException(
+                    `Invalid UUID format(s) for field "${field}": ${invalidUuids.join(', ')}`,
+                );
+            }
         }
 
         const paramNames = map(values, (val) => `:${this.addParameter(val)}`);
@@ -321,15 +299,15 @@ export class JsonLogicToSqlBuilder {
     }
 
     protected buildBetweenCondition(operands: JsonLogicArgument, not: boolean): string {
-        if (!isArray(operands) || operands.length !== 3) {
-            throw new Error('BETWEEN operator requires 3 operands');
+        if (!isArray(operands) || size(operands) !== 3) {
+            throw new QueryBuilderException('BETWEEN operator requires 3 operands');
         }
 
         const [fieldArg, minVal, maxVal] = operands;
         const field = this.extractFieldName(fieldArg);
 
         if (!this.isJsonLogicPrimitive(minVal) || !this.isJsonLogicPrimitive(maxVal)) {
-            throw new Error('BETWEEN requires primitive min/max values');
+            throw new QueryBuilderException('BETWEEN requires primitive min/max values');
         }
 
         const minParam = this.addParameter(minVal);
@@ -342,11 +320,18 @@ export class JsonLogicToSqlBuilder {
         const [field, values] = this.extractFieldAndValue(operands);
 
         if (!isArray(values) || some(values, (v) => !this.isJsonLogicPrimitive(v))) {
-            throw new Error('OVERLAPS operator requires an array of primitive values');
+            throw new QueryBuilderException('OVERLAPS operator requires an array of primitive values');
         }
 
         if (isEmpty(values)) {
             return not ? '1 = 1' : '1 = 0'; // Or handle as an error
+        }
+
+        // Validate UUID format for all values
+        const invalidUuids = this.validateUuidFormat(values);
+
+        if (invalidUuids.length > 0) {
+            throw new QueryBuilderException(`Invalid UUID format(s): ${invalidUuids.join(', ')}`);
         }
 
         const paramName = this.addParameter(values);
@@ -360,31 +345,33 @@ export class JsonLogicToSqlBuilder {
     }
 
     protected buildJsonbQuery(operator: 'equals' | 'contains' | 'in', operands: JsonLogicArgument): string {
-        if (!isArray(operands) || operands.length !== 2) {
-            throw new Error('Invalid operands for json operator');
+        if (!isArray(operands) || size(operands) !== 2) {
+            throw new QueryBuilderException('Invalid operands for json operator');
         }
 
         const field = this.extractFieldName(operands[0]);
         const value = this.extractValue(operands[1]);
 
         if (!includes(field, '.')) {
-            throw new Error(`Invalid field for JSONB query: ${field}. Must be in format 'column.path'.`);
+            throw new QueryBuilderException(
+                `Invalid field for JSONB query: ${field}. Must be in format 'column.path'.`,
+            );
         }
 
         const [columnName, ...pathParts] = split(field, '.');
         const jsonFieldKey = join(pathParts, '.'); // e.g., "name" or "profile.firstName"
 
         if (columnName === '__proto__') {
-            throw new Error('Invalid field specified for JSONB query.');
+            throw new QueryBuilderException('Invalid field specified for JSONB query.');
         }
 
         if (isEmpty(jsonFieldKey)) {
-            throw new Error(`Invalid path for JSONB query: ${field}. Path is empty.`);
+            throw new QueryBuilderException(`Invalid path for JSONB query: ${field}. Path is empty.`);
         }
 
         const alias = get(this.options.jsonbFieldAliasMap, columnName, this.options.tableAlias);
         if (!alias) {
-            throw new Error(`Could not determine alias for JSONB column: ${columnName}`);
+            throw new QueryBuilderException(`Could not determine alias for JSONB column: ${columnName}`);
         }
         const sqlColumn = `${alias}."${columnName}"`;
 
@@ -396,15 +383,15 @@ export class JsonLogicToSqlBuilder {
         let whereClause = '';
 
         if (operator === 'in') {
-            if (!isArray(value) || value.length === 0) return '1 = 0';
+            if (!isArray(value) || isEmpty(value)) return '1 = 0';
             const paramName = this.addParameter(value);
             whereClause = `${recordAlias}.${jsonFieldKey} IN (:${paramName})`;
         } else if (operator === 'equals') {
             const paramName = this.addParameter(value);
             whereClause = `${recordAlias}.${jsonFieldKey} = :${paramName}`;
         } else if (operator === 'contains') {
-            if (typeof value !== 'string' && typeof value !== 'number') {
-                throw new Error('The "json_contains" operator requires a string or number value.');
+            if (!isString(value) && !isNumber(value)) {
+                throw new QueryBuilderException('The "json_contains" operator requires a string or number value.');
             }
             const paramName = this.addParameter(`%${value}%`);
             whereClause = `${recordAlias}.${jsonFieldKey} ILIKE :${paramName}`;
@@ -415,8 +402,8 @@ export class JsonLogicToSqlBuilder {
 
     // Helper methods
     protected extractFieldAndValue(operands: JsonLogicArgument): FieldValueTuple {
-        if (!isArray(operands) || operands.length !== 2) {
-            throw new Error('Invalid operands for comparison operator');
+        if (!isArray(operands) || size(operands) !== 2) {
+            throw new QueryBuilderException('Invalid operands for comparison operator');
         }
         const [fieldArg, valueArg] = operands;
         const field = this.extractFieldName(fieldArg);
@@ -432,7 +419,7 @@ export class JsonLogicToSqlBuilder {
         if (isString(operand)) {
             return operand;
         }
-        throw new Error('Invalid field operand: must be a string or a "var" node');
+        throw new QueryBuilderException('Invalid field operand: must be a string or a "var" node');
     }
 
     protected extractValue(operand: JsonLogicArgument): JsonLogicPrimitive | JsonLogicPrimitive[] {
@@ -442,11 +429,16 @@ export class JsonLogicToSqlBuilder {
         if (isArray(operand) && every(operand, (op) => this.isJsonLogicPrimitive(op))) {
             return operand as JsonLogicPrimitive[];
         }
-        throw new Error('Value must be a primitive or an array of primitives');
+        throw new QueryBuilderException('Value must be a primitive or an array of primitives');
     }
 
     private isJsonLogicPrimitive(value: unknown): value is JsonLogicPrimitive {
-        return isString(value) || isNumber(value) || isBoolean(value) || value === null;
+        return isString(value) || isNumber(value) || isBoolean(value) || isNull(value);
+    }
+
+    private validateUuidFormat(values: any[], _fieldName?: string): string[] {
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        return filter(values, (value) => !uuidRegex.test(String(value))) as string[];
     }
 
     /**
@@ -455,6 +447,15 @@ export class JsonLogicToSqlBuilder {
      * @returns Mapped field name
      */
     protected mapFieldName(field: string): string {
+        // Try the custom field mapper first. If it returns a valid mapping, use it immediately.
+        if (this.options.fieldMapper) {
+            const customMappedField = this.options.fieldMapper(field);
+            if (customMappedField) {
+                return customMappedField;
+            }
+        }
+
+        // If the mapper didn't handle the field, proceed with the default logic.
         let mappedField = field;
 
         // Use aliasMap to replace entity name with its alias
@@ -471,10 +472,6 @@ export class JsonLogicToSqlBuilder {
             mappedField = `${this.options.tableAlias}.${mappedField}`;
         }
 
-        if (this.options.fieldMapper) {
-            return this.options.fieldMapper(mappedField);
-        }
-
         // Handle JSONB path notation (e.g., "metadata->profile->name")
         if (includes(mappedField, '->')) {
             return this.handleJsonbPath(mappedField);
@@ -489,7 +486,7 @@ export class JsonLogicToSqlBuilder {
         const columnName = parts.shift();
 
         if (!columnName) {
-            throw new Error('Invalid JSONB path: missing column name.');
+            throw new QueryBuilderException('Invalid JSONB path: missing column name.');
         }
 
         // Apply quoting to the column name
