@@ -39,7 +39,12 @@ const SELECT_FIELD_MAP = {
     updatedAt: 'u."updatedAt"',
     permissions: "COALESCE(up.permissions, '[]'::jsonb) as permissions",
     roles: "COALESCE(up.roles, '[]'::jsonb) as roles",
-};
+} as const;
+
+const USER_FIELD_ALIAS_MAP = new Map([
+    ['roles.name', 'up."roleNames"'],
+    ['permissions.name', 'up."permissionNames"'],
+]);
 
 // Default select fields are derived from the values of the map.
 const DEFAULT_USER_SELECT_FIELDS = values(SELECT_FIELD_MAP);
@@ -294,15 +299,7 @@ export class UsersService implements ICrudService<User, UserResponseDto, CreateU
         if (filter) {
             const jsonLogicOptions = {
                 tableAlias: 'u',
-                fieldMapper: (field: string) => {
-                    if (field === 'roles.name') {
-                        return 'up."roleNames"';
-                    }
-                    if (field === 'permissions.name') {
-                        return 'up."permissionNames"';
-                    }
-                    return null; // Fallback to default behavior
-                },
+                fieldMapper: (field: string) => USER_FIELD_ALIAS_MAP.get(field) || null,
             };
             builder.where(filter, jsonLogicOptions);
         }

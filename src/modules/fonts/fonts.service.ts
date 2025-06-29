@@ -59,7 +59,17 @@ const SELECT_FIELD_MAP = {
     tags: "COALESCE(fta.tags, '[]'::jsonb) AS tags",
     weights: "COALESCE(fwa.weights, '[]'::jsonb) AS weights",
     weightCount: 'COALESCE(fwa."weightCount", 0) AS "weightCount"',
-};
+} as const;
+
+const FIELD_ALIAS_MAP = new Map([
+    ['categories.id', 'fca."categoryIds"'],
+    ['categories.name', 'fca."categoryNames"'],
+    ['authors.name', 'faa."authorNames"'],
+    ['tags.id', 'fta."tagIds"'],
+    ['tags.name', 'fta."tagNames"'],
+    ['weights.id', 'fwa."weightIds"'],
+    ['weights.name', 'fwa."weightNames"'],
+]);
 
 const DEFAULT_FONT_SELECT_FIELDS = values(SELECT_FIELD_MAP);
 
@@ -429,30 +439,7 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
         if (filter) {
             const jsonLogicOptions = {
                 tableAlias: 'f',
-                fieldMapper: (field: string) => {
-                    if (field === 'categories.id') {
-                        return 'fca."categoryIds"';
-                    }
-                    if (field === 'categories.name') {
-                        return 'fca."categoryNames"';
-                    }
-                    if (field === 'authors.name') {
-                        return 'faa."authorNames"';
-                    }
-                    if (field === 'tags.id') {
-                        return 'fta."tagIds"';
-                    }
-                    if (field === 'tags.name') {
-                        return 'fta."tagNames"';
-                    }
-                    if (field === 'weights.id') {
-                        return 'fwa."weightIds"';
-                    }
-                    if (field === 'weights.name') {
-                        return 'fwa."weightNames"';
-                    }
-                    return null; // Fallback to default behavior
-                },
+                fieldMapper: (field: string) => FIELD_ALIAS_MAP.get(field) || null,
             };
             builder.where(filter, jsonLogicOptions);
         }
