@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InjectModel } from '@nestjs/sequelize';
 
 import { filter, forEach, get, isEmpty, map, replace, split, startsWith } from 'lodash';
-import { Sequelize, Op, FindOptions, Transaction } from 'sequelize';
+import { Op, CreateOptions, DestroyOptions, FindOptions, Transaction, UpdateOptions } from 'sequelize';
 import slugify from 'slugify';
 
 import { IApiResponse } from '@/common/dto/api.response.dto';
@@ -28,49 +28,53 @@ export class CategoriesService
     constructor(
         @InjectModel(Category)
         private readonly categoryModel: typeof Category,
-        private readonly sequelize: Sequelize,
     ) {}
 
     // --- Entity-Returning Methods for Internal Use ---
 
-    async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
-        return this.sequelize.transaction(async (transaction) => {
-            const slug = this._slugify(createCategoryDto.name);
+    async create(createCategoryDto: CreateCategoryDto, options?: CreateOptions): Promise<Category> {
+        const slug = slugify(createCategoryDto.name, { lower: true, strict: true });
 
-            await this._checkSlugExists(slug, { transaction });
+        const existingCategory = await this.categoryModel.findOne({
+            where: { slug },
+            attributes: ['id'],
+            ...options,
+        });
 
-            let path: string;
-            let level: number;
+        if (existingCategory) {
+            throw new ConflictException(`Category with slug "${slug}" already exists.`);
+        }
 
-            if (createCategoryDto.parentId) {
-                const parent = await this.categoryModel.findByPk(createCategoryDto.parentId, {
-                    attributes: ['path', 'level'],
-                    transaction,
-                });
-                if (!parent) {
-                    throw new NotFoundException(`Parent category with ID ${createCategoryDto.parentId} not found`);
-                }
-                path = `${parent.path}/${slug}`;
-                level = parent.level + 1;
-            } else {
-                path = `/${slug}`;
-                level = 0;
-            }
+        let path: string;
+        let level: number;
 
-            const newCategory = await this.categoryModel.create(
-                {
-                    ...createCategoryDto,
-                    slug,
-                    path,
-                    level,
-                },
-                { transaction },
-            );
-
-            return newCategory.reload({
-                include: [{ model: Category, as: 'parent' }],
-                transaction,
+        if (createCategoryDto.parentId) {
+            const parent = await this.categoryModel.findByPk(createCategoryDto.parentId, {
+                attributes: ['path', 'level'],
+                transaction: options?.transaction,
             });
+            if (!parent) {
+                throw new NotFoundException(`Parent category with ID ${createCategoryDto.parentId} not found`);
+            }
+            path = `${parent.path}/${slug}`;
+            level = parent.level + 1;
+        } else {
+            path = `/${slug}`;
+            level = 0;
+        }
+
+        const newCategory = await this.categoryModel.create(
+            {
+                ...createCategoryDto,
+                slug,
+                path,
+                level,
+            },
+            options,
+        );
+
+        return await newCategory.reload({
+            include: [{ model: Category, as: 'parent' }],
         });
     }
 
@@ -134,45 +138,60 @@ export class CategoriesService
         return { rows: results, total };
     }
 
-    async update(id: string, dto: UpdateCategoryDto): Promise<Category> {
-        return this.sequelize.transaction(async (transaction) => {
-            const category = await this.categoryModel.findByPk(id, { transaction });
-            if (!category) {
-                throw new NotFoundException(`Category with ID ${id} not found`);
-            }
+    async update(id: string, dto: UpdateCategoryDto, options?: UpdateOptions): Promise<Category> {
+        const category = await this.categoryModel.findByPk(id, { transaction: options?.transaction });
+        if (!category) {
+            throw new NotFoundException(`Category with ID ${id} not found`);
+        }
 
-            const isSlugChanging = dto.name && dto.name !== category.name;
-            const isParentChanging = dto.parentId !== undefined && dto.parentId !== category.parentId;
+        const isSlugChanging = dto.name && dto.name !== category.name;
+        const isParentChanging = dto.parentId !== undefined && dto.parentId !== category.parentId;
 
-            if (!isSlugChanging && !isParentChanging) {
-                return category.update(dto, { transaction });
-            }
+        if (!isSlugChanging && !isParentChanging) {
+            return category.update(dto, { transaction: options?.transaction });
+        }
 
-            return this.performComplexUpdate(category, dto, { transaction });
-        });
+        return this.performComplexUpdate(category, dto, { transaction: options?.transaction });
     }
 
     private async performComplexUpdate(
         category: Category,
         dto: UpdateCategoryDto,
-        options: { transaction: Transaction },
+        options: { transaction?: Transaction },
     ): Promise<Category> {
-        const t = options.transaction;
-        const newSlug = dto.name ? this._slugify(dto.name) : category.slug;
-        await this._checkSlugExists(newSlug, { excludeId: category.id, transaction: t });
+        const t = options.transaction || (await this.categoryModel.sequelize.transaction());
+        try {
+            const newSlug = dto.name ? slugify(dto.name, { lower: true, strict: true }) : category.slug;
+            await this.validateSlug(newSlug, category.id, t);
 
-        const { newPath, newLevel } = await this.calculateNewPathAndLevel(dto.parentId, newSlug, t);
+            const { newPath, newLevel } = await this.calculateNewPathAndLevel(dto.parentId, newSlug, t);
 
-        if (newPath !== category.path) {
-            await this.updateDescendants(category, newPath, newLevel, t);
+            if (newPath !== category.path) {
+                await this.updateDescendants(category, newPath, newLevel, t);
+            }
+
+            await category.update({ ...dto, slug: newSlug, path: newPath, level: newLevel }, { transaction: t });
+
+            if (!options.transaction) await t.commit();
+
+            return this.categoryModel.findByPk(category.id, {
+                include: ['parent', 'children'],
+                transaction: options.transaction,
+            });
+        } catch (error) {
+            if (!options.transaction) await t.rollback();
+            throw error;
         }
+    }
 
-        await category.update({ ...dto, slug: newSlug, path: newPath, level: newLevel }, { transaction: t });
-
-        return this.categoryModel.findByPk(category.id, {
-            include: ['parent', 'children'],
-            transaction: t,
+    private async validateSlug(slug: string, categoryId: string, transaction: Transaction): Promise<void> {
+        const existing = await this.categoryModel.findOne({
+            where: { slug, id: { [Op.ne]: categoryId } },
+            transaction,
         });
+        if (existing) {
+            throw new ConflictException(`Category with slug "${slug}" already exists.`);
+        }
     }
 
     private async calculateNewPathAndLevel(
@@ -215,34 +234,30 @@ export class CategoriesService
         }
     }
 
-    async remove(id: string): Promise<void> {
-        await this.sequelize.transaction(async (transaction) => {
-            const categoryEntity = await this.findOneData({
+    async remove(id: string, options?: DestroyOptions): Promise<void> {
+        const categoryEntity = (
+            await this.findOneData({
                 where: { id },
                 include: [
                     { model: Category, as: 'children' },
                     { model: Font, as: 'fonts' },
                     { model: FontCollection, as: 'collections' },
                 ],
-                transaction,
-            });
-
-            if (!categoryEntity) {
-                throw new NotFoundException(`Category with ID ${id} not found`);
-            }
-
-            const categoryJSON = categoryEntity.toJSON();
-            if (!isEmpty(get(categoryJSON, 'children', []))) {
-                throw new ConflictException(`Category with ID ${id} has children`);
-            }
-            if (!isEmpty(get(categoryJSON, 'fonts', []))) {
-                throw new ConflictException(`Category with ID ${id} has fonts`);
-            }
-            if (!isEmpty(get(categoryJSON, 'collections', []))) {
-                throw new ConflictException(`Category with ID ${id} has collections`);
-            }
-            await categoryEntity.destroy({ transaction });
-        });
+            })
+        ).toJSON();
+        if (!categoryEntity) {
+            throw new NotFoundException(`Category with ID ${id} not found`);
+        }
+        if (!isEmpty(get(categoryEntity, 'children', []))) {
+            throw new ConflictException(`Category with ID ${id} has children`);
+        }
+        if (!isEmpty(get(categoryEntity, 'fonts', []))) {
+            throw new ConflictException(`Category with ID ${id} has fonts`);
+        }
+        if (!isEmpty(get(categoryEntity, 'collections', []))) {
+            throw new ConflictException(`Category with ID ${id} has collections`);
+        }
+        await categoryEntity.destroy(options);
     }
 
     // --- API-Facing Methods for Controller Use ---
@@ -463,25 +478,5 @@ export class CategoriesService
 
     async findOneData(options: FindOptions<Category>): Promise<Category> {
         return this.categoryModel.findOne(options);
-    }
-
-    // --- Private Helper Methods ---
-    private _slugify(name: string): string {
-        return slugify(name, { lower: true, strict: true });
-    }
-
-    private async _checkSlugExists(
-        slug: string,
-        options?: { excludeId?: string; transaction?: Transaction },
-    ): Promise<void> {
-        const { excludeId, transaction } = options || {};
-        const where = {
-            slug,
-            ...(excludeId && { id: { [Op.ne]: excludeId } }),
-        };
-        const existingCategory = await this.categoryModel.findOne({ where, transaction, attributes: ['id'] });
-        if (existingCategory) {
-            throw new ConflictException(`Category with slug "${slug}" already exists.`);
-        }
     }
 }
