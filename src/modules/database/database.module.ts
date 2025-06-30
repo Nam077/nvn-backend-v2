@@ -27,5 +27,6 @@ import { ConfigServiceApp } from '@/modules/config/config.service';
             inject: [ConfigServiceApp],
         }),
     ],
+    exports: [SequelizeModule],
 })
 export class DatabaseModule {}

@@ -130,6 +130,10 @@ export class FontResponseDto {
     isActive: boolean;
 
     @Expose()
+    @ApiProperty({ example: false })
+    isSupportVietnamese: boolean;
+
+    @Expose()
     @ApiProperty({ example: { license: 'OFL', version: '2.1' } })
     metadata: Record<string, any>;
 

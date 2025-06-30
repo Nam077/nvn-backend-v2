@@ -14,9 +14,11 @@ import { FontsService } from '@/modules/fonts/fonts.service';
 import { TagsModule } from '@/modules/tags/tags.module';
 import { UsersModule } from '@/modules/users/users.module';
 
+import { FontIntegrityController } from './controllers/font-integrity.controller';
 import { FontCategory } from './entities/font-category.entity';
 import { FontTag } from './entities/font-tag.entity';
 import { FontWeight } from './entities/font-weight.entity';
+import { FontIntegrityService } from './services/font-integrity.service';
 
 @Module({
     imports: [
@@ -36,8 +38,8 @@ import { FontWeight } from './entities/font-weight.entity';
             FontCollection,
         ]),
     ],
-    controllers: [FontsController],
-    providers: [FontsService],
+    controllers: [FontsController, FontIntegrityController],
+    providers: [FontsService, FontIntegrityService],
     exports: [FontsService],
 })
 export class FontsModule {}

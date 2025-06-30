@@ -70,7 +70,7 @@ const isJsonLogicRuleNode = (arg: unknown): arg is JsonLogicRuleNode =>
 type FieldValueTuple = [string, JsonLogicPrimitive | JsonLogicPrimitive[]];
 
 // Allowed operators are now derived from our single source of truth, plus structural operators.
-const ALLOWED_OPERATORS = new Set(['and', 'or', 'not', ...values(ALL_OPERATORS_MAP)]);
+const ALLOWED_OPERATORS = new Set(['and', 'or', 'not', ...values(ALL_OPERATORS_MAP), 'json_array_text_contains']);
 
 export interface SqlBuildOptions {
     /**
@@ -236,6 +236,9 @@ export class JsonLogicToSqlBuilder {
             case 'array_overlaps':
                 return this.buildArrayOverlapCondition(operands, false);
 
+            case 'json_array_text_contains':
+                return this.buildJsonArrayTextContainsCondition(operands);
+
             default:
                 throw new QueryBuilderException(`Unsupported JsonLogic operator: ${operator}`);
         }
@@ -342,6 +345,26 @@ export class JsonLogicToSqlBuilder {
         const condition = `${mappedField} && ARRAY[:${paramName}]::uuid[]`;
 
         return not ? `NOT (${condition})` : condition;
+    }
+
+    protected buildJsonArrayTextContainsCondition(operands: JsonLogicArgument): string {
+        const [field, value] = this.extractFieldAndValue(operands);
+
+        if (!isString(value)) {
+            throw new QueryBuilderException('json_array_text_contains requires a string search value.');
+        }
+
+        if (!includes(field, '.')) {
+            throw new QueryBuilderException(
+                `Invalid field for JSON array query: ${field}. Must be in format 'column.key'.`,
+            );
+        }
+
+        const [columnName, jsonKey] = split(field, '.');
+        const mappedColumn = this.applyQuoting(columnName);
+        const paramName = this.addParameter(`%${value}%`);
+
+        return `EXISTS (SELECT 1 FROM jsonb_array_elements(${mappedColumn}) AS elem WHERE elem->>'${jsonKey}' ILIKE :${paramName})`;
     }
 
     protected buildJsonbQuery(operator: 'equals' | 'contains' | 'in', operands: JsonLogicArgument): string {

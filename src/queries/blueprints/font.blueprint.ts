@@ -83,7 +83,7 @@ export class FontQueryBlueprint extends QueryBlueprint<Font> {
             'authors.name': {
                 type: 'text',
                 label: 'Author Name',
-                operators: [STRING_OPERATORS.CONTAINS],
+                operators: ['json_array_text_contains'],
             },
         },
         relations: {
@@ -103,7 +103,7 @@ export class FontQueryBlueprint extends QueryBlueprint<Font> {
                     name: {
                         type: 'text',
                         label: 'Category Name',
-                        operators: [STRING_OPERATORS.CONTAINS],
+                        operators: ['json_array_text_contains'],
                     },
                 },
             },
@@ -123,7 +123,7 @@ export class FontQueryBlueprint extends QueryBlueprint<Font> {
                     name: {
                         type: 'text',
                         label: 'Tag Name',
-                        operators: [STRING_OPERATORS.CONTAINS],
+                        operators: ['json_array_text_contains'],
                     },
                 },
             },
@@ -144,8 +144,18 @@ export class FontQueryBlueprint extends QueryBlueprint<Font> {
             weights: {
                 model: FontWeight,
                 fields: {
+                    id: {
+                        type: 'remote_multiselect',
+                        label: 'Weight',
+                        operators: [ARRAY_OPERATORS.OVERLAPS],
+                        remoteValues: {
+                            blueprint: 'FONT_WEIGHT_MANAGEMENT',
+                            valueField: 'id',
+                            labelField: 'name',
+                        },
+                    },
                     name: {
-                        operators: [STRING_OPERATORS.EQUALS],
+                        operators: ['json_array_text_contains'],
                     },
                     weight: {
                         operators: [NUMBER_OPERATORS.EQUALS, NUMBER_OPERATORS.GTE, NUMBER_OPERATORS.LTE],

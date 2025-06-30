@@ -8,6 +8,7 @@ import { RolePermission } from '@/modules/users/entities/role-permission.entity'
 import { Role } from '@/modules/users/entities/role.entity';
 import { UserRole } from '@/modules/users/entities/user-role.entity';
 import { User } from '@/modules/users/entities/user.entity';
+import { RbacSeederService } from '@/modules/users/seeders/rbac-seeder.service';
 import { RbacService } from '@/modules/users/services/rbac.service';
 import { UsersController } from '@/modules/users/users.controller';
 import { UsersService } from '@/modules/users/users.service';
@@ -15,12 +16,7 @@ import { UsersService } from '@/modules/users/users.service';
 @Module({
     imports: [SequelizeModule.forFeature([User, Role, Permission, UserRole, RolePermission]), RedisModule],
     controllers: [UsersController, RbacController],
-    providers: [
-        UsersService,
-        RbacService,
-        // RbacSeederService,
-        Logger,
-    ],
+    providers: [UsersService, RbacService, RbacSeederService, Logger],
     exports: [UsersService, RbacService],
 })
 export class UsersModule {}

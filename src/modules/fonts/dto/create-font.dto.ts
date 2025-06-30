@@ -133,6 +133,11 @@ export class CreateFontDto {
     @IsBoolean()
     isActive?: boolean = true;
 
+    @ApiProperty({ description: 'Whether the font supports Vietnamese.', example: true })
+    @IsOptional()
+    @IsBoolean()
+    isSupportVietnamese?: boolean = false;
+
     @ApiProperty({
         description: 'Additional metadata for the font.',
         example: { version: '2.0', foundary: 'FontFabric' },

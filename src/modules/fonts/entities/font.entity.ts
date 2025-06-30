@@ -177,6 +177,14 @@ export class Font extends Model<Font, FontCreationAttrs> {
     })
     declare isActive: boolean;
 
+    @ApiProperty({ description: 'Is support Vietnamese', example: true })
+    @Column({
+        type: DataType.BOOLEAN,
+        defaultValue: false,
+        field: 'isSupportVietnamese',
+    })
+    declare isSupportVietnamese: boolean;
+
     @ApiProperty({ description: 'Additional metadata', example: '{"license": "OFL", "version": "2.0"}' })
     @Column({
         type: DataType.JSONB,

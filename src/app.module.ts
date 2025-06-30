@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule as NestConfigModule } from '@nestjs/config';
 import { APP_FILTER } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 
 import { AppController } from '@/app.controller';
 import { AppService } from '@/app.service';
@@ -17,10 +19,17 @@ import { RedisModule } from '@/modules/redis/redis.module';
 import { SecurityModule } from '@/modules/security/security.module';
 import { SubscriptionModule } from '@/modules/subscription/subscription.module';
 import { TagsModule } from '@/modules/tags/tags.module';
+import { TasksModule } from '@/modules/tasks/tasks.module';
 import { UsersModule } from '@/modules/users/users.module';
 
 @Module({
     imports: [
+        ScheduleModule.forRoot(),
+        TasksModule,
+        NestConfigModule.forRoot({
+            isGlobal: true,
+            envFilePath: '.env',
+        }),
         AuthModule,
         CaslModule,
         ConfigModule,
