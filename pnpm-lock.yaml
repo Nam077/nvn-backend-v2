@@ -85,9 +85,6 @@ importers:
             date-fns-tz:
                 specifier: ^3.2.0
                 version: 3.2.0(date-fns@4.1.0)
-            dotenv:
-                specifier: ^17.0.0
-                version: 17.0.0
             ioredis:
                 specifier: ^5.6.1
                 version: 5.6.1
@@ -200,6 +197,12 @@ importers:
             '@types/supertest':
                 specifier: ^6.0.2
                 version: 6.0.3
+            change-case:
+                specifier: ^5.4.4
+                version: 5.4.4
+            dotenv:
+                specifier: ^17.0.0
+                version: 17.0.0
             ejs:
                 specifier: ^3.1.10
                 version: 3.1.10
@@ -263,6 +266,9 @@ importers:
             lodash:
                 specifier: ^4.17.21
                 version: 4.17.21
+            pluralize:
+                specifier: ^8.0.0
+                version: 8.0.0
             prettier:
                 specifier: ^3.3.3
                 version: 3.5.3
@@ -3334,6 +3340,12 @@ packages:
                 integrity: sha512-zgVZuo2WcZgfUEmsn6eO3kINexW8RAE4maiQ8QNs8CtpPCSyMiYsULR3HQYkm3w8FIA3SberyMJMSldGsW+U3w==,
             }
         engines: { node: ^12.17.0 || ^14.13 || >=16.0.0 }
+
+    change-case@5.4.4:
+        resolution:
+            {
+                integrity: sha512-HRQyTk2/YPEkt9TnUPbOpr64Uw3KOicFWPVBb+xiHvd6eBx/qPr9xqfBFDT8P2vWsvvz4jbEkfDe71W3VyNu2w==,
+            }
 
     char-regex@1.0.2:
         resolution:
@@ -10797,6 +10809,8 @@ snapshots:
             supports-color: 7.2.0
 
     chalk@5.4.1: {}
+
+    change-case@5.4.4: {}
 
     char-regex@1.0.2: {}
 

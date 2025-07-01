@@ -1,0 +1,129 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/sequelize';
+import { FindOptions } from 'sequelize';
+import { map } from 'lodash';
+import { IApiResponse } from '@/common/dto/api.response.dto';
+import { IApiPaginatedResponse } from '@/common/dto/paginated.response.dto';
+import { PaginationDto } from '@/common/dto/pagination.dto';
+import { QueryDto } from '@/common/dto/query.dto';
+import { ICrudService } from '@/common/interfaces/crud.interface';
+import { <%= modelName %> } from '../entities/<%= modelNameSingularKebabCase %>.entity';
+import { Create<%= modelName %>Dto } from '../dto/create-<%= modelNameSingularKebabCase %>.dto';
+import { Update<%= modelName %>Dto } from '../dto/update-<%= modelNameSingularKebabCase %>.dto';
+import { <%= modelName %>ResponseDto } from '../dto/<%= modelNameSingularKebabCase %>.response.dto';
+
+@Injectable()
+export class <%= modelName %>Service implements ICrudService<<%= modelName %>, <%= modelName %>ResponseDto, Create<%= modelName %>Dto, Update<%= modelName %>Dto> {
+    constructor(
+        @InjectModel(<%= modelName %>)
+        private readonly <%= modelNameSingularCamelCase %>Model: typeof <%= modelName %>,
+    ) {}
+
+    async create(createDto: Create<%= modelName %>Dto): Promise<<%= modelName %>> {
+        const newInstance = await this.<%= modelNameSingularCamelCase %>Model.create(createDto as any);
+        return this.findOne(newInstance.id);
+    }
+
+    async findOne(id: string, options?: FindOptions): Promise<<%= modelName %>> {
+        const instance = await this.<%= modelNameSingularCamelCase %>Model.findByPk(id, options);
+        if (!instance) {
+            throw new NotFoundException(`<%= modelName %> with ID ${id} not found`);
+        }
+        return instance;
+    }
+
+    async findOneData(options: FindOptions<<%= modelName %>>): Promise<<%= modelName %>> {
+        const instance = await this.<%= modelNameSingularCamelCase %>Model.findOne(options);
+        if (!instance) {
+            throw new NotFoundException(`<%= modelName %> not found`);
+        }
+        return instance;
+    }
+
+    async find(options: FindOptions<<%= modelName %>>): Promise<<%= modelName %>[]> {
+        return this.<%= modelNameSingularCamelCase %>Model.findAll(options);
+    }
+    
+    async findAll(
+        paginationDto: PaginationDto,
+        queryDto: QueryDto,
+    ): Promise<{ rows: <%= modelName %>[]; total: number }> {
+        const { page = 1, limit = 10 } = paginationDto;
+        const offset = (page - 1) * limit;
+
+        const { rows, count } = await this.<%= modelNameSingularCamelCase %>Model.findAndCountAll({
+            offset,
+            limit,
+            // TODO: Add filtering and ordering based on queryDto
+        });
+
+        return { rows, total: count };
+    }
+
+    async update(id: string, updateDto: Update<%= modelName %>Dto): Promise<<%= modelName %>> {
+        const instance = await this.findOne(id);
+        await instance.update(updateDto);
+        return this.findOne(id);
+    }
+
+    async remove(id: string): Promise<void> {
+        const instance = await this.findOne(id);
+        await instance.destroy();
+    }
+
+    // --- API-Facing Methods ---
+
+    async createApi(createDto: Create<%= modelName %>Dto): Promise<IApiResponse<<%= modelName %>ResponseDto>> {
+        const newInstance = await this.create(createDto);
+        return {
+            statusCode: 201,
+            message: '<%= modelName %> created successfully.',
+            data: new <%= modelName %>ResponseDto(newInstance),
+        };
+    }
+
+    async findOneApi(id: string): Promise<IApiResponse<<%= modelName %>ResponseDto>> {
+        const instance = await this.findOne(id);
+        return {
+            statusCode: 200,
+            message: '<%= modelName %> retrieved successfully.',
+            data: new <%= modelName %>ResponseDto(instance),
+        };
+    }
+
+    async findAllApi(
+        paginationDto: PaginationDto,
+        queryDto: QueryDto,
+    ): Promise<IApiPaginatedResponse<<%= modelName %>ResponseDto>> {
+        const { rows, total } = await this.findAll(paginationDto, queryDto);
+        return {
+            statusCode: 200,
+            message: '<%= modelNamePlural %> retrieved successfully.',
+            data: map(rows, (row) => new <%= modelName %>ResponseDto(row)),
+            paging: {
+                total,
+                page: paginationDto.page,
+                limit: paginationDto.limit,
+                totalPages: Math.ceil(total / paginationDto.limit),
+            },
+        };
+    }
+
+    async updateApi(id: string, updateDto: Update<%= modelName %>Dto): Promise<IApiResponse<<%= modelName %>ResponseDto>> {
+        const updatedInstance = await this.update(id, updateDto);
+        return {
+            statusCode: 200,
+            message: '<%= modelName %> updated successfully.',
+            data: new <%= modelName %>ResponseDto(updatedInstance),
+        };
+    }
+
+    async removeApi(id: string): Promise<IApiResponse<null>> {
+        await this.remove(id);
+        return {
+            statusCode: 200,
+            message: '<%= modelName %> deleted successfully.',
+            data: null,
+        };
+    }
+} 

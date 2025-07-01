@@ -11,7 +11,7 @@ import {
     UseGuards,
     ValidationPipe,
 } from '@nestjs/common';
-import { ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiParam, ApiTags } from '@nestjs/swagger';
 
 import { AUTH_TYPE } from '@/common/constants/auth.constants';
 import { PAGINATION_TYPE } from '@/common/constants/pagination.constants';
@@ -19,13 +19,17 @@ import { ApiEndpoint } from '@/common/decorators/api-endpoint.decorator';
 import { IApiResponse } from '@/common/dto/api.response.dto';
 import { IApiPaginatedResponse } from '@/common/dto/paginated.response.dto';
 import { PaginationDto } from '@/common/dto/pagination.dto';
-import { QueryDto } from '@/common/dto/query.dto';
+import { createCustomQueryDto, QueryDto } from '@/common/dto/query.dto';
 import { CaslGuard } from '@/modules/casl/guards/casl.guard';
 
 import { CreateFontDto } from './dto/create-font.dto';
 import { FontResponseDto } from './dto/font.response.dto';
 import { UpdateFontDto } from './dto/update-font.dto';
 import { FontsService } from './fonts.service';
+
+const FontQueryDto = createCustomQueryDto({
+    and: [{ '==': [{ var: 'family' }, 'some-font-family'] }],
+});
 
 @ApiTags('Fonts')
 @Controller('fonts')
@@ -47,6 +51,7 @@ export class FontsController {
     }
 
     @Post('query')
+    @ApiBody({ type: FontQueryDto })
     @ApiEndpoint({
         summary: 'Query fonts with pagination',
         description: 'Retrieves fonts based on a JSON logic query with offset-based pagination.',

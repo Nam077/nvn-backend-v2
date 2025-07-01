@@ -1,0 +1,49 @@
+import { ApiProperty } from '@nestjs/swagger';
+import {
+    Column,
+    CreatedAt,
+    DataType,
+    Default,
+    Model,
+    PrimaryKey,
+    Table,
+    UpdatedAt,
+} from 'sequelize-typescript';
+
+@Table({
+    tableName: '<%= tableName %>',
+    timestamps: true,
+})
+export class <%= modelName %> extends Model<<%= modelName %>, <%= modelName %>CreationAttrs> {
+    @ApiProperty({ description: '<%= modelName %> ID', example: '123e4567-e89b-12d3-a456-426614174000' })
+    @PrimaryKey
+    @Default(DataType.UUIDV4)
+    @Column({
+        type: DataType.UUID,
+        defaultValue: DataType.UUIDV4,
+        field: 'id',
+    })
+    declare id: string;
+
+    @ApiProperty({ description: '<%= modelName %> name', example: 'Example Name' })
+    @Column({
+        type: DataType.STRING,
+        allowNull: false,
+        field: 'name',
+    })
+    declare name: string;
+    
+    @ApiProperty({ description: 'Creation date' })
+    @CreatedAt
+    @Column({ field: 'createdAt' })
+    declare createdAt: Date;
+
+    @ApiProperty({ description: 'Last update date' })
+    @UpdatedAt
+    @Column({ field: 'updatedAt' })
+    declare updatedAt: Date;
+}
+
+export interface <%= modelName %>CreationAttrs {
+    name: string;
+}

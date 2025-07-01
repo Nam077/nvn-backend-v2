@@ -5,7 +5,7 @@ import { IsArray, IsIn, IsNumber, IsObject, IsOptional, IsString, ValidateNested
 
 import { JsonLogicRuleNode } from '../query-builder/json-logic-to-sql.builder';
 
-class OrderDto {
+export class OrderDto {
     @ApiProperty({ description: 'Field to sort by', example: 'createdAt' })
     @IsString()
     field: string;
@@ -17,17 +17,7 @@ class OrderDto {
     direction: 1 | -1;
 }
 
-export class QueryDto {
-    @ApiProperty({
-        description: 'JsonLogic rule for filtering records.',
-        type: 'object',
-        example: { and: [{ '==': [{ var: 'email' }, 'test@example.com'] }] },
-        additionalProperties: true,
-    })
-    @IsOptional()
-    @IsObject()
-    filter: JsonLogicRuleNode;
-
+class BaseQueryDto {
     @ApiPropertyOptional({
         description: 'Array of fields to sort by.',
         type: [OrderDto],
@@ -48,3 +38,20 @@ export class QueryDto {
     @IsString({ each: true })
     select?: string[];
 }
+
+export const createCustomQueryDto = (filterExample: Record<string, any>) => {
+    class CustomQueryDto extends BaseQueryDto {
+        @ApiProperty({
+            description: 'JsonLogic rule for filtering records.',
+            type: 'object',
+            example: filterExample,
+            additionalProperties: true,
+        })
+        @IsOptional()
+        @IsObject()
+        filter: JsonLogicRuleNode;
+    }
+    return CustomQueryDto;
+};
+
+export class QueryDto extends createCustomQueryDto({ and: [{ '==': [{ var: 'email' }, 'test@example.com'] }] }) {}

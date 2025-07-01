@@ -1,0 +1,100 @@
+import {
+    Body,
+    Controller,
+    Delete,
+    Get,
+    HttpStatus,
+    Param,
+    Patch,
+    Post,
+    Query,
+    ValidationPipe,
+} from '@nestjs/common';
+import { ApiBody, ApiParam, ApiTags } from '@nestjs/swagger';
+
+import { PAGINATION_TYPE } from '@/common/constants/pagination.constants';
+import { ApiEndpoint } from '@/common/decorators/api-endpoint.decorator';
+import { IApiResponse } from '@/common/dto/api.response.dto';
+import { IApiPaginatedResponse } from '@/common/dto/paginated.response.dto';
+import { PaginationDto } from '@/common/dto/pagination.dto';
+import { createCustomQueryDto, QueryDto } from '@/common/dto/query.dto';
+
+import { Create<%= modelName %>Dto } from '../dto/create-<%= modelNameSingularKebabCase %>.dto';
+import { <%= modelName %>ResponseDto } from '../dto/<%= modelNameSingularKebabCase %>.response.dto';
+import { Update<%= modelName %>Dto } from '../dto/update-<%= modelNameSingularKebabCase %>.dto';
+import { <%= modelName %>Service } from '../services/<%= moduleName %>.service';
+
+const <%= modelName %>QueryDto = createCustomQueryDto({
+    and: [{ '==': [{ var: 'name' }, 'example-name'] }],
+});
+
+@ApiTags('<%= modelNamePlural %>')
+@Controller('<%= moduleName %>')
+export class <%= modelName %>Controller {
+    constructor(private readonly <%= modelNameSingularCamelCase %>Service: <%= modelName %>Service) {}
+
+    @Post()
+    @ApiEndpoint({
+        summary: 'Create a new <%= modelNameSingularLowerCase %>',
+        description: 'Creates a new <%= modelNameSingularLowerCase %> record.',
+        response: <%= modelName %>ResponseDto,
+        created: true,
+    })
+    async create(@Body(ValidationPipe) createDto: Create<%= modelName %>Dto): Promise<IApiResponse<<%= modelName %>ResponseDto>> {
+        return this.<%= modelNameSingularCamelCase %>Service.createApi(createDto);
+    }
+
+    @Post('query')
+    @ApiBody({ type: <%= modelName %>QueryDto })
+    @ApiEndpoint({
+        summary: 'Query <%= modelNamePluralKebabCase %> with pagination',
+        description: 'Retrieves <%= modelNameSingularLowerCase %> based on a JSON logic query with offset-based pagination.',
+        response: <%= modelName %>ResponseDto,
+        paginationType: PAGINATION_TYPE.OFFSET,
+    })
+    async findAll(
+        @Query(ValidationPipe) paginationDto: PaginationDto,
+        @Body(ValidationPipe) queryDto: QueryDto,
+    ): Promise<IApiPaginatedResponse<<%= modelName %>ResponseDto>> {
+        return this.<%= modelNameSingularCamelCase %>Service.findAllApi(paginationDto, queryDto);
+    }
+
+    @Get(':id')
+    @ApiEndpoint({
+        summary: 'Get a <%= modelNameSingularLowerCase %> by ID',
+        description: 'Retrieves a single <%= modelNameSingularLowerCase %> by its unique identifier.',
+        response: <%= modelName %>ResponseDto,
+        errors: [HttpStatus.NOT_FOUND],
+    })
+    @ApiParam({ name: 'id', description: '<%= modelName %> ID' })
+    async findOne(@Param('id') id: string): Promise<IApiResponse<<%= modelName %>ResponseDto>> {
+        return this.<%= modelNameSingularCamelCase %>Service.findOneApi(id);
+    }
+
+    @Patch(':id')
+    @ApiEndpoint({
+        summary: 'Update a <%= modelNameSingularLowerCase %>',
+        description: 'Updates an existing <%= modelNameSingularLowerCase %> record.',
+        response: <%= modelName %>ResponseDto,
+        errors: [HttpStatus.NOT_FOUND, HttpStatus.BAD_REQUEST],
+    })
+    @ApiParam({ name: 'id', description: '<%= modelName %> ID' })
+    async update(
+        @Param('id') id: string,
+        @Body(ValidationPipe) updateDto: Update<%= modelName %>Dto,
+    ): Promise<IApiResponse<<%= modelName %>ResponseDto>> {
+        return this.<%= modelNameSingularCamelCase %>Service.updateApi(id, updateDto);
+    }
+
+    @Delete(':id')
+    @ApiEndpoint({
+        summary: 'Delete a <%= modelNameSingularLowerCase %>',
+        description: 'Deletes a <%= modelNameSingularLowerCase %> record.',
+        response: null,
+        errors: [HttpStatus.NOT_FOUND],
+    })
+    @ApiParam({ name: 'id', description: '<%= modelName %> ID' })
+    async remove(@Param('id') id: string): Promise<IApiResponse<null>> {
+        return this.<%= modelNameSingularCamelCase %>Service.removeApi(id);
+    }
+}

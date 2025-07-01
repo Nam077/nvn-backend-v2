@@ -1,0 +1,14 @@
+import { Module } from '@nestjs/common';
+import { SequelizeModule } from '@nestjs/sequelize';
+
+import { <%= modelName %> } from './entities/<%= modelNameSingularKebabCase %>.entity';
+import { <%= modelName %>Controller } from './controllers/<%= moduleName %>.controller';
+import { <%= modelName %>Service } from './services/<%= moduleName %>.service';
+
+@Module({
+    imports: [SequelizeModule.forFeature([<%= modelName %>])],
+    controllers: [<%= modelName %>Controller],
+    providers: [<%= modelName %>Service],
+    exports: [<%= modelName %>Service],
+})
+export class <%= modelName %>Module {} 

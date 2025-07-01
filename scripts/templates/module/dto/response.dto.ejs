@@ -1,0 +1,27 @@
+import { ApiProperty } from '@nestjs/swagger';
+import { Exclude, Expose, plainToInstance } from 'class-transformer';
+import { assign } from 'lodash';
+import { <%= modelName %> } from '../entities/<%= modelNameSingularKebabCase %>.entity';
+
+@Exclude()
+export class <%= modelName %>ResponseDto {
+    @Expose()
+    @ApiProperty({ description: '<%= modelName %> ID', example: '123e4567-e89b-12d3-a456-426614174000' })
+    id: string;
+
+    @Expose()
+    @ApiProperty({ description: '<%= modelName %> name', example: 'Example <%= modelName %>' })
+    name: string;
+    
+    @Expose()
+    @ApiProperty({ description: 'Creation date' })
+    createdAt: Date;
+
+    @Expose()
+    @ApiProperty({ description: 'Last update date' })
+    updatedAt: Date;
+
+    constructor(partial: Partial<<%= modelName %>>) {
+        assign(this, plainToInstance(<%= modelName %>ResponseDto, partial, { excludeExtraneousValues: true }));
+    }
+} 

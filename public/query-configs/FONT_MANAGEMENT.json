@@ -1,0 +1,157 @@
+{
+    "name": "FONT_MANAGEMENT",
+    "fields": {
+        "name": {
+            "type": "text",
+            "operators": ["contains", "equals", "starts_with", "ends_with", "is_empty", "is_not_empty"],
+            "label": "Name"
+        },
+        "slug": {
+            "type": "text",
+            "operators": ["equals", "starts_with", "ends_with", "is_empty", "is_not_empty"],
+            "label": "Slug"
+        },
+        "fontType": {
+            "type": "select",
+            "label": "Font Type",
+            "operators": ["in", "equals"],
+            "fieldSettings": {
+                "defaultValue": ["free", "vip"],
+                "listValues": [
+                    {
+                        "title": "Free",
+                        "value": "free"
+                    },
+                    {
+                        "title": "Vip",
+                        "value": "vip"
+                    },
+                    {
+                        "title": "Paid",
+                        "value": "paid"
+                    }
+                ]
+            }
+        },
+        "price": {
+            "type": "number",
+            "operators": ["gte", "lte", "between"],
+            "label": "Price"
+        },
+        "downloadCount": {
+            "type": "number",
+            "label": "Download Count",
+            "operators": ["gte", "lte"]
+        },
+        "isActive": {
+            "type": "boolean",
+            "operators": ["equals"],
+            "fieldSettings": {
+                "defaultValue": true
+            },
+            "label": "Is Active"
+        },
+        "createdAt": {
+            "type": "datetime",
+            "label": "Creation Date",
+            "operators": ["between", "gte"]
+        },
+        "updatedAt": {
+            "type": "datetime",
+            "label": "Last Updated",
+            "operators": ["between", "gte"]
+        },
+        "authors.name": {
+            "type": "text",
+            "operators": ["json_array_text_contains"],
+            "label": "Author Name"
+        },
+        "categories.id": {
+            "type": "remote_multiselect",
+            "operators": ["array_overlaps"],
+            "label": "Category",
+            "remoteValues": {
+                "blueprint": "CATEGORY_MANAGEMENT",
+                "valueField": "id",
+                "labelField": "name"
+            }
+        },
+        "categories.name": {
+            "type": "text",
+            "operators": ["json_array_text_contains"],
+            "label": "Category Name"
+        },
+        "tags.id": {
+            "type": "remote_multiselect",
+            "operators": ["array_overlaps"],
+            "label": "Tag",
+            "remoteValues": {
+                "blueprint": "TAG_MANAGEMENT",
+                "valueField": "id",
+                "labelField": "name"
+            }
+        },
+        "tags.name": {
+            "type": "text",
+            "operators": ["json_array_text_contains"],
+            "label": "Tag Name"
+        },
+        "creator.firstName": {
+            "type": "text",
+            "operators": ["contains"],
+            "label": "Creator: First Name"
+        },
+        "creator.lastName": {
+            "type": "text",
+            "operators": ["contains"],
+            "label": "Creator: Last Name"
+        },
+        "creator.email": {
+            "type": "text",
+            "operators": ["equals"],
+            "label": "Creator: Email"
+        },
+        "weights.id": {
+            "type": "remote_multiselect",
+            "operators": ["array_overlaps"],
+            "label": "Weight",
+            "remoteValues": {
+                "blueprint": "FONT_WEIGHT_MANAGEMENT",
+                "valueField": "id",
+                "labelField": "name"
+            }
+        },
+        "weights.name": {
+            "type": "text",
+            "operators": ["json_array_text_contains"],
+            "label": "Weights: Name"
+        },
+        "weights.weight": {
+            "type": "text",
+            "operators": ["equals", "gte", "lte"],
+            "label": "Weights: Weight"
+        }
+    },
+    "sortableFields": ["name", "price", "downloadCount", "createdAt", "updatedAt"],
+    "selectableFields": [
+        "id",
+        "name",
+        "slug",
+        "authors",
+        "description",
+        "fontType",
+        "price",
+        "downloadCount",
+        "isActive",
+        "createdAt",
+        "updatedAt",
+        "creator",
+        "thumbnailFile",
+        "categories",
+        "tags",
+        "weights",
+        "weightCount"
+    ],
+    "defaultSort": [["createdAt", "DESC"]],
+    "generatedAt": "2025-07-01T16:06:30.984Z"
+}
