@@ -39,7 +39,14 @@ module.exports = {
                 'cleanup_failed_tasks',
                 'run_queue_processor',
                 'emergency_queue_reset',
-                UPSERT_FUNCTION
+                'upsert_font_search_index',
+                'notify_new_queue_task',
+                'queue_font_update_on_change',
+                'queue_resync_by_category',
+                'queue_resync_by_tag',
+                'queue_master_table_update',
+                'queue_font_update_from_master',
+                'process_font_update_queue',
             ];
 
             for (const funcName of functionsToCleanup) {
@@ -54,6 +61,8 @@ module.exports = {
                     // Silently continue - function might not exist
                 }
             }
+            // drop table search table
+            await queryInterface.sequelize.query(`DROP TABLE IF EXISTS ${SEARCH_TABLE} CASCADE;`);
 
             // Drop tables
             await queryInterface.sequelize.query(`DROP TABLE IF EXISTS ${QUEUE_TABLE} CASCADE;`);
@@ -754,7 +763,7 @@ module.exports = {
                                 SELECT COUNT(*) INTO v_estimated_fonts 
                                 FROM fonts 
                                 WHERE "thumbnailFileId" = v_target_id;
-                            END IF;
+                        END IF;
 
                         ELSE 
                             RETURN NEW;

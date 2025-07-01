@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InjectModel } from '@nestjs/sequelize';
 
 import { Promise } from 'bluebird';
-import { isEmpty, join, map, size, split, trim } from 'lodash';
+import { isEmpty, join, map, size, words } from 'lodash';
 import { FindOptions, Op, Transaction } from 'sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import slugify from 'slugify';
@@ -125,9 +125,19 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
         };
 
         if (q) {
-            const query = join(split(trim(q), ' '), ' & ');
-            whereClauses.push("document @@ to_tsquery('simple', :query)");
-            replacements.query = query;
+            // Use lodash's `words` to cleanly split the query string.
+            const terms = words(q);
+
+            if (!isEmpty(terms)) {
+                // Add the prefix operator `:*` to the last word.
+                terms[terms.length - 1] = `${terms[terms.length - 1]}:*`;
+
+                // Join all terms with the AND operator.
+                const query = join(terms, ' & ');
+
+                whereClauses.push("document @@ to_tsquery('simple', :query)");
+                replacements.query = query;
+            }
         }
 
         if (filter && !isEmpty(filter)) {

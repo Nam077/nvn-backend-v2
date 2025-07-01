@@ -12,6 +12,7 @@ module.exports = {
         dialectOptions: {
             ssl: process.env.DB_SSL === 'true' ? { require: true, rejectUnauthorized: false } : false,
         },
+        migrationStorageTableName: 'nvn_migration_stack',
     },
     test: {
         username: process.env.DB_USERNAME,
@@ -23,6 +24,7 @@ module.exports = {
         dialectOptions: {
             ssl: process.env.DB_SSL === 'true' ? { require: true, rejectUnauthorized: false } : false,
         },
+        migrationStorageTableName: 'nvn_migration_stack',
     },
     production: {
         username: process.env.DB_USERNAME,
@@ -38,5 +40,6 @@ module.exports = {
             },
         },
         use_env_variable: 'DATABASE_URL',
+        migrationStorageTableName: 'nvn_migration_stack',
     },
 };
