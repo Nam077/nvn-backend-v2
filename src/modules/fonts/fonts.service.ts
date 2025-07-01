@@ -219,7 +219,7 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
     async remove(id: string): Promise<void> {
         const font = await this.findOne(id);
         // Soft delete by default
-        await font.update({ isActive: false });
+        await font.destroy();
     }
 
     // --- API-Facing Methods for Controller Use ---

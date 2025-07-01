@@ -29,7 +29,9 @@ module.exports = {
             const functionsToCleanup = [
                 'queue_font_update_from_master',
                 'process_font_update_queue',
-                'process_font_update_queue_enhanced', 
+                'process_font_update_queue_enhanced',
+                'queue_font_update',
+                'queue_font_update_from_linking',
                 'queue_master_table_update',
                 'queue_single_font_update',
                 'queue_linking_table_update',
@@ -109,30 +111,30 @@ module.exports = {
             await queryInterface.sequelize.query(`
                 CREATE TABLE IF NOT EXISTS ${SEARCH_TABLE} (
                     id uuid PRIMARY KEY,
-                    name text, 
-                    slug text, 
-                    authors jsonb, 
-                    description text, 
+                    name text,
+                    slug text,
+                    authors jsonb,
+                    description text,
                     "fontType" text,
-                    price numeric(10, 2), 
-                    "downloadCount" integer, 
+                    price numeric(10, 2),
+                    "downloadCount" integer,
                     "isActive" boolean,
-                    "isSupportVietnamese" boolean, 
-                    metadata jsonb, 
+                    "isSupportVietnamese" boolean,
+                    metadata jsonb,
                     "createdAt" timestamptz,
-                    "updatedAt" timestamptz, 
-                    "thumbnailUrl" text, 
+                    "updatedAt" timestamptz,
+                    "thumbnailUrl" text,
                     "previewText" text,
-                    "creatorId" uuid, 
-                    "thumbnailFileId" uuid, 
-                    creator jsonb, 
+                    "creatorId" uuid,
+                    "thumbnailFileId" uuid,
+                    creator jsonb,
                     "thumbnailFile" jsonb,
-                    categories jsonb, 
-                    tags jsonb, 
-                    weights jsonb, 
+                    categories jsonb,
+                    tags jsonb,
+                    weights jsonb,
                     "weightCount" bigint,
-                    "categoryIds" uuid[], 
-                    "tagIds" uuid[], 
+                    "categoryIds" uuid[],
+                    "tagIds" uuid[],
                     "weightIds" uuid[],
                     document tsvector, 
                     last_updated timestamptz DEFAULT now()
@@ -142,13 +144,19 @@ module.exports = {
             // --- PHASE 4: CREATE OPTIMIZED INDEXES ---
             console.log('\n📋 Phase 4: Creating optimized indexes...');
             
+            // Drop indexes explicitly to be safe from any previous state
+            await queryInterface.sequelize.query(`DROP INDEX IF EXISTS idx_${QUEUE_TABLE}_unique_single_font;`);
+            await queryInterface.sequelize.query(`DROP INDEX IF EXISTS idx_${QUEUE_TABLE}_unique_aggregate_task;`);
+            await queryInterface.sequelize.query(`DROP INDEX IF EXISTS uq_queue_single_font_task;`);
+            await queryInterface.sequelize.query(`DROP INDEX IF EXISTS uq_queue_aggregate_task;`);
+
             const indexes = [
-                // Queue table indexes
-                `CREATE UNIQUE INDEX IF NOT EXISTS idx_${QUEUE_TABLE}_unique_single_font
+                // Queue table indexes - Explicitly named constraints to resolve ON CONFLICT ambiguity
+                `CREATE UNIQUE INDEX uq_queue_single_font_task
                  ON ${QUEUE_TABLE} (font_id) 
                  WHERE task_type = 'SINGLE_FONT_UPDATE' AND NOT processing`,
                 
-                `CREATE UNIQUE INDEX IF NOT EXISTS idx_${QUEUE_TABLE}_unique_aggregate_task
+                `CREATE UNIQUE INDEX uq_queue_aggregate_task
                  ON ${QUEUE_TABLE} (task_type, target_id) 
                  WHERE task_type != 'SINGLE_FONT_UPDATE' AND NOT processing`,
                 
@@ -186,7 +194,7 @@ module.exports = {
                     console.log(`   ⚠️ Index ${i + 1}/${indexes.length} warning: ${e.message.split('\n')[0]}`);
                 }
             }
-
+            
             // --- PHASE 5: CREATE CORE UPSERT FUNCTION (NO DELETED_AT) ---
             console.log('\n📋 Phase 5: Creating optimized upsert function...');
             
@@ -313,7 +321,7 @@ module.exports = {
                             creator, "thumbnailFile", categories, tags, weights, "weightCount", 
                             "categoryIds", "tagIds", "weightIds", document, last_updated
                         )
-                        SELECT 
+                        SELECT
                             agg.id, agg.name, agg.slug, agg.authors, agg.description, agg."fontType", 
                             agg.price, agg."downloadCount", agg."isActive", agg."isSupportVietnamese", 
                             agg.metadata, agg."createdAt", agg."updatedAt", agg."thumbnailUrl", 
@@ -615,7 +623,7 @@ module.exports = {
 
             // --- PHASE 8: CREATE TRIGGER FUNCTIONS (NO DELETED_AT) ---
             console.log('\n📋 Phase 8: Creating smart trigger functions...');
-
+            
             await queryInterface.sequelize.query(`
                 CREATE FUNCTION queue_single_font_update()
                 RETURNS TRIGGER LANGUAGE plpgsql AS $$
@@ -630,7 +638,7 @@ module.exports = {
                             jsonb_build_object('font_name', OLD.name),
                             'trigger_fonts'
                         )
-                        ON CONFLICT (font_id) WHERE task_type = 'SINGLE_FONT_UPDATE' AND NOT processing DO UPDATE SET
+                        ON CONFLICT (font_id) WHERE ((task_type = 'SINGLE_FONT_UPDATE'::text) AND (NOT processing)) DO UPDATE SET
                             operation = 'delete',
                             priority = GREATEST(EXCLUDED.priority, ${QUEUE_TABLE}.priority),
                             queued_at = now(),
@@ -647,7 +655,7 @@ module.exports = {
                             jsonb_build_object('font_name', NEW.name),
                             'trigger_fonts'
                         )
-                        ON CONFLICT (font_id) WHERE task_type = 'SINGLE_FONT_UPDATE' AND NOT processing DO UPDATE SET
+                        ON CONFLICT (font_id) WHERE ((task_type = 'SINGLE_FONT_UPDATE'::text) AND (NOT processing)) DO UPDATE SET
                             operation = CASE WHEN ${QUEUE_TABLE}.operation = 'delete' THEN 'delete' ELSE 'upsert' END,
                             priority = GREATEST(EXCLUDED.priority, ${QUEUE_TABLE}.priority),
                             queued_at = now(),
@@ -679,7 +687,7 @@ module.exports = {
                         jsonb_build_object('trigger_table', TG_TABLE_NAME),
                         'trigger_' || TG_TABLE_NAME
                     )
-                    ON CONFLICT (font_id) WHERE task_type = 'SINGLE_FONT_UPDATE' AND NOT processing DO UPDATE SET
+                    ON CONFLICT (font_id) WHERE ((task_type = 'SINGLE_FONT_UPDATE'::text) AND (NOT processing)) DO UPDATE SET
                         operation = CASE WHEN ${QUEUE_TABLE}.operation = 'delete' THEN 'delete' ELSE 'upsert' END,
                         queued_at = now(),
                         processing = false,
@@ -727,7 +735,8 @@ module.exports = {
                             v_change_detected := (
                                 OLD."firstName" IS DISTINCT FROM NEW."firstName" OR 
                                 OLD."lastName" IS DISTINCT FROM NEW."lastName" OR
-                                OLD.email IS DISTINCT FROM NEW.email
+                                OLD.email IS DISTINCT FROM NEW.email OR
+                                OLD."isActive" IS DISTINCT FROM NEW."isActive"
                             );
                             IF v_change_detected THEN
                                 SELECT COUNT(*) INTO v_estimated_fonts 
@@ -746,7 +755,7 @@ module.exports = {
                                 FROM fonts 
                                 WHERE "thumbnailFileId" = v_target_id;
                             END IF;
-                            
+
                         ELSE 
                             RETURN NEW;
                     END CASE;
@@ -761,7 +770,7 @@ module.exports = {
                             jsonb_build_object('estimated_fonts', v_estimated_fonts),
                             'trigger_' || TG_TABLE_NAME
                         )
-                        ON CONFLICT (task_type, target_id) WHERE task_type != 'SINGLE_FONT_UPDATE' AND NOT processing DO UPDATE SET
+                        ON CONFLICT (task_type, target_id) WHERE ((task_type <> 'SINGLE_FONT_UPDATE'::text) AND (NOT processing)) DO UPDATE SET
                             queued_at = now(),
                             processing = false,
                             retry_count = 0,
@@ -771,6 +780,16 @@ module.exports = {
                             v_task_type, v_target_id, v_estimated_fonts;
                     END IF;
 
+                    RETURN NEW;
+                END;
+                $$;
+            `);
+
+            await queryInterface.sequelize.query(`
+                CREATE FUNCTION notify_new_queue_task()
+                RETURNS TRIGGER LANGUAGE plpgsql AS $$
+                BEGIN
+                    PERFORM pg_notify('new_queue_task', TG_OP);
                     RETURN NEW;
                 END;
                 $$;
@@ -800,12 +819,19 @@ module.exports = {
             for (const table of masterTables) {
                 await queryInterface.sequelize.query(`
                     CREATE TRIGGER trigger_queue_update 
-                    AFTER UPDATE ON ${table} 
-                    FOR EACH ROW 
+                    AFTER UPDATE ON ${table}
+                    FOR EACH ROW
                     WHEN (current_setting('session_replication_role') <> 'replica')
                     EXECUTE FUNCTION queue_master_table_update();
                 `);
             }
+
+            await queryInterface.sequelize.query(`
+                CREATE TRIGGER trigger_notify_new_task
+                AFTER INSERT ON ${QUEUE_TABLE}
+                FOR EACH ROW
+                EXECUTE FUNCTION notify_new_queue_task();
+            `);
 
             // --- PHASE 10: CREATE CONVENIENCE FUNCTIONS ---
             console.log('\n📋 Phase 10: Creating convenience functions...');
@@ -844,7 +870,7 @@ module.exports = {
 
             // --- PHASE 11: INITIAL DATA SYNC ---
             console.log('\n📋 Phase 11: Initial data synchronization...');
-            
+
             const fontIdsResult = await queryInterface.sequelize.query(
                 'SELECT id FROM fonts WHERE "isActive" = true',
                 { type: queryInterface.sequelize.QueryTypes.SELECT }
@@ -854,7 +880,7 @@ module.exports = {
             const totalActiveFonts = allFontIds.length;
             
             console.log(`📊 Found ${totalActiveFonts} active fonts to synchronize`);
-            
+
             if (totalActiveFonts > 0) {
                 const SYNC_BATCH_SIZE = 1000;
                 let processed = 0;
@@ -862,42 +888,16 @@ module.exports = {
                 for (let i = 0; i < allFontIds.length; i += SYNC_BATCH_SIZE) {
                     const batch = allFontIds.slice(i, i + SYNC_BATCH_SIZE);
                     const formattedIds = `{${batch.join(',')}}`;
-                    
                     await queryInterface.sequelize.query(`SELECT ${UPSERT_FUNCTION}(:fontIds)`, {
                         replacements: { fontIds: formattedIds },
                         type: queryInterface.sequelize.QueryTypes.SELECT,
                     });
-                    
                     processed += batch.length;
-                    console.log(`   ✅ Synchronized ${processed}/${totalActiveFonts} fonts (${Math.round(processed/totalActiveFonts*100)}%)`);
+                    console.log(`📊 Synchronized ${processed} of ${totalActiveFonts} active fonts`);
                 }
             }
 
-            // --- FINAL VERIFICATION ---
-            console.log('\n📋 Final verification...');
-            
-            const [indexCountResult] = await queryInterface.sequelize.query(`
-                SELECT COUNT(*) as count FROM ${SEARCH_TABLE} WHERE "isActive" = true
-            `);
-            const totalIndexedFonts = parseInt(indexCountResult[0].count);
-
-            const [queueHealthResult] = await queryInterface.sequelize.query(`
-                SELECT get_queue_health() as health
-            `);
-            const queueHealth = queueHealthResult[0].health;
-
-            console.log('\n🎉 PRODUCTION FONT SEARCH SYSTEM DEPLOYED SUCCESSFULLY! 🎉');
-            console.log('═══════════════════════════════════════════════════════════════');
-            console.log(`📊 DEPLOYMENT SUMMARY:`);
-            console.log(`   • Source fonts: ${totalActiveFonts}`);
-            console.log(`   • Indexed fonts: ${totalIndexedFonts}`);
-            console.log(`   • Sync status: ${totalActiveFonts === totalIndexedFonts ? '✅ PERFECT' : '⚠️ PARTIAL'}`);
-            console.log(`   • Queue health: ${queueHealth.health_status}`);
-            console.log('');
-            console.log('🚀 SYSTEM READY FOR PRODUCTION!');
-            console.log(`⏰ Completed at: ${new Date().toISOString()}`);
-            console.log(`👤 Deployed by: Nam077`);
-
+            console.log('🎉 PRODUCTION FONT SEARCH SYSTEM DEPLOYED SUCCESSFULLY! 🎉');
         } catch (error) {
             console.error('\n❌ DEPLOYMENT FAILED:', error);
             throw error;
@@ -906,36 +906,25 @@ module.exports = {
 
     async down(queryInterface) {
         console.log('=== REMOVING PRODUCTION FONT SEARCH SYSTEM ===');
-        
         try {
             const tablesWithTriggers = ['fonts', 'font_categories', 'font_tags', 'font_weights', 'categories', 'tags', 'users', 'files'];
             for (const table of tablesWithTriggers) {
                 await queryInterface.sequelize.query(`DROP TRIGGER IF EXISTS trigger_queue_update ON ${table};`);
             }
-
+            await queryInterface.sequelize.query(`DROP TRIGGER IF EXISTS trigger_notify_new_task ON ${QUEUE_TABLE};`);
             const functions = [
-                `${UPSERT_FUNCTION}(uuid[])`,
-                `process_font_update_queue_enhanced(integer)`,
-                `get_queue_health()`,
-                `cleanup_failed_tasks()`,
-                `run_queue_processor()`,
-                `emergency_queue_reset()`,
-                `queue_single_font_update()`,
-                `queue_linking_table_update()`,
-                `queue_master_table_update()`
+                `${UPSERT_FUNCTION}(uuid[])`, `process_font_update_queue_enhanced(integer)`, `get_queue_health()`,
+                `cleanup_failed_tasks()`, `run_queue_processor()`, `emergency_queue_reset()`,
+                `queue_single_font_update()`, `queue_linking_table_update()`, `queue_master_table_update()`, `notify_new_queue_task()`,
             ];
-
             for (const func of functions) {
                 await queryInterface.sequelize.query(`DROP FUNCTION IF EXISTS ${func} CASCADE;`);
             }
-
             await queryInterface.sequelize.query(`DROP TABLE IF EXISTS ${QUEUE_TABLE} CASCADE;`);
-            
             console.log('✅ Production font search system removed successfully');
-
         } catch (error) {
             console.error('❌ Error during rollback:', error);
             throw error;
         }
-    }
+    },
 };

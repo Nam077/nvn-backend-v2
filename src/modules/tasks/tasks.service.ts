@@ -1,8 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
 import { get } from 'lodash';
+import { Client } from 'pg';
 import { Sequelize } from 'sequelize-typescript';
+
+import { ConfigServiceApp } from '../config/config.service';
 
 // Type definitions
 interface QueueProcessorResult {
@@ -57,11 +60,12 @@ interface DatabaseQueryResult<T = any> {
 }
 
 @Injectable()
-export class TasksService {
+export class TasksService implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(TasksService.name);
     private isProcessing: boolean = false;
     private consecutiveErrors: number = 0;
     private readonly maxConsecutiveErrors: number = 5;
+    private listenerClient: Client;
 
     private stats: {
         totalRuns: number;
@@ -83,12 +87,45 @@ export class TasksService {
         uptime: new Date(),
     };
 
-    constructor(private readonly sequelize: Sequelize) {}
+    constructor(
+        private readonly sequelize: Sequelize,
+        private readonly configService: ConfigServiceApp,
+    ) {}
+
+    async onModuleInit() {
+        this.logger.log('TasksService initializing, cleaning up any stuck tasks from previous runs...');
+        await this.cleanupFailedTasks();
+
+        this.listenerClient = new Client({
+            host: this.configService.dbHost,
+            port: this.configService.dbPort,
+            user: this.configService.dbUsername,
+            password: this.configService.dbPassword,
+            database: this.configService.dbName,
+        });
+
+        try {
+            await this.listenerClient.connect();
+            this.listenerClient.on('notification', () => {
+                this.logger.debug('Received notification, triggering queue processor');
+                void this.handleProcessFontQueue();
+            });
+            void this.listenerClient.query('LISTEN new_queue_task');
+
+            this.logger.log('Database listener connected and listening for "new_queue_task"');
+        } catch (error) {
+            this.logger.error('Failed to connect database listener', error);
+        }
+    }
+
+    async onModuleDestroy() {
+        await this.listenerClient.end();
+        this.logger.log('Database listener disconnected');
+    }
 
     /**
-     * Main queue processor - runs every 10 seconds with adaptive interval
+     * Main queue processor - runs on notification
      */
-    @Cron(CronExpression.EVERY_10_SECONDS)
     async handleProcessFontQueue(): Promise<void> {
         // Skip if already processing
         if (this.isProcessing) {
@@ -162,36 +199,6 @@ export class TasksService {
             }
         } finally {
             this.isProcessing = false;
-        }
-    }
-
-    /**
-     * High priority processing for urgent tasks - runs every 5 seconds
-     */
-    @Cron(CronExpression.EVERY_5_SECONDS)
-    async handleHighPriorityQueue(): Promise<void> {
-        try {
-            const [healthResult] = (await this.sequelize.query('SELECT get_queue_health();')) as [
-                DatabaseQueryResult[],
-                unknown,
-            ];
-            const health: QueueHealth | undefined = get(healthResult, '[0].get_queue_health') as QueueHealth;
-
-            if (!health) return;
-
-            const aggregateTasks: number = get(health, 'aggregate_tasks', 0);
-            const healthStatus: string = get(health, 'health_status', '') as string;
-
-            // Process immediately if there are aggregate tasks or critical status
-            if (aggregateTasks > 0 || healthStatus === 'critical') {
-                this.logger.log(`🔥 High priority processing triggered: ${healthStatus}`);
-
-                if (!this.isProcessing) {
-                    await this.handleProcessFontQueue();
-                }
-            }
-        } catch (error: unknown) {
-            this.logger.error('High priority check error:', get(error, 'message') as string);
         }
     }
 
