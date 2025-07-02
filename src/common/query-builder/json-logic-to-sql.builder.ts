@@ -35,7 +35,6 @@ import {
     split,
     join,
     get,
-    values,
     isNull,
     size,
     endsWith,
@@ -70,7 +69,13 @@ const isJsonLogicRuleNode = (arg: unknown): arg is JsonLogicRuleNode =>
 type FieldValueTuple = [string, JsonLogicPrimitive | JsonLogicPrimitive[]];
 
 // Allowed operators are now derived from our single source of truth, plus structural operators.
-const ALLOWED_OPERATORS = new Set(['and', 'or', 'not', ...values(ALL_OPERATORS_MAP), 'json_array_text_contains']);
+const ALLOWED_OPERATORS = new Set([
+    'and',
+    'or',
+    'not',
+    ...map(ALL_OPERATORS_MAP, (value) => value.op),
+    'json_array_text_contains',
+]);
 
 export interface SqlBuildOptions {
     /**

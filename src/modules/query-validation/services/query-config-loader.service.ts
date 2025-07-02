@@ -30,7 +30,9 @@ export class QueryConfigLoaderService {
         // 1. Check user-specific cache
         if (userId) {
             const cachedValue = await this.redisService.get(userCacheKey);
-            if (cachedValue) return JSON.parse(cachedValue) as Record<string, any>;
+            if (cachedValue) {
+                return JSON.parse(cachedValue) as Record<string, any>;
+            }
         }
 
         // 2. Check system-default cache

@@ -233,28 +233,36 @@ module.exports = {
                         resolved_gallery_data AS (
                             SELECT
                                 f.id as font_id,
-                                COALESCE(jsonb_agg(
-                                    CASE
-                                        -- If it's an entity type and we found a matching file, update the url
-                                        WHEN (image_element->>'type') = 'entity' AND fi.id IS NOT NULL THEN
-                                            jsonb_set(
-                                                image_element,
-                                                '{url}',
-                                                to_jsonb(COALESCE(fi."cdnUrl", fi.url))
-                                            )
-                                        -- Otherwise (it's 'url' type or the file was not found), keep the original element
-                                        ELSE
-                                            image_element
-                                    END
-                                ), '[]'::jsonb) as "galleryImages"
+                                CASE
+                                    -- If galleryImages is null or empty array, return empty array
+                                    WHEN f."galleryImages" IS NULL OR jsonb_array_length(f."galleryImages") = 0 THEN
+                                        '[]'::jsonb
+                                    -- If galleryImages has content, process it
+                                    ELSE
+                                        COALESCE(jsonb_agg(
+                                            CASE
+                                                -- If it's an entity type and we found a matching file, update the url
+                                                WHEN (image_element->>'type') = 'entity' AND fi.id IS NOT NULL THEN
+                                                    jsonb_set(
+                                                        image_element,
+                                                        '{url}',
+                                                        to_jsonb(COALESCE(fi."cdnUrl", fi.url))
+                                                    )
+                                                -- Otherwise (it's 'url' type or the file was not found), keep the original element
+                                                ELSE
+                                                    image_element
+                                            END
+                                        ) FILTER (WHERE image_element IS NOT NULL), '[]'::jsonb)
+                                END as "galleryImages"
                             FROM
                                 fonts f
-                            -- Use a LATERAL join to safely unnest, handles empty or null arrays
-                            LEFT JOIN LATERAL jsonb_array_elements(f."galleryImages") AS image_element ON true
+                            -- Use a LATERAL join to safely unnest, only when galleryImages is not empty
+                            LEFT JOIN LATERAL jsonb_array_elements(f."galleryImages") AS image_element ON 
+                                f."galleryImages" IS NOT NULL AND jsonb_array_length(f."galleryImages") > 0
                             -- Join to files table only for entity types
                             LEFT JOIN files fi ON (image_element->>'type') = 'entity' AND (fi.id = (image_element->>'fileId')::uuid)
                             WHERE f.id = ANY(current_batch)
-                            GROUP BY f.id
+                            GROUP BY f.id, f."galleryImages"
                         ),
                         font_data AS (
                             SELECT DISTINCT f.id 
@@ -923,7 +931,7 @@ module.exports = {
             console.log(`📊 Found ${totalActiveFonts} active fonts to synchronize`);
 
             if (totalActiveFonts > 0) {
-                const SYNC_BATCH_SIZE = 1000;
+                const SYNC_BATCH_SIZE = 5000;
                 let processed = 0;
                 
                 for (let i = 0; i < allFontIds.length; i += SYNC_BATCH_SIZE) {

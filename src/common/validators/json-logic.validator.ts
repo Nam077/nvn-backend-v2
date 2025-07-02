@@ -107,14 +107,13 @@ export class JsonLogicValidator {
         const mappedFieldEntries = map(
             blueprint.fields,
             (config: UiFieldDefinition, fieldName: string): [string, UiFieldDefinition] => {
-                const mappedOperators = map(config.operators, (op: string) => {
+                forEach(config.operators, (op: string) => {
                     const operatorInfo = get(ALL_OPERATORS_MAP, op);
                     if (!operatorInfo) {
                         throw new Error(`Operator "${op}" in blueprint is not defined in ALL_OPERATORS_MAP.`);
                     }
-                    return operatorInfo.op;
                 });
-                return [fieldName, { ...config, operators: mappedOperators }];
+                return [fieldName, { ...config }];
             },
         );
         return new Map(mappedFieldEntries);
@@ -172,9 +171,14 @@ export class JsonLogicValidator {
         values: any[],
         queryableFields: Map<string, UiFieldDefinition>,
     ): void {
+        // Convert JSON Logic operator to blueprint operator for validation
+        const friendlyName = get(LOGIC_TO_FRIENDLY_MAP, operator);
+        const blueprintOperator = friendlyName || operator;
+
         const allAllowedOperators = new Set(Array.from(queryableFields.values()).flatMap((config) => config.operators));
-        if (!allAllowedOperators.has(operator)) {
-            throw new Error(`Operator "${operator}" is not allowed by this blueprint.`);
+
+        if (!allAllowedOperators.has(blueprintOperator)) {
+            throw new Error(`Operator "${blueprintOperator}" is not allowed by this blueprint.`);
         }
 
         this.validateOperatorArguments(operator, values);
@@ -186,8 +190,8 @@ export class JsonLogicValidator {
 
         for (const fieldName of referencedFieldNames) {
             const fieldConfig = queryableFields.get(fieldName);
-            if (!includes(fieldConfig?.operators, operator)) {
-                throw new Error(`Operator "${operator}" is not allowed for field "${fieldName}".`);
+            if (!includes(fieldConfig?.operators, blueprintOperator)) {
+                throw new Error(`Operator "${blueprintOperator}" is not allowed for field "${fieldName}".`);
             }
             this.validateOperatorValues(operator, values, fieldName, fieldConfig);
         }

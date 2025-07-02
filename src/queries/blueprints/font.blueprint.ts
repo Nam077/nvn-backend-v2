@@ -66,7 +66,7 @@ export class FontQueryBlueprint extends QueryBlueprint<Font> {
             },
             isActive: {
                 type: 'boolean',
-                operators: [BOOLEAN_OPERATORS.EQUALS],
+                operators: [BOOLEAN_OPERATORS.EQUALS, ENUM_OPERATORS.IN],
                 fieldSettings: {
                     defaultValue: true,
                     listValuesType: 'object',
