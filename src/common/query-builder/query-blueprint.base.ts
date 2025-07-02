@@ -10,7 +10,9 @@ import { ModelAttributes } from '../types/sequelize.types';
  */
 export interface FieldSettings {
     defaultValue?: any;
-    listValues?: { title: string; value: any }[];
+    listValues?: any[];
+    listValuesType?: 'primitive' | 'object';
+    valueKey?: string;
 
     // For 'remote_select' or 'remote_multiselect'
     remoteValues?: {
@@ -86,7 +88,7 @@ export interface BlueprintDefinition<T extends Model> {
     };
     selectableFields: (keyof T['_attributes'] | string)[];
     sortableFields: (keyof T['_attributes'] | string)[];
-    defaultSort?: [keyof T['_attributes'] | string, 'ASC' | 'DESC'][];
+    defaultSort?: { field: keyof T; direction: 1 | -1 }[];
 }
 
 /**

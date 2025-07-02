@@ -99,6 +99,11 @@
         "roles",
         "permissions"
     ],
-    "defaultSort": [["createdAt", "DESC"]],
-    "generatedAt": "2025-07-01T16:06:30.572Z"
+    "defaultSort": [
+        {
+            "field": "createdAt",
+            "direction": -1
+        }
+    ],
+    "generatedAt": "2025-07-01T19:03:41.840Z"
 }

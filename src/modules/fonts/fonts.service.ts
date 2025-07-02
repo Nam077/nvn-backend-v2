@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InjectModel } from '@nestjs/sequelize';
 
 import { Promise } from 'bluebird';
-import { isEmpty, join, map, size, words } from 'lodash';
+import { isEmpty, join, map, size, toLower, words } from 'lodash';
 import { FindOptions, Op, Transaction } from 'sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import slugify from 'slugify';
@@ -136,7 +136,7 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
                 const query = join(terms, ' & ');
 
                 whereClauses.push("document @@ to_tsquery('simple', :query)");
-                replacements.query = query;
+                replacements.query = toLower(query);
             }
         }
 

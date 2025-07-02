@@ -6,7 +6,6 @@
 
 // Base query blueprint functionality
 export * from './query-blueprint.base';
-export * from './operators.constants';
 
 // JsonLogic to SQL conversion utilities
 export * from './json-logic-to-sql.builder';

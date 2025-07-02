@@ -21,6 +21,7 @@ import { IApiPaginatedResponse } from '@/common/dto/paginated.response.dto';
 import { PaginationDto } from '@/common/dto/pagination.dto';
 import { createCustomQueryDto, QueryDto } from '@/common/dto/query.dto';
 import { CaslGuard } from '@/modules/casl/guards/casl.guard';
+import { ValidateQuery } from '@/modules/query-validation/decorators/validate-query.decorator';
 
 import { CreateFontDto } from './dto/create-font.dto';
 import { FontResponseDto } from './dto/font.response.dto';
@@ -51,6 +52,7 @@ export class FontsController {
     }
 
     @Post('query')
+    @ValidateQuery('FONT_MANAGEMENT')
     @ApiBody({ type: FontQueryDto })
     @ApiEndpoint({
         summary: 'Query fonts with pagination',

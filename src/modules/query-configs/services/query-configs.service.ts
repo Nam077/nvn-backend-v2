@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Inject } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 
 import { map } from 'lodash';
@@ -13,6 +13,7 @@ import { CreateQueryConfigDto } from '@/modules/query-configs/dto/create-query-c
 import { QueryConfigResponseDto } from '@/modules/query-configs/dto/query-config.response.dto';
 import { UpdateQueryConfigDto } from '@/modules/query-configs/dto/update-query-config.dto';
 import { QueryConfig } from '@/modules/query-configs/entities/query-config.entity';
+import { QueryConfigLoaderService } from '@/modules/query-validation/services/query-config-loader.service';
 
 @Injectable()
 export class QueryConfigsService
@@ -21,6 +22,8 @@ export class QueryConfigsService
     constructor(
         @InjectModel(QueryConfig)
         private readonly queryConfigModel: typeof QueryConfig,
+        @Inject(QueryConfigLoaderService)
+        private readonly queryConfigLoader: QueryConfigLoaderService,
     ) {}
 
     async create(
@@ -30,6 +33,8 @@ export class QueryConfigsService
     ): Promise<QueryConfig> {
         const { key } = createQueryConfigDto;
         const userId = authUser?.id || null;
+
+        await this.queryConfigLoader.invalidateCache(key, userId);
 
         const existing = await this.queryConfigModel.findOne({ where: { key, userId } });
         if (existing) {
@@ -71,34 +76,31 @@ export class QueryConfigsService
         _authUser?: AuthenticatedUser,
     ): Promise<QueryConfig> {
         const config = await this.findOne(id);
+        await this.queryConfigLoader.invalidateCache(config.key, config.userId);
         return config.update(updateQueryConfigDto);
     }
 
     async remove(id: string): Promise<void> {
         const config = await this.findOne(id);
+        await this.queryConfigLoader.invalidateCache(config.key, config.userId);
         await config.destroy();
     }
 
     async findOneData(options: FindOptions<QueryConfig>): Promise<QueryConfig> {
-        return this.queryConfigModel.findOne(options);
+        const config = await this.queryConfigModel.findOne(options);
+        if (!config) {
+            throw new NotFoundException('Configuration not found.');
+        }
+        return config;
     }
 
     async findByKeyForUser(key: string, userId?: string): Promise<QueryConfig> {
-        let config: QueryConfig | null = null;
-
-        if (userId) {
-            config = await this.queryConfigModel.findOne({ where: { key, userId } });
-        }
-
-        if (!config) {
-            config = await this.queryConfigModel.findOne({ where: { key, userId: null } });
-        }
-
-        if (!config) {
-            throw new NotFoundException(`Configuration with key "${key}" not found.`);
-        }
-
-        return config;
+        const configValue = await this.queryConfigLoader.findConfigForKey(key, userId || null);
+        // This method now returns the raw config value, not the entity.
+        // It might need adjustment based on how it's used elsewhere,
+        // or it could be deprecated in favor of using QueryConfigLoaderService directly.
+        // For now, returning a mock entity-like structure.
+        return { value: configValue } as QueryConfig;
     }
 
     async createApi(

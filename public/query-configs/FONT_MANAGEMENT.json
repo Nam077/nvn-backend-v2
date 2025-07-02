@@ -17,6 +17,8 @@
             "operators": ["in", "equals"],
             "fieldSettings": {
                 "defaultValue": ["free", "vip"],
+                "listValuesType": "object",
+                "valueKey": "value",
                 "listValues": [
                     {
                         "title": "Free",
@@ -47,7 +49,19 @@
             "type": "boolean",
             "operators": ["equals"],
             "fieldSettings": {
-                "defaultValue": true
+                "defaultValue": true,
+                "listValuesType": "object",
+                "valueKey": "value",
+                "listValues": [
+                    {
+                        "title": "Active",
+                        "value": true
+                    },
+                    {
+                        "title": "Inactive",
+                        "value": false
+                    }
+                ]
             },
             "label": "Is Active"
         },
@@ -152,6 +166,11 @@
         "weights",
         "weightCount"
     ],
-    "defaultSort": [["createdAt", "DESC"]],
-    "generatedAt": "2025-07-01T16:06:30.984Z"
+    "defaultSort": [
+        {
+            "field": "createdAt",
+            "direction": -1
+        }
+    ],
+    "generatedAt": "2025-07-01T19:03:42.271Z"
 }

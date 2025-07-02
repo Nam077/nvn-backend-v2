@@ -1,9 +1,9 @@
 import {
-    BOOLEAN_OPERATORS,
-    DATE_OPERATORS,
-    STRING_OPERATORS,
     ARRAY_OPERATORS,
-} from '@/common/query-builder/operators.constants';
+    DATE_OPERATORS,
+    ENUM_OPERATORS,
+    STRING_OPERATORS,
+} from '@/common/constants/operator.constants';
 import { BlueprintDefinition, QueryBlueprint } from '@/common/query-builder/query-blueprint.base';
 import { Permission } from '@/modules/users/entities/permission.entity';
 import { Role } from '@/modules/users/entities/role.entity';
@@ -36,7 +36,7 @@ export class UserQueryBlueprint extends QueryBlueprint<User> {
             },
             isActive: {
                 type: 'select',
-                operators: [BOOLEAN_OPERATORS.EQUALS, BOOLEAN_OPERATORS.IN],
+                operators: [ENUM_OPERATORS.EQUALS, ENUM_OPERATORS.IN],
                 fieldSettings: {
                     defaultValue: true,
                     listValues: [
@@ -47,7 +47,7 @@ export class UserQueryBlueprint extends QueryBlueprint<User> {
             },
             emailVerified: {
                 type: 'select',
-                operators: [BOOLEAN_OPERATORS.EQUALS, BOOLEAN_OPERATORS.IN],
+                operators: [ENUM_OPERATORS.EQUALS, ENUM_OPERATORS.IN],
                 fieldSettings: {
                     listValues: [
                         { title: 'Yes', value: true },
@@ -115,6 +115,6 @@ export class UserQueryBlueprint extends QueryBlueprint<User> {
             'permissions',
         ],
         sortableFields: ['email', 'firstName', 'lastName', 'createdAt'],
-        defaultSort: [['createdAt', 'DESC']],
+        defaultSort: [{ field: 'createdAt', direction: -1 }],
     };
 }

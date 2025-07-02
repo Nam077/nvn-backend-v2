@@ -5,9 +5,10 @@ import {
     BOOLEAN_OPERATORS,
     DATE_OPERATORS,
     ENUM_OPERATORS,
+    JSON_OPERATORS,
     NUMBER_OPERATORS,
     STRING_OPERATORS,
-} from '@/common/query-builder/operators.constants';
+} from '@/common/constants/operator.constants';
 import { BlueprintDefinition, QueryBlueprint } from '@/common/query-builder/query-blueprint.base';
 import { Category } from '@/modules/categories/entities/category.entity';
 import { File } from '@/modules/files/entities/file.entity';
@@ -49,6 +50,8 @@ export class FontQueryBlueprint extends QueryBlueprint<Font> {
                 operators: [ENUM_OPERATORS.IN, ENUM_OPERATORS.EQUALS],
                 fieldSettings: {
                     defaultValue: [FONT_TYPE.FREE, FONT_TYPE.VIP],
+                    listValuesType: 'object',
+                    valueKey: 'value',
                     listValues: map(FONT_TYPE, (v) => ({ title: startCase(v), value: v })),
                 },
             },
@@ -66,6 +69,12 @@ export class FontQueryBlueprint extends QueryBlueprint<Font> {
                 operators: [BOOLEAN_OPERATORS.EQUALS],
                 fieldSettings: {
                     defaultValue: true,
+                    listValuesType: 'object',
+                    valueKey: 'value',
+                    listValues: [
+                        { title: 'Active', value: true },
+                        { title: 'Inactive', value: false },
+                    ],
                 },
             },
             createdAt: {
@@ -83,7 +92,7 @@ export class FontQueryBlueprint extends QueryBlueprint<Font> {
             'authors.name': {
                 type: 'text',
                 label: 'Author Name',
-                operators: ['json_array_text_contains'],
+                operators: [JSON_OPERATORS.ARRAY_TEXT_CONTAINS],
             },
         },
         relations: {
@@ -103,7 +112,7 @@ export class FontQueryBlueprint extends QueryBlueprint<Font> {
                     name: {
                         type: 'text',
                         label: 'Category Name',
-                        operators: ['json_array_text_contains'],
+                        operators: [JSON_OPERATORS.ARRAY_TEXT_CONTAINS],
                     },
                 },
             },
@@ -123,7 +132,7 @@ export class FontQueryBlueprint extends QueryBlueprint<Font> {
                     name: {
                         type: 'text',
                         label: 'Tag Name',
-                        operators: ['json_array_text_contains'],
+                        operators: [JSON_OPERATORS.ARRAY_TEXT_CONTAINS],
                     },
                 },
             },
@@ -155,7 +164,7 @@ export class FontQueryBlueprint extends QueryBlueprint<Font> {
                         },
                     },
                     name: {
-                        operators: ['json_array_text_contains'],
+                        operators: [JSON_OPERATORS.ARRAY_TEXT_CONTAINS],
                     },
                     weight: {
                         operators: [NUMBER_OPERATORS.EQUALS, NUMBER_OPERATORS.GTE, NUMBER_OPERATORS.LTE],
@@ -191,6 +200,6 @@ export class FontQueryBlueprint extends QueryBlueprint<Font> {
             'weightCount',
         ],
         sortableFields: ['name', 'price', 'downloadCount', 'createdAt', 'updatedAt'],
-        defaultSort: [['createdAt', 'DESC']],
+        defaultSort: [{ field: 'createdAt', direction: -1 }],
     };
 }
