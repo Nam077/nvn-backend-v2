@@ -134,6 +134,7 @@ module.exports = {
                     "updatedAt" timestamptz,
                     "thumbnailUrl" text,
                     "previewText" text,
+                    "galleryImages" jsonb,
                     "creatorId" uuid,
                     "thumbnailFileId" uuid,
                     creator jsonb,
@@ -228,7 +229,34 @@ module.exports = {
                     FOR i IN 1..array_length(p_font_ids, 1) BY batch_size LOOP
                         current_batch := p_font_ids[i:LEAST(i + batch_size - 1, array_length(p_font_ids, 1))];
                         
-                        WITH font_data AS (
+                        WITH
+                        resolved_gallery_data AS (
+                            SELECT
+                                f.id as font_id,
+                                COALESCE(jsonb_agg(
+                                    CASE
+                                        -- If it's an entity type and we found a matching file, update the url
+                                        WHEN (image_element->>'type') = 'entity' AND fi.id IS NOT NULL THEN
+                                            jsonb_set(
+                                                image_element,
+                                                '{url}',
+                                                to_jsonb(COALESCE(fi."cdnUrl", fi.url))
+                                            )
+                                        -- Otherwise (it's 'url' type or the file was not found), keep the original element
+                                        ELSE
+                                            image_element
+                                    END
+                                ), '[]'::jsonb) as "galleryImages"
+                            FROM
+                                fonts f
+                            -- Use a LATERAL join to safely unnest, handles empty or null arrays
+                            LEFT JOIN LATERAL jsonb_array_elements(f."galleryImages") AS image_element ON true
+                            -- Join to files table only for entity types
+                            LEFT JOIN files fi ON (image_element->>'type') = 'entity' AND (fi.id = (image_element->>'fileId')::uuid)
+                            WHERE f.id = ANY(current_batch)
+                            GROUP BY f.id
+                        ),
+                        font_data AS (
                             SELECT DISTINCT f.id 
                             FROM fonts f 
                             WHERE f.id = ANY(current_batch)
@@ -238,27 +266,29 @@ module.exports = {
                                 f.id, f.name, f.slug, f.authors, f.description, f."fontType", 
                                 f.price, f."downloadCount", f."isActive", f."isSupportVietnamese", 
                                 f.metadata, f."createdAt", f."updatedAt", f."thumbnailUrl", 
-                                f."previewText", f."creatorId", f."thumbnailFileId",
+                                f."previewText", rgi."galleryImages", f."creatorId", f."thumbnailFileId",
                                 
                                 -- Creator info
-                                COALESCE(
-                                    jsonb_build_object(
-                                        'id', u.id, 
-                                        'firstName', u."firstName", 
-                                        'lastName', u."lastName",
-                                        'email', u.email
-                                    ), 
-                                    '{}'::jsonb
-                                ) as creator,
+                                CASE
+                                    WHEN u.id IS NOT NULL THEN
+                                        jsonb_build_object(
+                                            'id', u.id, 
+                                            'firstName', u."firstName", 
+                                            'lastName', u."lastName",
+                                            'email', u.email
+                                        )
+                                    ELSE '{}'::jsonb
+                                END as creator,
                                 
                                 -- Thumbnail file info
-                                COALESCE(
-                                    jsonb_build_object(
-                                        'id', fi.id, 
-                                        'url', COALESCE(fi."cdnUrl", fi.url)
-                                    ), 
-                                    '{}'::jsonb
-                                ) as "thumbnailFile",
+                                CASE
+                                    WHEN fi.id IS NOT NULL THEN
+                                        jsonb_build_object(
+                                            'id', fi.id, 
+                                            'url', COALESCE(fi."cdnUrl", fi.url)
+                                        )
+                                    ELSE '{}'::jsonb
+                                END as "thumbnailFile",
                                 
                                 -- Categories aggregation
                                 COALESCE(
@@ -311,6 +341,7 @@ module.exports = {
                                 
                             FROM font_data fd
                             JOIN fonts f ON f.id = fd.id
+                            LEFT JOIN resolved_gallery_data rgi ON rgi.font_id = f.id
                             LEFT JOIN font_categories fc ON f.id = fc."fontId"
                             LEFT JOIN categories c ON fc."categoryId" = c.id
                             LEFT JOIN font_tags ft ON f.id = ft."fontId"
@@ -321,12 +352,12 @@ module.exports = {
                             GROUP BY f.id, f.name, f.slug, f.authors, f.description, f."fontType", 
                                      f.price, f."downloadCount", f."isActive", f."isSupportVietnamese", 
                                      f.metadata, f."createdAt", f."updatedAt", f."thumbnailUrl", 
-                                     f."previewText", f."creatorId", f."thumbnailFileId", u.id, fi.id
+                                     f."previewText", rgi."galleryImages", f."creatorId", f."thumbnailFileId", u.id, fi.id
                         )
                         INSERT INTO ${SEARCH_TABLE} (
                             id, name, slug, authors, description, "fontType", price, "downloadCount", 
                             "isActive", "isSupportVietnamese", metadata, "createdAt", "updatedAt", 
-                            "thumbnailUrl", "previewText", "creatorId", "thumbnailFileId", 
+                            "thumbnailUrl", "previewText", "galleryImages", "creatorId", "thumbnailFileId", 
                             creator, "thumbnailFile", categories, tags, weights, "weightCount", 
                             "categoryIds", "tagIds", "weightIds", document, last_updated
                         )
@@ -334,7 +365,7 @@ module.exports = {
                             agg.id, agg.name, agg.slug, agg.authors, agg.description, agg."fontType", 
                             agg.price, agg."downloadCount", agg."isActive", agg."isSupportVietnamese", 
                             agg.metadata, agg."createdAt", agg."updatedAt", agg."thumbnailUrl", 
-                            agg."previewText", agg."creatorId", agg."thumbnailFileId",
+                            agg."previewText", agg."galleryImages", agg."creatorId", agg."thumbnailFileId",
                             agg.creator, agg."thumbnailFile", agg.categories, agg.tags, agg.weights, 
                             agg."weightCount", agg."categoryIds", agg."tagIds", agg."weightIds", 
                             agg.document, now()
@@ -354,6 +385,7 @@ module.exports = {
                             "updatedAt" = EXCLUDED."updatedAt",
                             "thumbnailUrl" = EXCLUDED."thumbnailUrl",
                             "previewText" = EXCLUDED."previewText",
+                            "galleryImages" = EXCLUDED."galleryImages",
                             "creatorId" = EXCLUDED."creatorId",
                             "thumbnailFileId" = EXCLUDED."thumbnailFileId",
                             creator = EXCLUDED.creator,
@@ -763,7 +795,7 @@ module.exports = {
                                 SELECT COUNT(*) INTO v_estimated_fonts 
                                 FROM fonts 
                                 WHERE "thumbnailFileId" = v_target_id;
-                        END IF;
+                            END IF;
 
                         ELSE 
                             RETURN NEW;
