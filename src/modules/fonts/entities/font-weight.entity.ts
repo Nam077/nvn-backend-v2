@@ -6,6 +6,7 @@ import {
     Column,
     CreatedAt,
     DataType,
+    DeletedAt,
     ForeignKey,
     Model,
     PrimaryKey,
@@ -17,7 +18,9 @@ import { File } from '@/modules/files/entities/file.entity';
 import { Font } from '@/modules/fonts/entities/font.entity';
 
 @Table({
-    tableName: 'font_weights',
+    tableName: 'nvn_font_weights',
+    timestamps: true,
+    paranoid: true,
 })
 export class FontWeight extends Model<FontWeight, FontWeightCreationAttrs> {
     @ApiProperty({ description: 'Weight ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -80,6 +83,10 @@ export class FontWeight extends Model<FontWeight, FontWeightCreationAttrs> {
     @UpdatedAt
     @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
+
+    @DeletedAt
+    @Column({ field: 'deletedAt' })
+    declare deletedAt: Date;
 
     // Associations
     @BelongsTo(() => Font)

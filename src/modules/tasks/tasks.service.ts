@@ -145,13 +145,13 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
         try {
             this.logger.debug('Starting font queue processing...');
 
-            const [result] = (await this.sequelize.query('SELECT run_queue_processor();')) as [
+            const [result] = (await this.sequelize.query('SELECT nvn_run_queue_processor();')) as [
                 DatabaseQueryResult[],
                 unknown,
             ];
             const stats: QueueProcessorResult | undefined = get(
                 result,
-                '[0].run_queue_processor',
+                '[0].nvn_run_queue_processor',
             ) as QueueProcessorResult;
 
             if (stats) {
@@ -208,11 +208,11 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
     @Cron(CronExpression.EVERY_MINUTE)
     async handleHealthMonitoring(): Promise<void> {
         try {
-            const [healthResult] = (await this.sequelize.query('SELECT get_queue_health();')) as [
+            const [healthResult] = (await this.sequelize.query('SELECT nvn_get_queue_health();')) as [
                 DatabaseQueryResult[],
                 unknown,
             ];
-            const health: QueueHealth | undefined = get(healthResult, '[0].get_queue_health') as QueueHealth;
+            const health: QueueHealth | undefined = get(healthResult, '[0].nvn_get_queue_health') as QueueHealth;
 
             if (!health) return;
 
@@ -276,7 +276,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
 
     private async cleanupFailedTasks(): Promise<number> {
         try {
-            const [result] = (await this.sequelize.query('SELECT cleanup_failed_tasks();')) as [
+            const [result] = (await this.sequelize.query('SELECT nvn_cleanup_failed_tasks();')) as [
                 DatabaseQueryResult[],
                 unknown,
             ];
@@ -298,13 +298,13 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
      */
     private async emergencyReset(): Promise<void> {
         try {
-            const [result] = (await this.sequelize.query('SELECT emergency_queue_reset();')) as [
+            const [result] = (await this.sequelize.query('SELECT nvn_emergency_queue_reset();')) as [
                 DatabaseQueryResult[],
                 unknown,
             ];
             const resetResult: EmergencyResetResult | undefined = get(
                 result,
-                '[0].emergency_queue_reset',
+                '[0].nvn_emergency_queue_reset',
             ) as EmergencyResetResult;
 
             this.logger.warn('🔧 Emergency reset completed:', resetResult);
@@ -334,11 +334,11 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
 
     async getQueueHealth(): Promise<QueueHealth | null> {
         try {
-            const [result] = (await this.sequelize.query('SELECT get_queue_health();')) as [
+            const [result] = (await this.sequelize.query('SELECT nvn_get_queue_health();')) as [
                 DatabaseQueryResult[],
                 unknown,
             ];
-            return get(result, '[0].get_queue_health') as QueueHealth;
+            return get(result, '[0].nvn_get_queue_health') as QueueHealth;
         } catch (error: unknown) {
             this.logger.error('Get queue health error:', get(error, 'message') as string);
             return null;
@@ -366,12 +366,12 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
             this.logger.log(`🔧 Manual queue processing triggered (batch size: ${batchSize})`);
 
             const [result] = (await this.sequelize.query(
-                `SELECT process_font_update_queue_enhanced(${batchSize});`,
+                `SELECT nvn_process_font_update_queue_enhanced(${batchSize});`,
             )) as [DatabaseQueryResult[], unknown];
 
             const stats: QueueProcessorResult = get(
                 result,
-                '[0].process_font_update_queue_enhanced',
+                '[0].nvn_process_font_update_queue_enhanced',
             ) as QueueProcessorResult;
             this.updateStats(stats, 0);
 

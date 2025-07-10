@@ -13,7 +13,7 @@ export const ITEM_TYPE = {
 export type ItemType = (typeof ITEM_TYPE)[keyof typeof ITEM_TYPE];
 
 @Table({
-    tableName: 'downloads',
+    tableName: 'nvn_downloads',
     timestamps: true,
     updatedAt: false,
 })

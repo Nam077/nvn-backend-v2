@@ -8,6 +8,7 @@ import {
     Column,
     CreatedAt,
     DataType,
+    DeletedAt,
     ForeignKey,
     HasMany,
     Model,
@@ -22,7 +23,9 @@ import { FontCategory } from '@/modules/fonts/entities/font-category.entity';
 import { Font } from '@/modules/fonts/entities/font.entity';
 
 @Table({
-    tableName: 'categories',
+    tableName: 'nvn_categories',
+    timestamps: true,
+    paranoid: true,
 })
 export class Category extends Model<Category, CategoryCreationAttrs> {
     @ApiProperty({ description: 'Category ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -118,6 +121,10 @@ export class Category extends Model<Category, CategoryCreationAttrs> {
     @UpdatedAt
     @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
+
+    @DeletedAt
+    @Column({ field: 'deletedAt' })
+    declare deletedAt: Date;
 
     // Associations
     @BelongsTo(() => Category, {

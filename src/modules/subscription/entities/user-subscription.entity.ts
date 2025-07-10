@@ -6,6 +6,7 @@ import {
     Column,
     CreatedAt,
     DataType,
+    DeletedAt,
     ForeignKey,
     Model,
     PrimaryKey,
@@ -19,7 +20,9 @@ import { SubscriptionPlan } from '@/modules/subscription/entities/subscription-p
 import { User } from '@/modules/users/entities/user.entity';
 
 @Table({
-    tableName: 'user_subscriptions',
+    tableName: 'nvn_user_subscriptions',
+    timestamps: true,
+    paranoid: true,
 })
 export class UserSubscription extends Model<UserSubscription, UserSubscriptionCreationAttrs> {
     @ApiProperty({ description: 'Subscription ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -128,6 +131,10 @@ export class UserSubscription extends Model<UserSubscription, UserSubscriptionCr
     @UpdatedAt
     @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
+
+    @DeletedAt
+    @Column({ field: 'deletedAt' })
+    declare deletedAt: Date;
 
     // Associations
     @BelongsTo(() => User)

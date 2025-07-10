@@ -6,6 +6,7 @@ import {
     Column,
     CreatedAt,
     DataType,
+    DeletedAt,
     ForeignKey,
     Model,
     PrimaryKey,
@@ -45,7 +46,9 @@ export const FILE_STATUS = {
 export type FileStatus = (typeof FILE_STATUS)[keyof typeof FILE_STATUS];
 
 @Table({
-    tableName: 'files',
+    tableName: 'nvn_files',
+    timestamps: true,
+    paranoid: true,
 })
 export class File extends Model<File, FileCreationAttrs> {
     @ApiProperty({ description: 'File ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -189,6 +192,10 @@ export class File extends Model<File, FileCreationAttrs> {
     @UpdatedAt
     @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
+
+    @DeletedAt
+    @Column({ field: 'deletedAt' })
+    declare deletedAt: Date;
 
     // Associations
     @BelongsTo(() => User)

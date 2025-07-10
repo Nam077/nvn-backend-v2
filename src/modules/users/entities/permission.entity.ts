@@ -6,7 +6,7 @@ import { RolePermission } from '@/modules/users/entities/role-permission.entity'
 import { Role } from '@/modules/users/entities/role.entity';
 
 @Table({
-    tableName: 'permissions',
+    tableName: 'nvn_permissions',
 })
 export class Permission extends Model<Permission, PermissionCreationAttrs> {
     @ApiProperty({ description: 'Permission ID', example: '123e4567-e89b-12d3-a456-426614174000' })

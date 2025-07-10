@@ -6,7 +6,7 @@ import { Category } from '@/modules/categories/entities/category.entity';
 import { FontCollection } from '@/modules/collections/entities/collection.entity';
 
 @Table({
-    tableName: 'collection_categories',
+    tableName: 'nvn_collection_categories',
     timestamps: true,
     updatedAt: false,
 })

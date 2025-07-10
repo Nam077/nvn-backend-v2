@@ -13,7 +13,7 @@ import {
 import { User } from '../../users/entities/user.entity';
 
 @Table({
-    tableName: 'query_configs',
+    tableName: 'nvn_query_configs',
     timestamps: true,
     indexes: [
         {

@@ -5,6 +5,7 @@ import {
     Column,
     CreatedAt,
     DataType,
+    DeletedAt,
     HasMany,
     Model,
     PrimaryKey,
@@ -18,7 +19,9 @@ import { Role } from './role.entity';
 import { UserRole } from './user-role.entity';
 
 @Table({
-    tableName: 'users',
+    tableName: 'nvn_users',
+    timestamps: true,
+    paranoid: true,
 })
 export class User extends Model<User, UserCreationAttrs> {
     @ApiProperty({ description: 'User ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -90,6 +93,10 @@ export class User extends Model<User, UserCreationAttrs> {
     @UpdatedAt
     @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
+
+    @DeletedAt
+    @Column({ field: 'deletedAt' })
+    declare deletedAt: Date;
 
     // Associations
     @BelongsToMany(() => Role, () => UserRole)

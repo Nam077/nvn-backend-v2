@@ -8,6 +8,7 @@ import {
     CreatedAt,
     DataType,
     Default,
+    DeletedAt,
     ForeignKey,
     HasMany,
     Model,
@@ -46,7 +47,9 @@ export interface FontGalleryImage {
 }
 
 @Table({
-    tableName: 'fonts',
+    tableName: 'nvn_fonts',
+    timestamps: true,
+    paranoid: true,
 })
 export class Font extends Model<Font, FontCreationAttrs> {
     @ApiProperty({ description: 'Font ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -202,6 +205,10 @@ export class Font extends Model<Font, FontCreationAttrs> {
     @UpdatedAt
     @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
+
+    @DeletedAt
+    @Column({ field: 'deletedAt' })
+    declare deletedAt: Date;
 
     // Associations
     @BelongsTo(() => User)

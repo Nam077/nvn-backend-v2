@@ -43,13 +43,13 @@ const syncBlueprintToDb = async (dbPool: Pool, key: string, value: object) => {
         await client.query('BEGIN');
 
         const checkQuery = `
-            SELECT "id" FROM "query_configs" WHERE "key" = $1 AND "userId" IS NULL;
+            SELECT "id" FROM "nvn_query_configs" WHERE "key" = $1 AND "userId" IS NULL;
         `;
         const { rows } = await client.query(checkQuery, [key]);
 
         if (rows.length > 0) {
             const updateSystemQuery = `
-                UPDATE "query_configs"
+                UPDATE "nvn_query_configs"
                 SET "value" = $1, "updatedAt" = NOW()
                 WHERE "key" = $2 AND "userId" IS NULL;
             `;
@@ -58,7 +58,7 @@ const syncBlueprintToDb = async (dbPool: Pool, key: string, value: object) => {
         } else {
             // The "id" column is removed from INSERT as the DB now generates it.
             const insertSystemQuery = `
-                INSERT INTO "query_configs" ("key", "value", "userId", "createdAt", "updatedAt")
+                INSERT INTO "nvn_query_configs" ("key", "value", "userId", "createdAt", "updatedAt")
                 VALUES ($1, $2, NULL, NOW(), NOW());
             `;
             const result = await client.query(insertSystemQuery, [key, configValueJson]);
@@ -66,7 +66,7 @@ const syncBlueprintToDb = async (dbPool: Pool, key: string, value: object) => {
         }
 
         const updateUserQuery = `
-            UPDATE "query_configs"
+            UPDATE "nvn_query_configs"
             SET "value" = $1, "updatedAt" = NOW()
             WHERE "key" = $2 AND "userId" IS NOT NULL;
         `;

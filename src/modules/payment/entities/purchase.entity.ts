@@ -6,6 +6,7 @@ import {
     Column,
     CreatedAt,
     DataType,
+    DeletedAt,
     ForeignKey,
     Model,
     PrimaryKey,
@@ -32,7 +33,9 @@ export const ITEM_TYPE = {
 export type ItemType = (typeof ITEM_TYPE)[keyof typeof ITEM_TYPE];
 
 @Table({
-    tableName: 'purchases',
+    tableName: 'nvn_purchases',
+    timestamps: true,
+    paranoid: true,
 })
 export class Purchase extends Model<Purchase, PurchaseCreationAttrs> {
     @ApiProperty({ description: 'Purchase ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -127,6 +130,10 @@ export class Purchase extends Model<Purchase, PurchaseCreationAttrs> {
     @UpdatedAt
     @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
+
+    @DeletedAt
+    @Column({ field: 'deletedAt' })
+    declare deletedAt: Date;
 
     // Associations
     @BelongsTo(() => User)

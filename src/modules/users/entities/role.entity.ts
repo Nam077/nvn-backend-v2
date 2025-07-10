@@ -1,6 +1,16 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import { BelongsToMany, Column, CreatedAt, DataType, Model, PrimaryKey, Table, UpdatedAt } from 'sequelize-typescript';
+import {
+    BelongsToMany,
+    Column,
+    CreatedAt,
+    DataType,
+    DeletedAt,
+    Model,
+    PrimaryKey,
+    Table,
+    UpdatedAt,
+} from 'sequelize-typescript';
 
 import { Permission } from './permission.entity';
 import { RolePermission } from './role-permission.entity';
@@ -8,7 +18,9 @@ import { UserRole } from './user-role.entity';
 import { User } from './user.entity';
 
 @Table({
-    tableName: 'roles',
+    tableName: 'nvn_roles',
+    timestamps: true,
+    paranoid: true,
 })
 export class Role extends Model<Role, RoleCreationAttrs> {
     @ApiProperty({ description: 'Role ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -78,6 +90,10 @@ export class Role extends Model<Role, RoleCreationAttrs> {
     @UpdatedAt
     @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
+
+    @DeletedAt
+    @Column({ field: 'deletedAt' })
+    declare deletedAt: Date;
 
     // Associations
     @BelongsToMany(() => User, () => UserRole)

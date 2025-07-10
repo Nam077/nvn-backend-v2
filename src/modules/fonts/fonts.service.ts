@@ -161,7 +161,7 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
 
         const selectSql = `
             SELECT *
-            FROM font_search_index
+            FROM nvn_font_search
             ${whereSql}
             ${orderSql}
             LIMIT :limit
@@ -170,7 +170,7 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
 
         const countSql = `
             SELECT COUNT(id) as count
-            FROM font_search_index
+            FROM nvn_font_search
             ${whereSql}
         `;
 

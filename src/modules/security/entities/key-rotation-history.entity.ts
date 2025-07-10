@@ -16,7 +16,7 @@ import { SecurityKey } from './security-key.entity';
 import { KeyType } from '../types/key.types';
 
 @Table({
-    tableName: 'key_rotation_history',
+    tableName: 'nvn_key_rotation_history',
     indexes: [
         { fields: ['keyType', 'rotatedAt'] },
         { fields: ['rotationType'] },

@@ -7,6 +7,7 @@ import {
     Column,
     CreatedAt,
     DataType,
+    DeletedAt,
     ForeignKey,
     HasMany,
     Model,
@@ -29,7 +30,9 @@ export const COLLECTION_TYPE = {
 export type CollectionType = (typeof COLLECTION_TYPE)[keyof typeof COLLECTION_TYPE];
 
 @Table({
-    tableName: 'collections',
+    tableName: 'nvn_collections',
+    timestamps: true,
+    paranoid: true,
 })
 export class FontCollection extends Model<FontCollection, FontCollectionCreationAttrs> {
     @ApiProperty({ description: 'Collection ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -137,6 +140,10 @@ export class FontCollection extends Model<FontCollection, FontCollectionCreation
     @UpdatedAt
     @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
+
+    @DeletedAt
+    @Column({ field: 'deletedAt' })
+    declare deletedAt: Date;
 
     // Associations
     @BelongsTo(() => User)

@@ -14,7 +14,7 @@ import { ConfigServiceApp } from '@/modules/config/config.service';
                 password: configService.dbPassword,
                 database: configService.dbName,
                 autoLoadModels: true,
-                synchronize: configService.isDevelopment,
+                // synchronize: configService.isDevelopment,
                 // eslint-disable-next-line no-console
                 logging: configService.isDevelopment ? console.log : false,
                 pool: {

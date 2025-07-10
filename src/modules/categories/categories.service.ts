@@ -1,9 +1,12 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 
-import { filter, forEach, get, isEmpty, map, replace, split, startsWith } from 'lodash';
+import * as fs from 'fs/promises';
+import { filter, forEach, get, isEmpty, keyBy, map, reduce, replace, set, split, startsWith } from 'lodash';
+import * as path from 'path';
 import { Op, CreateOptions, DestroyOptions, FindOptions, Transaction, UpdateOptions } from 'sequelize';
 import slugify from 'slugify';
+import { v4 as uuidv4 } from 'uuid';
 
 import { IApiResponse } from '@/common/dto/api.response.dto';
 import { IApiPaginatedResponse } from '@/common/dto/paginated.response.dto';
@@ -17,6 +20,7 @@ import { Font } from '@/modules/fonts/entities/font.entity';
 
 import { CategoryResponseDto } from './dto/category.response.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
+import { MockDataResponseDto } from './dto/mock-data-response.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { Category } from './entities/category.entity';
 import { CategoryTreeNode } from './types/category.types';
@@ -31,6 +35,122 @@ export class CategoriesService
     ) {}
 
     // --- Entity-Returning Methods for Internal Use ---
+
+    async bulkCreate(
+        createCategoryDtos: CreateCategoryDto[],
+        options?: CreateOptions,
+    ): Promise<Pick<Category, 'id'>[]> {
+        if (!createCategoryDtos || createCategoryDtos.length === 0) {
+            return [];
+        }
+
+        const t = options?.transaction || (await this.categoryModel.sequelize.transaction());
+
+        try {
+            // 1. Prepare initial data and check for duplicates within the request
+            const initialSlugs = map(createCategoryDtos, (dto) => slugify(dto.name, { lower: true, strict: true }));
+
+            const slugCounts = reduce(
+                initialSlugs,
+                (acc, slug) => {
+                    set(acc, slug, get(acc, slug, 0) + 1);
+                    return acc;
+                },
+                {} as Record<string, number>,
+            );
+
+            const duplicate = Object.entries(slugCounts).find(([, count]) => count > 1);
+            if (duplicate) {
+                throw new ConflictException(
+                    `Duplicate category name in the request leading to same slug: "${duplicate[0]}"`,
+                );
+            }
+
+            // 2. Fetch all potentially conflicting slugs from DB at once
+            const existingSlugsSet = new Set(
+                map(
+                    await this.categoryModel.findAll({
+                        where: { slug: { [Op.in]: initialSlugs } },
+                        attributes: ['slug'],
+                        raw: true,
+                        transaction: t,
+                    }),
+                    'slug',
+                ),
+            );
+
+            // 3. Resolve conflicts and prepare final creation data in a single pass
+            const parentIds = new Set<string>();
+            const itemsToProcess = map(createCategoryDtos, (dto, index) => {
+                let slug = get(initialSlugs, index);
+                if (existingSlugsSet.has(slug)) {
+                    const randomSuffix = uuidv4().substring(0, 4);
+                    slug = `${slug}-${randomSuffix}`;
+                }
+                if (dto.parentId) {
+                    parentIds.add(dto.parentId);
+                }
+                return { dto, slug };
+            });
+            // Note: This simplified conflict resolution assumes the random suffix will be unique.
+            // For extreme cases, the previous looping mechanism is more robust but also more complex.
+
+            // 4. Fetch all necessary parent categories in a single query
+            const parents =
+                parentIds.size > 0
+                    ? await this.categoryModel.findAll({
+                          where: { id: { [Op.in]: [...parentIds] } },
+                          attributes: ['id', 'path', 'level'],
+                          transaction: t,
+                      })
+                    : [];
+
+            const parentsById = keyBy(parents, 'id');
+
+            // 5. Assemble the final data for bulk creation
+            const categoriesToCreate = map(itemsToProcess, (item) => {
+                const { dto, slug } = item;
+                let path: string;
+                let level: number;
+
+                if (dto.parentId) {
+                    const parent = parentsById[dto.parentId];
+                    if (!parent) {
+                        throw new NotFoundException(`Parent category with ID ${dto.parentId} not found.`);
+                    }
+                    path = `${parent.path}/${slug}`;
+                    level = parent.level + 1;
+                } else {
+                    path = `/${slug}`;
+                    level = 0;
+                }
+
+                return {
+                    ...dto,
+                    slug,
+                    path,
+                    level,
+                };
+            });
+
+            // 6. Perform the bulk insert
+            const newCategories = await this.categoryModel.bulkCreate(categoriesToCreate, {
+                transaction: t,
+                returning: ['id'], // Ensure IDs are returned
+            });
+
+            if (!options?.transaction) {
+                await t.commit();
+            }
+
+            return map(newCategories, (c) => ({ id: c.id }));
+        } catch (error) {
+            if (!options?.transaction) {
+                await t.rollback();
+            }
+            throw error;
+        }
+    }
 
     async create(createCategoryDto: CreateCategoryDto, options?: CreateOptions): Promise<Category> {
         const slug = slugify(createCategoryDto.name, { lower: true, strict: true });
@@ -271,6 +391,24 @@ export class CategoriesService
         };
     }
 
+    async bulkCreateApi(createCategoryDtos: CreateCategoryDto[]): Promise<IApiResponse<{ id: string }[]>> {
+        const newCategories = await this.bulkCreate(createCategoryDtos);
+        return {
+            statusCode: 201,
+            message: `${newCategories.length} categories created successfully.`,
+            data: newCategories,
+        };
+    }
+
+    async generateMockDataApi(): Promise<IApiResponse<MockDataResponseDto>> {
+        const result = await this.generateMockData();
+        return {
+            statusCode: 200,
+            message: 'Mock data generation successful.',
+            data: result,
+        };
+    }
+
     async findOneApi(id: string): Promise<IApiResponse<CategoryResponseDto>> {
         const category = await this.findOne(id);
         return {
@@ -410,6 +548,30 @@ export class CategoriesService
         }
 
         return category;
+    }
+
+    private async generateMockData(): Promise<MockDataResponseDto> {
+        const mockData: CreateCategoryDto[] = [];
+        for (let i = 1; i <= 100; i++) {
+            mockData.push({
+                name: `Mock Category ${i}`,
+                description: `This is the description for mock category number ${i}.`,
+            });
+        }
+
+        const payload = { items: mockData };
+        const outputDir = path.resolve(process.cwd(), 'public');
+        const outputPath = path.join(outputDir, 'mock-categories.json');
+
+        await fs.mkdir(outputDir, { recursive: true });
+        await fs.writeFile(outputPath, JSON.stringify(payload, null, 4), 'utf-8');
+
+        const relativePath = path.relative(process.cwd(), outputPath);
+
+        return {
+            message: 'Successfully generated 100 mock categories.',
+            filePath: relativePath,
+        };
     }
 
     async findAncestors(categoryId: string): Promise<Category[]> {

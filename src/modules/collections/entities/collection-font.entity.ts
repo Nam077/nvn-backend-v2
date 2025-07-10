@@ -6,7 +6,7 @@ import { FontCollection } from '@/modules/collections/entities/collection.entity
 import { Font } from '@/modules/fonts/entities/font.entity';
 
 @Table({
-    tableName: 'collection_fonts',
+    tableName: 'nvn_collection_fonts',
     timestamps: true,
     updatedAt: false,
 })

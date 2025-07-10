@@ -1,18 +1,18 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import { BelongsTo, Column, CreatedAt, DataType, ForeignKey, Model, Table } from 'sequelize-typescript';
+import { Table, Column, Model, ForeignKey, PrimaryKey, DataType, BelongsTo } from 'sequelize-typescript';
 
 import { Category } from '@/modules/categories/entities/category.entity';
 
 import { Font } from './font.entity';
 
 @Table({
-    tableName: 'font_categories',
+    tableName: 'nvn_font_categories',
     timestamps: true,
-    updatedAt: false,
 })
-export class FontCategory extends Model<FontCategory, FontCategoryCreationAttrs> {
+export class FontCategory extends Model<FontCategory> {
     @ApiProperty({ description: 'Font ID', example: '123e4567-e89b-12d3-a456-426614174000' })
+    @PrimaryKey
     @ForeignKey(() => Font)
     @Column({
         type: DataType.UUID,
@@ -23,6 +23,7 @@ export class FontCategory extends Model<FontCategory, FontCategoryCreationAttrs>
     declare fontId: string;
 
     @ApiProperty({ description: 'Category ID', example: '123e4567-e89b-12d3-a456-426614174000' })
+    @PrimaryKey
     @ForeignKey(() => Category)
     @Column({
         type: DataType.UUID,
@@ -39,11 +40,6 @@ export class FontCategory extends Model<FontCategory, FontCategoryCreationAttrs>
         field: 'isPrimary',
     })
     declare isPrimary: boolean;
-
-    @ApiProperty({ description: 'Creation date' })
-    @CreatedAt
-    @Column({ field: 'createdAt' })
-    declare createdAt: Date;
 
     // Associations
     @BelongsTo(() => Font)

@@ -16,7 +16,7 @@ import { Role } from './role.entity';
 import { User } from './user.entity';
 
 @Table({
-    tableName: 'user_roles',
+    tableName: 'nvn_user_roles',
 })
 export class UserRole extends Model<UserRole, UserRoleCreationAttrs> {
     @ApiProperty({ description: 'User Role ID', example: '123e4567-e89b-12d3-a456-426614174000' })

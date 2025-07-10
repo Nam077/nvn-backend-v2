@@ -1,12 +1,24 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import { Column, CreatedAt, DataType, HasMany, Model, PrimaryKey, Table, UpdatedAt } from 'sequelize-typescript';
+import {
+    Column,
+    CreatedAt,
+    DataType,
+    DeletedAt,
+    HasMany,
+    Model,
+    PrimaryKey,
+    Table,
+    UpdatedAt,
+} from 'sequelize-typescript';
 
 import { SubscriptionDuration } from '@/modules/subscription/entities/subscription-duration.entity';
 import { UserSubscription } from '@/modules/subscription/entities/user-subscription.entity';
 
 @Table({
-    tableName: 'subscription_plans',
+    tableName: 'nvn_subscription_plans',
+    timestamps: true,
+    paranoid: true,
 })
 export class SubscriptionPlan extends Model<SubscriptionPlan, SubscriptionPlanCreationAttrs> {
     @ApiProperty({ description: 'Plan ID', example: '123e4567-e89b-12d3-a456-426614174000' })
@@ -76,6 +88,10 @@ export class SubscriptionPlan extends Model<SubscriptionPlan, SubscriptionPlanCr
     @UpdatedAt
     @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
+
+    @DeletedAt
+    @Column({ field: 'deletedAt' })
+    declare deletedAt: Date;
 
     // Associations
     @HasMany(() => SubscriptionDuration)

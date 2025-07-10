@@ -12,8 +12,11 @@ import { JwtAuthGuard } from '@/modules/auth/guards/auth.guard';
 import { CaslGuard } from '@/modules/casl/guards/casl.guard';
 
 import { CategoriesService } from './categories.service';
+import { BulkCategoryResponseDto } from './dto/bulk-category.response.dto';
+import { BulkCreateCategoryDto } from './dto/bulk-create-category.dto';
 import { CategoryResponseDto } from './dto/category.response.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
+import { MockDataResponseDto } from './dto/mock-data-response.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @ApiTags('Categories')
@@ -32,6 +35,32 @@ export class CategoriesController {
     })
     create(@Body() createCategoryDto: CreateCategoryDto): Promise<IApiResponse<CategoryResponseDto>> {
         return this.categoriesService.createApi(createCategoryDto);
+    }
+
+    @Post('bulk')
+    @ApiEndpoint({
+        summary: 'Bulk create categories',
+        description:
+            'Creates multiple categories in a single request. Replicates the logic of the single create endpoint, including slug generation, duplicate checks, and path calculation for nested categories, but in an optimized manner.',
+        created: true,
+        response: BulkCategoryResponseDto,
+        auth: { type: [AUTH_TYPE.JWT] },
+        errors: [HttpStatus.CONFLICT, HttpStatus.NOT_FOUND, HttpStatus.BAD_REQUEST],
+    })
+    bulkCreate(@Body() bulkCreateCategoryDto: BulkCreateCategoryDto): Promise<IApiResponse<{ id: string }[]>> {
+        return this.categoriesService.bulkCreateApi(bulkCreateCategoryDto.items);
+    }
+
+    @Get('generate-mock-data')
+    @ApiEndpoint({
+        summary: 'Generate mock data for categories',
+        description:
+            'Generates a JSON file with 100 mock categories, ready to be used with the bulk create endpoint. The file is saved to `public/mock-categories.json`.',
+        response: MockDataResponseDto,
+        auth: { type: [AUTH_TYPE.JWT] },
+    })
+    generateMockData(): Promise<IApiResponse<MockDataResponseDto>> {
+        return this.categoriesService.generateMockDataApi();
     }
 
     @Post('query')

@@ -1,8 +1,103 @@
 'use strict';
 
-const SEARCH_TABLE = 'font_search_index';
-const UPSERT_FUNCTION = 'upsert_font_search_index';
-const QUEUE_TABLE = 'font_update_queue';
+// Constants for tables and their relationships
+const TABLES = {
+    // System tables
+    SEARCH_INDEX: 'nvn_font_search',
+    QUEUE: 'nvn_font_update_queue',
+    // Core tables
+    FONTS: 'nvn_fonts',
+    CATEGORIES: 'nvn_categories', 
+    TAGS: 'nvn_tags',
+    USERS: 'nvn_users',
+    FILES: 'nvn_files',
+    FONT_WEIGHTS: 'nvn_font_weights',
+    
+    // Linking tables
+    FONT_CATEGORIES: 'nvn_font_categories',
+    FONT_TAGS: 'nvn_font_tags'
+};
+
+// Create arrays after constants are defined - define as separate constants
+const TABLE_ARRAYS = {
+    ALL_TRIGGER_TABLES: [TABLES.FONTS, TABLES.FONT_CATEGORIES, TABLES.FONT_TAGS, TABLES.FONT_WEIGHTS, TABLES.CATEGORIES, TABLES.TAGS, TABLES.USERS, TABLES.FILES],
+    LINKING_TABLES: [TABLES.FONT_CATEGORIES, TABLES.FONT_TAGS, TABLES.FONT_WEIGHTS],
+    MASTER_TABLES: [TABLES.CATEGORIES, TABLES.TAGS, TABLES.USERS, TABLES.FILES]
+};
+
+
+// Constants for functions
+const FUNCTIONS = {
+    UPSERT_FONT_SEARCH_INDEX: 'nvn_upsert_font_search_index',
+    QUEUE_SINGLE_FONT_UPDATE: 'nvn_queue_single_font_update',
+    QUEUE_LINKING_TABLE_UPDATE: 'nvn_queue_linking_table_update', 
+    QUEUE_MASTER_TABLE_UPDATE: 'nvn_queue_master_table_update',
+    NOTIFY_NEW_QUEUE_TASK: 'nvn_notify_new_queue_task',
+    PROCESS_QUEUE_ENHANCED: 'nvn_process_font_update_queue_enhanced',
+    GET_QUEUE_HEALTH: 'nvn_get_queue_health',
+    CLEANUP_FAILED_TASKS: 'nvn_cleanup_failed_tasks',
+    RUN_QUEUE_PROCESSOR: 'nvn_run_queue_processor',
+    EMERGENCY_QUEUE_RESET: 'nvn_emergency_queue_reset'
+};
+
+// Constants for triggers
+const TRIGGERS = {
+    QUEUE_UPDATE: 'nvn_trigger_queue_update',
+    NOTIFY_NEW_TASK: 'nvn_trigger_notify_new_task'
+};
+
+// Constants for task types
+const TASK_TYPES = {
+    SINGLE_FONT_UPDATE: 'SINGLE_FONT_UPDATE',
+    RESYNC_BY_CATEGORY: 'RESYNC_BY_CATEGORY',
+    RESYNC_BY_TAG: 'RESYNC_BY_TAG',
+    RESYNC_BY_USER: 'RESYNC_BY_USER',
+    RESYNC_BY_FILE: 'RESYNC_BY_FILE',
+    RESYNC_BY_FONT_WEIGHT: 'RESYNC_BY_FONT_WEIGHT'
+};
+
+// Constants for operations
+const OPERATIONS = {
+    UPSERT: 'upsert',
+    DELETE: 'delete'
+};
+
+// Constants for trigger operations
+const TRIGGER_OPS = {
+    DELETE: 'DELETE',
+    INSERT: 'INSERT',
+    UPDATE: 'UPDATE'
+};
+
+// Constants for legacy function names (for cleanup purposes)
+const LEGACY_FUNCTIONS = {
+    QUEUE_FONT_UPDATE_FROM_MASTER: 'nvn_queue_font_update_from_master',
+    PROCESS_FONT_UPDATE_QUEUE: 'nvn_process_font_update_queue',
+    PROCESS_FONT_UPDATE_QUEUE_ENHANCED: 'nvn_process_font_update_queue_enhanced',
+    QUEUE_FONT_UPDATE: 'nvn_queue_font_update',
+    QUEUE_FONT_UPDATE_FROM_LINKING: 'nvn_queue_font_update_from_linking',
+    QUEUE_FONT_UPDATE_ON_CHANGE: 'nvn_queue_font_update_on_change',
+    QUEUE_RESYNC_BY_CATEGORY: 'nvn_queue_resync_by_category',
+    QUEUE_RESYNC_BY_TAG: 'nvn_queue_resync_by_tag'
+};
+
+// Constants for system values
+const SYSTEM_VALUES = {
+    DEFAULT_CREATOR: 'system',
+    TRIGGER_FONTS_CREATOR: 'nvn_trigger_fonts',
+    WORKER_PREFIX: 'nvn_worker-',
+    EMERGENCY_RESET_ERROR: 'nvn_Emergency reset',
+    AUTO_RESET_ERROR: 'nvn_Task stuck in processing state - auto-reset'
+};
+
+// Constants for health status
+const HEALTH_STATUS = {
+    HEALTHY: 'healthy',
+    GOOD: 'good',
+    BUSY: 'busy',
+    OVERLOADED: 'overloaded',
+    CRITICAL: 'critical'
+};
 
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
@@ -16,10 +111,9 @@ module.exports = {
             console.log('\n📋 Phase 1: Aggressive cleanup of existing objects...');
             
             // Drop all triggers first
-            const allTables = ['fonts', 'font_categories', 'font_tags', 'font_weights', 'categories', 'tags', 'users', 'files'];
-            for (const table of allTables) {
+            for (const table of TABLE_ARRAYS.ALL_TRIGGER_TABLES) {
                 try {
-                    await queryInterface.sequelize.query(`DROP TRIGGER IF EXISTS trigger_queue_update ON ${table};`);
+                    await queryInterface.sequelize.query(`DROP TRIGGER IF EXISTS ${TRIGGERS.QUEUE_UPDATE} ON ${table};`);
                 } catch (e) {
                     console.log(`   ⚠️ Trigger cleanup: ${e.message.split('\n')[0]}`);
                 }
@@ -27,26 +121,10 @@ module.exports = {
 
             // Force drop all functions with CASCADE
             const functionsToCleanup = [
-                'queue_font_update_from_master',
-                'process_font_update_queue',
-                'process_font_update_queue_enhanced',
-                'queue_font_update',
-                'queue_font_update_from_linking',
-                'queue_master_table_update',
-                'queue_single_font_update',
-                'queue_linking_table_update',
-                'get_queue_health',
-                'cleanup_failed_tasks',
-                'run_queue_processor',
-                'emergency_queue_reset',
-                'upsert_font_search_index',
-                'notify_new_queue_task',
-                'queue_font_update_on_change',
-                'queue_resync_by_category',
-                'queue_resync_by_tag',
-                'queue_master_table_update',
-                'queue_font_update_from_master',
-                'process_font_update_queue',
+                // Legacy function names for cleanup
+                ...Object.values(LEGACY_FUNCTIONS),
+                // Add all current function names to ensure cleanup
+                ...Object.values(FUNCTIONS)
             ];
 
             for (const funcName of functionsToCleanup) {
@@ -62,10 +140,10 @@ module.exports = {
                 }
             }
             // drop table search table
-            await queryInterface.sequelize.query(`DROP TABLE IF EXISTS ${SEARCH_TABLE} CASCADE;`);
+            await queryInterface.sequelize.query(`DROP TABLE IF EXISTS ${TABLES.SEARCH_INDEX} CASCADE;`);
 
             // Drop tables
-            await queryInterface.sequelize.query(`DROP TABLE IF EXISTS ${QUEUE_TABLE} CASCADE;`);
+            await queryInterface.sequelize.query(`DROP TABLE IF EXISTS ${TABLES.QUEUE} CASCADE;`);
             
             console.log('✅ Aggressive cleanup completed');
 
@@ -73,14 +151,14 @@ module.exports = {
             console.log('\n📋 Phase 2: Creating enhanced queue table...');
             
             await queryInterface.sequelize.query(`
-                CREATE TABLE ${QUEUE_TABLE} (
+                CREATE TABLE ${TABLES.QUEUE} (
                     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
                     
                     -- Task Definition
                     task_type text NOT NULL,
                     font_id uuid,
                     target_id uuid,
-                    operation text NOT NULL DEFAULT 'upsert',
+                    operation text NOT NULL DEFAULT '${OPERATIONS.UPSERT}',
                     
                     -- Priority & Scheduling
                     priority integer NOT NULL DEFAULT 0,
@@ -102,12 +180,12 @@ module.exports = {
                     
                     -- Metadata
                     metadata jsonb DEFAULT '{}',
-                    created_by text DEFAULT 'system',
+                    created_by text DEFAULT '${SYSTEM_VALUES.DEFAULT_CREATOR}',
                     
                     -- Constraints
                     CONSTRAINT chk_task_payload CHECK (
-                        (task_type = 'SINGLE_FONT_UPDATE' AND font_id IS NOT NULL) OR
-                        (task_type != 'SINGLE_FONT_UPDATE' AND target_id IS NOT NULL)
+                        (task_type = '${TASK_TYPES.SINGLE_FONT_UPDATE}' AND font_id IS NOT NULL) OR
+                        (task_type != '${TASK_TYPES.SINGLE_FONT_UPDATE}' AND target_id IS NOT NULL)
                     ),
                     CONSTRAINT chk_priority_range CHECK (priority >= 0 AND priority <= 10),
                     CONSTRAINT chk_retry_count CHECK (retry_count >= 0 AND retry_count <= max_retries)
@@ -118,7 +196,7 @@ module.exports = {
             console.log('\n📋 Phase 3: Creating search index table...');
             
             await queryInterface.sequelize.query(`
-                CREATE TABLE IF NOT EXISTS ${SEARCH_TABLE} (
+                CREATE TABLE IF NOT EXISTS ${TABLES.SEARCH_INDEX} (
                     id uuid PRIMARY KEY,
                     name text,
                     slug text,
@@ -146,7 +224,8 @@ module.exports = {
                     "categoryIds" uuid[],
                     "tagIds" uuid[],
                     "weightIds" uuid[],
-                    document tsvector, 
+                    document tsvector,
+                    "deletedAt" timestamptz, -- Add deletedAt column
                     last_updated timestamptz DEFAULT now()
                 );
             `);
@@ -155,45 +234,45 @@ module.exports = {
             console.log('\n📋 Phase 4: Creating optimized indexes...');
             
             // Drop indexes explicitly to be safe from any previous state
-            await queryInterface.sequelize.query(`DROP INDEX IF EXISTS idx_${QUEUE_TABLE}_unique_single_font;`);
-            await queryInterface.sequelize.query(`DROP INDEX IF EXISTS idx_${QUEUE_TABLE}_unique_aggregate_task;`);
+            await queryInterface.sequelize.query(`DROP INDEX IF EXISTS idx_${TABLES.QUEUE}_unique_single_font;`);
+            await queryInterface.sequelize.query(`DROP INDEX IF EXISTS idx_${TABLES.QUEUE}_unique_aggregate_task;`);
             await queryInterface.sequelize.query(`DROP INDEX IF EXISTS uq_queue_single_font_task;`);
             await queryInterface.sequelize.query(`DROP INDEX IF EXISTS uq_queue_aggregate_task;`);
 
             const indexes = [
                 // Queue table indexes - Explicitly named constraints to resolve ON CONFLICT ambiguity
                 `CREATE UNIQUE INDEX uq_queue_single_font_task
-                 ON ${QUEUE_TABLE} (font_id) 
-                 WHERE task_type = 'SINGLE_FONT_UPDATE' AND NOT processing`,
+                 ON ${TABLES.QUEUE} (font_id) 
+                 WHERE task_type = '${TASK_TYPES.SINGLE_FONT_UPDATE}' AND NOT processing`,
                 
                 `CREATE UNIQUE INDEX uq_queue_aggregate_task
-                 ON ${QUEUE_TABLE} (task_type, target_id) 
-                 WHERE task_type != 'SINGLE_FONT_UPDATE' AND NOT processing`,
+                 ON ${TABLES.QUEUE} (task_type, target_id) 
+                 WHERE task_type != '${TASK_TYPES.SINGLE_FONT_UPDATE}' AND NOT processing`,
                 
-                `CREATE INDEX IF NOT EXISTS idx_${QUEUE_TABLE}_priority_queue 
-                 ON ${QUEUE_TABLE} (priority DESC, retry_count ASC, queued_at ASC) 
+                `CREATE INDEX IF NOT EXISTS idx_${TABLES.QUEUE}_priority_queue 
+                 ON ${TABLES.QUEUE} (priority DESC, retry_count ASC, queued_at ASC) 
                  WHERE NOT processing AND retry_count < max_retries`,
                 
-                `CREATE INDEX IF NOT EXISTS idx_${QUEUE_TABLE}_processing_state 
-                 ON ${QUEUE_TABLE} (processing, started_at) 
+                `CREATE INDEX IF NOT EXISTS idx_${TABLES.QUEUE}_processing_state 
+                 ON ${TABLES.QUEUE} (processing, started_at) 
                  WHERE processing = true`,
                 
-                `CREATE INDEX IF NOT EXISTS idx_${QUEUE_TABLE}_failed_tasks 
-                 ON ${QUEUE_TABLE} (retry_count, queued_at) 
+                `CREATE INDEX IF NOT EXISTS idx_${TABLES.QUEUE}_failed_tasks 
+                 ON ${TABLES.QUEUE} (retry_count, queued_at) 
                  WHERE retry_count >= max_retries`,
                 
-                `CREATE INDEX IF NOT EXISTS idx_${QUEUE_TABLE}_task_type 
-                 ON ${QUEUE_TABLE} (task_type, priority DESC)`,
+                `CREATE INDEX IF NOT EXISTS idx_${TABLES.QUEUE}_task_type 
+                 ON ${TABLES.QUEUE} (task_type, priority DESC)`,
                 
                 // Search index table indexes
-                `CREATE UNIQUE INDEX IF NOT EXISTS idx_${SEARCH_TABLE}_id ON ${SEARCH_TABLE} (id)`,
-                `CREATE INDEX IF NOT EXISTS idx_gin_${SEARCH_TABLE}_document ON ${SEARCH_TABLE} USING GIN(document)`,
-                `CREATE INDEX IF NOT EXISTS idx_${SEARCH_TABLE}_category_ids ON ${SEARCH_TABLE} USING GIN("categoryIds")`,
-                `CREATE INDEX IF NOT EXISTS idx_${SEARCH_TABLE}_tag_ids ON ${SEARCH_TABLE} USING GIN("tagIds")`,
-                `CREATE INDEX IF NOT EXISTS idx_${SEARCH_TABLE}_weight_ids ON ${SEARCH_TABLE} USING GIN("weightIds")`,
-                `CREATE INDEX IF NOT EXISTS idx_${SEARCH_TABLE}_is_active ON ${SEARCH_TABLE} ("isActive")`,
-                `CREATE INDEX IF NOT EXISTS idx_${SEARCH_TABLE}_created_at ON ${SEARCH_TABLE} ("createdAt")`,
-                `CREATE INDEX IF NOT EXISTS idx_${SEARCH_TABLE}_last_updated ON ${SEARCH_TABLE} (last_updated)`
+                `CREATE UNIQUE INDEX IF NOT EXISTS idx_${TABLES.SEARCH_INDEX}_id ON ${TABLES.SEARCH_INDEX} (id)`,
+                `CREATE INDEX IF NOT EXISTS idx_gin_${TABLES.SEARCH_INDEX}_document ON ${TABLES.SEARCH_INDEX} USING GIN(document)`,
+                `CREATE INDEX IF NOT EXISTS idx_${TABLES.SEARCH_INDEX}_category_ids ON ${TABLES.SEARCH_INDEX} USING GIN("categoryIds")`,
+                `CREATE INDEX IF NOT EXISTS idx_${TABLES.SEARCH_INDEX}_tag_ids ON ${TABLES.SEARCH_INDEX} USING GIN("tagIds")`,
+                `CREATE INDEX IF NOT EXISTS idx_${TABLES.SEARCH_INDEX}_weight_ids ON ${TABLES.SEARCH_INDEX} USING GIN("weightIds")`,
+                `CREATE INDEX IF NOT EXISTS idx_${TABLES.SEARCH_INDEX}_is_active ON ${TABLES.SEARCH_INDEX} ("isActive")`,
+                `CREATE INDEX IF NOT EXISTS idx_${TABLES.SEARCH_INDEX}_created_at ON ${TABLES.SEARCH_INDEX} ("createdAt")`,
+                `CREATE INDEX IF NOT EXISTS idx_${TABLES.SEARCH_INDEX}_last_updated ON ${TABLES.SEARCH_INDEX} (last_updated)`
             ];
 
             for (let i = 0; i < indexes.length; i++) {
@@ -209,7 +288,7 @@ module.exports = {
             console.log('\n📋 Phase 5: Creating optimized upsert function...');
             
             await queryInterface.sequelize.query(`
-                CREATE FUNCTION ${UPSERT_FUNCTION}(p_font_ids uuid[])
+                CREATE FUNCTION ${FUNCTIONS.UPSERT_FONT_SEARCH_INDEX}(p_font_ids uuid[])
                 RETURNS integer LANGUAGE plpgsql AS $$
                 DECLARE
                     batch_size constant integer := 200;
@@ -255,25 +334,25 @@ module.exports = {
                                         ) FILTER (WHERE image_element IS NOT NULL), '[]'::jsonb)
                                 END as "galleryImages"
                             FROM
-                                fonts f
+                                ${TABLES.FONTS} f
                             -- Use a LATERAL join to safely unnest, only when galleryImages is not empty
                             LEFT JOIN LATERAL jsonb_array_elements(f."galleryImages") AS image_element ON 
                                 f."galleryImages" IS NOT NULL AND jsonb_array_length(f."galleryImages") > 0
                             -- Join to files table only for entity types
-                            LEFT JOIN files fi ON (image_element->>'type') = 'entity' AND (fi.id = (image_element->>'fileId')::uuid)
+                            LEFT JOIN ${TABLES.FILES} fi ON (image_element->>'type') = 'entity' AND (fi.id = (image_element->>'fileId')::uuid) AND fi."deletedAt" IS NULL
                             WHERE f.id = ANY(current_batch)
                             GROUP BY f.id, f."galleryImages"
                         ),
                         font_data AS (
                             SELECT DISTINCT f.id 
-                            FROM fonts f 
+                            FROM ${TABLES.FONTS} f 
                             WHERE f.id = ANY(current_batch)
                         ),
                         aggregated_data AS (
                             SELECT
                                 f.id, f.name, f.slug, f.authors, f.description, f."fontType", 
                                 f.price, f."downloadCount", f."isActive", f."isSupportVietnamese", 
-                                f.metadata, f."createdAt", f."updatedAt", f."thumbnailUrl", 
+                                f.metadata, f."createdAt", f."updatedAt", f."deletedAt", f."thumbnailUrl", -- Select deletedAt
                                 f."previewText", rgi."galleryImages", f."creatorId", f."thumbnailFileId",
                                 
                                 -- Creator info
@@ -348,23 +427,23 @@ module.exports = {
                                 ) as document
                                 
                             FROM font_data fd
-                            JOIN fonts f ON f.id = fd.id
+                            JOIN ${TABLES.FONTS} f ON f.id = fd.id
                             LEFT JOIN resolved_gallery_data rgi ON rgi.font_id = f.id
-                            LEFT JOIN font_categories fc ON f.id = fc."fontId"
-                            LEFT JOIN categories c ON fc."categoryId" = c.id
-                            LEFT JOIN font_tags ft ON f.id = ft."fontId"
-                            LEFT JOIN tags t ON ft."tagId" = t.id
-                            LEFT JOIN font_weights fw ON f.id = fw."fontId"
-                            LEFT JOIN users u ON f."creatorId" = u.id
-                            LEFT JOIN files fi ON f."thumbnailFileId" = fi.id
+                            LEFT JOIN ${TABLES.FONT_CATEGORIES} fc ON f.id = fc."fontId"
+                            LEFT JOIN ${TABLES.CATEGORIES} c ON fc."categoryId" = c.id AND c."isActive" = true AND c."deletedAt" IS NULL
+                            LEFT JOIN ${TABLES.FONT_TAGS} ft ON f.id = ft."fontId"
+                            LEFT JOIN ${TABLES.TAGS} t ON ft."tagId" = t.id AND t."isActive" = true AND t."deletedAt" IS NULL
+                            LEFT JOIN ${TABLES.FONT_WEIGHTS} fw ON f.id = fw."fontId" AND fw."isActive" = true AND fw."deletedAt" IS NULL
+                            LEFT JOIN ${TABLES.USERS} u ON f."creatorId" = u.id AND u."isActive" = true AND u."deletedAt" IS NULL
+                            LEFT JOIN ${TABLES.FILES} fi ON f."thumbnailFileId" = fi.id AND fi."deletedAt" IS NULL
                             GROUP BY f.id, f.name, f.slug, f.authors, f.description, f."fontType", 
                                      f.price, f."downloadCount", f."isActive", f."isSupportVietnamese", 
-                                     f.metadata, f."createdAt", f."updatedAt", f."thumbnailUrl", 
+                                     f.metadata, f."createdAt", f."updatedAt", f."deletedAt", f."thumbnailUrl", -- Group by deletedAt
                                      f."previewText", rgi."galleryImages", f."creatorId", f."thumbnailFileId", u.id, fi.id
                         )
-                        INSERT INTO ${SEARCH_TABLE} (
+                        INSERT INTO ${TABLES.SEARCH_INDEX} (
                             id, name, slug, authors, description, "fontType", price, "downloadCount", 
-                            "isActive", "isSupportVietnamese", metadata, "createdAt", "updatedAt", 
+                            "isActive", "isSupportVietnamese", metadata, "createdAt", "updatedAt", "deletedAt",
                             "thumbnailUrl", "previewText", "galleryImages", "creatorId", "thumbnailFileId", 
                             creator, "thumbnailFile", categories, tags, weights, "weightCount", 
                             "categoryIds", "tagIds", "weightIds", document, last_updated
@@ -372,7 +451,7 @@ module.exports = {
                         SELECT
                             agg.id, agg.name, agg.slug, agg.authors, agg.description, agg."fontType", 
                             agg.price, agg."downloadCount", agg."isActive", agg."isSupportVietnamese", 
-                            agg.metadata, agg."createdAt", agg."updatedAt", agg."thumbnailUrl", 
+                            agg.metadata, agg."createdAt", agg."updatedAt", agg."deletedAt", agg."thumbnailUrl", 
                             agg."previewText", agg."galleryImages", agg."creatorId", agg."thumbnailFileId",
                             agg.creator, agg."thumbnailFile", agg.categories, agg.tags, agg.weights, 
                             agg."weightCount", agg."categoryIds", agg."tagIds", agg."weightIds", 
@@ -391,6 +470,7 @@ module.exports = {
                             metadata = EXCLUDED.metadata,
                             "createdAt" = EXCLUDED."createdAt",
                             "updatedAt" = EXCLUDED."updatedAt",
+                            "deletedAt" = EXCLUDED."deletedAt",
                             "thumbnailUrl" = EXCLUDED."thumbnailUrl",
                             "previewText" = EXCLUDED."previewText",
                             "galleryImages" = EXCLUDED."galleryImages",
@@ -433,7 +513,7 @@ module.exports = {
             console.log('\n📋 Phase 6: Creating monitoring functions...');
             
             await queryInterface.sequelize.query(`
-                CREATE FUNCTION get_queue_health()
+                CREATE FUNCTION ${FUNCTIONS.GET_QUEUE_HEALTH}()
                 RETURNS jsonb LANGUAGE plpgsql AS $$
                 DECLARE
                     v_stats record;
@@ -441,8 +521,8 @@ module.exports = {
                 BEGIN
                     SELECT 
                         COUNT(*) as total_tasks,
-                        COUNT(*) FILTER (WHERE task_type = 'SINGLE_FONT_UPDATE') as single_font_tasks,
-                        COUNT(*) FILTER (WHERE task_type != 'SINGLE_FONT_UPDATE') as aggregate_tasks,
+                        COUNT(*) FILTER (WHERE task_type = '${TASK_TYPES.SINGLE_FONT_UPDATE}') as single_font_tasks,
+                        COUNT(*) FILTER (WHERE task_type != '${TASK_TYPES.SINGLE_FONT_UPDATE}') as aggregate_tasks,
                         COUNT(*) FILTER (WHERE processing) as processing_tasks,
                         COUNT(*) FILTER (WHERE retry_count > 0) as failed_tasks,
                         COUNT(*) FILTER (WHERE retry_count >= max_retries) as dead_tasks,
@@ -452,13 +532,13 @@ module.exports = {
                         AVG(processing_time_ms) as avg_processing_time_ms,
                         MAX(processing_time_ms) as max_processing_time_ms
                     INTO v_stats
-                    FROM ${QUEUE_TABLE};
+                    FROM ${TABLES.QUEUE};
                     
                     SELECT jsonb_object_agg(task_type, task_count)
                     INTO v_task_breakdown
                     FROM (
                         SELECT task_type, COUNT(*) as task_count
-                        FROM ${QUEUE_TABLE}
+                        FROM ${TABLES.QUEUE}
                         WHERE NOT processing AND retry_count < max_retries
                         GROUP BY task_type
                     ) breakdown;
@@ -477,11 +557,11 @@ module.exports = {
                         'max_processing_time_ms', COALESCE(v_stats.max_processing_time_ms, 0),
                         'task_breakdown', COALESCE(v_task_breakdown, '{}'::jsonb),
                         'health_status', CASE 
-                            WHEN COALESCE(v_stats.total_tasks, 0) = 0 THEN 'healthy'
-                            WHEN COALESCE(v_stats.total_tasks, 0) < 100 THEN 'good'
-                            WHEN COALESCE(v_stats.total_tasks, 0) < 1000 THEN 'busy'
-                            WHEN COALESCE(v_stats.total_tasks, 0) < 10000 THEN 'overloaded'
-                            ELSE 'critical'
+                            WHEN COALESCE(v_stats.total_tasks, 0) = 0 THEN '${HEALTH_STATUS.HEALTHY}'
+                            WHEN COALESCE(v_stats.total_tasks, 0) < 100 THEN '${HEALTH_STATUS.GOOD}'
+                            WHEN COALESCE(v_stats.total_tasks, 0) < 1000 THEN '${HEALTH_STATUS.BUSY}'
+                            WHEN COALESCE(v_stats.total_tasks, 0) < 10000 THEN '${HEALTH_STATUS.OVERLOADED}'
+                            ELSE '${HEALTH_STATUS.CRITICAL}'
                         END,
                         'timestamp', now()
                     );
@@ -490,23 +570,23 @@ module.exports = {
             `);
 
             await queryInterface.sequelize.query(`
-                CREATE FUNCTION cleanup_failed_tasks()
+                CREATE FUNCTION ${FUNCTIONS.CLEANUP_FAILED_TASKS}()
                 RETURNS integer LANGUAGE plpgsql AS $$
                 DECLARE
                     v_cleaned integer;
                     v_old_processing integer;
                 BEGIN
-                    DELETE FROM ${QUEUE_TABLE} 
+                    DELETE FROM ${TABLES.QUEUE} 
                     WHERE retry_count >= max_retries 
                     AND queued_at < now() - interval '1 hour';
                     
                     GET DIAGNOSTICS v_cleaned = ROW_COUNT;
                     
-                    UPDATE ${QUEUE_TABLE} 
+                    UPDATE ${TABLES.QUEUE} 
                     SET processing = false, 
                         worker_id = NULL,
                         retry_count = retry_count + 1,
-                        last_error = 'Task stuck in processing state - auto-reset'
+                        last_error = '${SYSTEM_VALUES.AUTO_RESET_ERROR}'
                     WHERE processing = true 
                     AND started_at < now() - interval '10 minutes'
                     AND retry_count < max_retries;
@@ -527,7 +607,7 @@ module.exports = {
             console.log('\n📋 Phase 7: Creating enhanced queue processor...');
             
             await queryInterface.sequelize.query(`
-                CREATE FUNCTION process_font_update_queue_enhanced(p_batch_size integer DEFAULT 100)
+                CREATE FUNCTION ${FUNCTIONS.PROCESS_QUEUE_ENHANCED}(p_batch_size integer DEFAULT 100)
                 RETURNS jsonb LANGUAGE plpgsql AS $$
                 DECLARE
                     v_batch RECORD;
@@ -540,11 +620,11 @@ module.exports = {
                     v_total_deleted integer := 0;
                     v_error_count integer := 0;
                     v_start_time timestamp := clock_timestamp();
-                    v_worker_id text := 'worker-' || pg_backend_pid() || '-' || EXTRACT(epoch FROM now());
+                    v_worker_id text := '${SYSTEM_VALUES.WORKER_PREFIX}' || pg_backend_pid() || '-' || EXTRACT(epoch FROM now());
                 BEGIN
                     FOR v_batch IN
                         SELECT id, task_type, font_id, target_id, operation, retry_count, max_retries, estimated_fonts
-                        FROM ${QUEUE_TABLE}
+                        FROM ${TABLES.QUEUE}
                         WHERE NOT processing 
                         AND retry_count < max_retries
                         ORDER BY 
@@ -556,7 +636,7 @@ module.exports = {
                         FOR UPDATE SKIP LOCKED
                     LOOP
                         BEGIN
-                            UPDATE ${QUEUE_TABLE} 
+                            UPDATE ${TABLES.QUEUE} 
                             SET processing = true, 
                                 started_at = now(), 
                                 worker_id = v_worker_id
@@ -564,8 +644,8 @@ module.exports = {
                             
                             v_processed_task_ids := array_append(v_processed_task_ids, v_batch.id);
 
-                            IF v_batch.task_type = 'SINGLE_FONT_UPDATE' THEN
-                                IF v_batch.operation = 'delete' THEN
+                            IF v_batch.task_type = '${TASK_TYPES.SINGLE_FONT_UPDATE}' THEN
+                                IF v_batch.operation = '${OPERATIONS.DELETE}' THEN
                                     v_all_font_ids_to_delete := array_append(v_all_font_ids_to_delete, v_batch.font_id);
                                 ELSE
                                     v_all_font_ids_to_upsert := array_append(v_all_font_ids_to_upsert, v_batch.font_id);
@@ -573,27 +653,27 @@ module.exports = {
                             ELSE
                                 v_temp_font_ids := '{}';
                                 CASE v_batch.task_type
-                                    WHEN 'RESYNC_BY_CATEGORY' THEN
+                                    WHEN '${TASK_TYPES.RESYNC_BY_CATEGORY}' THEN
                                         SELECT array_agg(DISTINCT fc."fontId") INTO v_temp_font_ids 
-                                        FROM font_categories fc
-                                        JOIN fonts f ON fc."fontId" = f.id
+                                        FROM ${TABLES.FONT_CATEGORIES} fc
+                                        JOIN ${TABLES.FONTS} f ON fc."fontId" = f.id AND f."deletedAt" IS NULL
                                         WHERE fc."categoryId" = v_batch.target_id;
                                         
-                                    WHEN 'RESYNC_BY_TAG' THEN
+                                    WHEN '${TASK_TYPES.RESYNC_BY_TAG}' THEN
                                         SELECT array_agg(DISTINCT ft."fontId") INTO v_temp_font_ids 
-                                        FROM font_tags ft
-                                        JOIN fonts f ON ft."fontId" = f.id
+                                        FROM ${TABLES.FONT_TAGS} ft
+                                        JOIN ${TABLES.FONTS} f ON ft."fontId" = f.id AND f."deletedAt" IS NULL
                                         WHERE ft."tagId" = v_batch.target_id;
                                         
-                                    WHEN 'RESYNC_BY_USER' THEN
+                                    WHEN '${TASK_TYPES.RESYNC_BY_USER}' THEN
                                         SELECT array_agg(DISTINCT id) INTO v_temp_font_ids 
-                                        FROM fonts 
-                                        WHERE "creatorId" = v_batch.target_id;
+                                        FROM ${TABLES.FONTS} 
+                                        WHERE "creatorId" = v_batch.target_id AND "deletedAt" IS NULL;
                                         
-                                    WHEN 'RESYNC_BY_FILE' THEN
+                                    WHEN '${TASK_TYPES.RESYNC_BY_FILE}' THEN
                                         SELECT array_agg(DISTINCT id) INTO v_temp_font_ids 
-                                        FROM fonts 
-                                        WHERE "thumbnailFileId" = v_batch.target_id;
+                                        FROM ${TABLES.FONTS} 
+                                        WHERE "thumbnailFileId" = v_batch.target_id AND "deletedAt" IS NULL;
                                         
                                     ELSE
                                         RAISE WARNING 'Unknown task type: %', v_batch.task_type;
@@ -611,7 +691,7 @@ module.exports = {
                             
                         EXCEPTION
                             WHEN OTHERS THEN
-                                UPDATE ${QUEUE_TABLE} 
+                                UPDATE ${TABLES.QUEUE} 
                                 SET processing = false,
                                     retry_count = retry_count + 1,
                                     last_error = SQLERRM,
@@ -631,7 +711,7 @@ module.exports = {
                             SELECT array_agg(DISTINCT unnest) INTO v_all_font_ids_to_delete 
                             FROM unnest(v_all_font_ids_to_delete);
                             
-                            DELETE FROM ${SEARCH_TABLE} WHERE id = ANY(v_all_font_ids_to_delete);
+                            DELETE FROM ${TABLES.SEARCH_INDEX} WHERE id = ANY(v_all_font_ids_to_delete);
                             GET DIAGNOSTICS v_total_deleted = ROW_COUNT;
                         END IF;
 
@@ -648,11 +728,11 @@ module.exports = {
                             END IF;
                             
                             IF array_length(v_all_font_ids_to_upsert, 1) > 0 THEN
-                                v_total_upserted := ${UPSERT_FUNCTION}(v_all_font_ids_to_upsert);
+                                v_total_upserted := ${FUNCTIONS.UPSERT_FONT_SEARCH_INDEX}(v_all_font_ids_to_upsert);
                             END IF;
                         END IF;
 
-                        DELETE FROM ${QUEUE_TABLE} 
+                        DELETE FROM ${TABLES.QUEUE} 
                         WHERE id = ANY(v_processed_task_ids)
                         AND id != ALL(COALESCE(v_failed_task_ids, '{}'));
                     END IF;
@@ -674,50 +754,51 @@ module.exports = {
             console.log('\n📋 Phase 8: Creating smart trigger functions...');
             
             await queryInterface.sequelize.query(`
-                CREATE FUNCTION queue_single_font_update()
+                CREATE FUNCTION ${FUNCTIONS.QUEUE_SINGLE_FONT_UPDATE}()
                 RETURNS TRIGGER LANGUAGE plpgsql AS $$
+                DECLARE
+                    v_operation text;
+                    v_font_record record;
                 BEGIN
-                    IF (TG_OP = 'DELETE') THEN
-                        INSERT INTO ${QUEUE_TABLE} (
-                            task_type, font_id, operation, priority, estimated_fonts, 
-                            metadata, created_by
-                        )
-                        VALUES (
-                            'SINGLE_FONT_UPDATE', OLD.id, 'delete', 1, 1,
-                            jsonb_build_object('font_name', OLD.name),
-                            'trigger_fonts'
-                        )
-                        ON CONFLICT (font_id) WHERE ((task_type = 'SINGLE_FONT_UPDATE'::text) AND (NOT processing)) DO UPDATE SET
-                            operation = 'delete',
-                            priority = GREATEST(EXCLUDED.priority, ${QUEUE_TABLE}.priority),
-                            queued_at = now(),
-                            processing = false,
-                            retry_count = 0;
-                        RETURN OLD;
+                    v_font_record := COALESCE(NEW, OLD);
+                
+                    -- Determine operation: soft-delete or hard-delete is a DELETE op for the index
+                    IF (TG_OP = '${TRIGGER_OPS.DELETE}' OR (TG_OP = '${TRIGGER_OPS.UPDATE}' AND NEW."deletedAt" IS NOT NULL)) THEN
+                        v_operation := '${OPERATIONS.DELETE}';
                     ELSE
-                        INSERT INTO ${QUEUE_TABLE} (
-                            task_type, font_id, operation, priority, estimated_fonts,
-                            metadata, created_by
-                        )
-                        VALUES (
-                            'SINGLE_FONT_UPDATE', NEW.id, 'upsert', 0, 1,
-                            jsonb_build_object('font_name', NEW.name),
-                            'trigger_fonts'
-                        )
-                        ON CONFLICT (font_id) WHERE ((task_type = 'SINGLE_FONT_UPDATE'::text) AND (NOT processing)) DO UPDATE SET
-                            operation = CASE WHEN ${QUEUE_TABLE}.operation = 'delete' THEN 'delete' ELSE 'upsert' END,
-                            priority = GREATEST(EXCLUDED.priority, ${QUEUE_TABLE}.priority),
-                            queued_at = now(),
-                            processing = false,
-                            retry_count = 0;
-                        RETURN NEW;
+                        v_operation := '${OPERATIONS.UPSERT}';
                     END IF;
+
+                    INSERT INTO ${TABLES.QUEUE} (
+                        task_type, font_id, operation, priority, estimated_fonts, 
+                        metadata, created_by
+                    )
+                    VALUES (
+                        '${TASK_TYPES.SINGLE_FONT_UPDATE}', v_font_record.id, v_operation, 
+                        -- Give deletes higher priority
+                        CASE WHEN v_operation = '${OPERATIONS.DELETE}' THEN 1 ELSE 0 END, 
+                        1,
+                        jsonb_build_object('font_name', v_font_record.name, 'op', TG_OP),
+                        '${SYSTEM_VALUES.TRIGGER_FONTS_CREATOR}'
+                    )
+                    ON CONFLICT (font_id) WHERE ((task_type = '${TASK_TYPES.SINGLE_FONT_UPDATE}'::text) AND (NOT processing)) DO UPDATE SET
+                        -- If a delete comes in for a queued upsert, it becomes a delete. A delete is final.
+                        operation = CASE WHEN ${TABLES.QUEUE}.operation = '${OPERATIONS.DELETE}' OR EXCLUDED.operation = '${OPERATIONS.DELETE}'
+                                    THEN '${OPERATIONS.DELETE}'
+                                    ELSE '${OPERATIONS.UPSERT}'
+                                    END,
+                        priority = GREATEST(EXCLUDED.priority, ${TABLES.QUEUE}.priority),
+                        queued_at = now(),
+                        processing = false,
+                        retry_count = 0;
+                        
+                    RETURN v_font_record;
                 END;
                 $$;
             `);
 
             await queryInterface.sequelize.query(`
-                CREATE FUNCTION queue_linking_table_update()
+                CREATE FUNCTION ${FUNCTIONS.QUEUE_LINKING_TABLE_UPDATE}()
                 RETURNS TRIGGER LANGUAGE plpgsql AS $$
                 DECLARE
                     v_font_id uuid;
@@ -727,17 +808,18 @@ module.exports = {
                         RETURN COALESCE(NEW, OLD); 
                     END IF;
 
-                    INSERT INTO ${QUEUE_TABLE} (
+                    INSERT INTO ${TABLES.QUEUE} (
                         task_type, font_id, operation, priority, estimated_fonts,
                         metadata, created_by
                     )
                     VALUES (
-                        'SINGLE_FONT_UPDATE', v_font_id, 'upsert', 0, 1,
+                        '${TASK_TYPES.SINGLE_FONT_UPDATE}', v_font_id, '${OPERATIONS.UPSERT}', 0, 1,
                         jsonb_build_object('trigger_table', TG_TABLE_NAME),
                         'trigger_' || TG_TABLE_NAME
                     )
-                    ON CONFLICT (font_id) WHERE ((task_type = 'SINGLE_FONT_UPDATE'::text) AND (NOT processing)) DO UPDATE SET
-                        operation = CASE WHEN ${QUEUE_TABLE}.operation = 'delete' THEN 'delete' ELSE 'upsert' END,
+                    ON CONFLICT (font_id) WHERE ((task_type = '${TASK_TYPES.SINGLE_FONT_UPDATE}'::text) AND (NOT processing)) DO UPDATE SET
+                        operation = CASE WHEN ${TABLES.QUEUE}.operation = '${OPERATIONS.DELETE}' THEN '${OPERATIONS.DELETE}' ELSE '${OPERATIONS.UPSERT}' END,
+                        priority = GREATEST(EXCLUDED.priority, ${TABLES.QUEUE}.priority),
                         queued_at = now(),
                         processing = false,
                         retry_count = 0;
@@ -748,7 +830,7 @@ module.exports = {
             `);
 
             await queryInterface.sequelize.query(`
-                CREATE FUNCTION queue_master_table_update()
+                CREATE FUNCTION ${FUNCTIONS.QUEUE_MASTER_TABLE_UPDATE}()
                 RETURNS TRIGGER LANGUAGE plpgsql AS $$
                 DECLARE
                     v_task_type text;
@@ -759,28 +841,28 @@ module.exports = {
                     v_target_id := NEW.id;
                     
                     CASE TG_TABLE_NAME
-                        WHEN 'categories' THEN 
-                            v_task_type := 'RESYNC_BY_CATEGORY';
-                            v_change_detected := (OLD.name IS DISTINCT FROM NEW.name OR OLD.slug IS DISTINCT FROM NEW.slug);
+                        WHEN '${TABLES.CATEGORIES}' THEN 
+                            v_task_type := '${TASK_TYPES.RESYNC_BY_CATEGORY}';
+                            v_change_detected := (OLD.name IS DISTINCT FROM NEW.name OR OLD.slug IS DISTINCT FROM NEW.slug OR OLD."isActive" IS DISTINCT FROM NEW."isActive");
                             IF v_change_detected THEN
                                 SELECT COUNT(*) INTO v_estimated_fonts 
-                                FROM font_categories fc
-                                JOIN fonts f ON fc."fontId" = f.id
+                                FROM ${TABLES.FONT_CATEGORIES} fc
+                                JOIN ${TABLES.FONTS} f ON fc."fontId" = f.id AND f."deletedAt" IS NULL
                                 WHERE fc."categoryId" = v_target_id;
                             END IF;
                             
-                        WHEN 'tags' THEN 
-                            v_task_type := 'RESYNC_BY_TAG';
-                            v_change_detected := (OLD.name IS DISTINCT FROM NEW.name OR OLD.slug IS DISTINCT FROM NEW.slug);
+                        WHEN '${TABLES.TAGS}' THEN 
+                            v_task_type := '${TASK_TYPES.RESYNC_BY_TAG}';
+                            v_change_detected := (OLD.name IS DISTINCT FROM NEW.name OR OLD.slug IS DISTINCT FROM NEW.slug OR OLD."isActive" IS DISTINCT FROM NEW."isActive");
                             IF v_change_detected THEN
                                 SELECT COUNT(*) INTO v_estimated_fonts 
-                                FROM font_tags ft
-                                JOIN fonts f ON ft."fontId" = f.id
+                                FROM ${TABLES.FONT_TAGS} ft
+                                JOIN ${TABLES.FONTS} f ON ft."fontId" = f.id AND f."deletedAt" IS NULL
                                 WHERE ft."tagId" = v_target_id;
                             END IF;
                             
-                        WHEN 'users' THEN 
-                            v_task_type := 'RESYNC_BY_USER';
+                        WHEN '${TABLES.USERS}' THEN 
+                            v_task_type := '${TASK_TYPES.RESYNC_BY_USER}';
                             v_change_detected := (
                                 OLD."firstName" IS DISTINCT FROM NEW."firstName" OR 
                                 OLD."lastName" IS DISTINCT FROM NEW."lastName" OR
@@ -789,20 +871,20 @@ module.exports = {
                             );
                             IF v_change_detected THEN
                                 SELECT COUNT(*) INTO v_estimated_fonts 
-                                FROM fonts 
-                                WHERE "creatorId" = v_target_id;
+                                FROM ${TABLES.FONTS} 
+                                WHERE "creatorId" = v_target_id AND "deletedAt" IS NULL;
                             END IF;
                             
-                        WHEN 'files' THEN 
-                            v_task_type := 'RESYNC_BY_FILE';
+                        WHEN '${TABLES.FILES}' THEN 
+                            v_task_type := '${TASK_TYPES.RESYNC_BY_FILE}';
                             v_change_detected := (
                                 OLD."cdnUrl" IS DISTINCT FROM NEW."cdnUrl" OR 
                                 OLD.url IS DISTINCT FROM NEW.url
                             );
                             IF v_change_detected THEN
                                 SELECT COUNT(*) INTO v_estimated_fonts 
-                                FROM fonts 
-                                WHERE "thumbnailFileId" = v_target_id;
+                                FROM ${TABLES.FONTS} 
+                                WHERE "thumbnailFileId" = v_target_id AND "deletedAt" IS NULL;
                             END IF;
 
                         ELSE 
@@ -810,16 +892,16 @@ module.exports = {
                     END CASE;
 
                     IF v_change_detected AND COALESCE(v_estimated_fonts, 0) > 0 THEN
-                        INSERT INTO ${QUEUE_TABLE} (
+                        INSERT INTO ${TABLES.QUEUE} (
                             task_type, target_id, operation, priority, estimated_fonts,
                             metadata, created_by
                         )
                         VALUES (
-                            v_task_type, v_target_id, 'upsert', 5, v_estimated_fonts,
+                            v_task_type, v_target_id, '${OPERATIONS.UPSERT}', 5, v_estimated_fonts,
                             jsonb_build_object('estimated_fonts', v_estimated_fonts),
                             'trigger_' || TG_TABLE_NAME
                         )
-                        ON CONFLICT (task_type, target_id) WHERE ((task_type <> 'SINGLE_FONT_UPDATE'::text) AND (NOT processing)) DO UPDATE SET
+                        ON CONFLICT (task_type, target_id) WHERE ((task_type <> '${TASK_TYPES.SINGLE_FONT_UPDATE}'::text) AND (NOT processing)) DO UPDATE SET
                             queued_at = now(),
                             processing = false,
                             retry_count = 0,
@@ -835,7 +917,7 @@ module.exports = {
             `);
 
             await queryInterface.sequelize.query(`
-                CREATE FUNCTION notify_new_queue_task()
+                CREATE FUNCTION ${FUNCTIONS.NOTIFY_NEW_QUEUE_TASK}()
                 RETURNS TRIGGER LANGUAGE plpgsql AS $$
                 BEGIN
                     PERFORM pg_notify('new_queue_task', TG_OP);
@@ -848,63 +930,61 @@ module.exports = {
             console.log('\n📋 Phase 9: Attaching triggers to tables...');
             
             await queryInterface.sequelize.query(`
-                CREATE TRIGGER trigger_queue_update 
-                AFTER INSERT OR UPDATE OR DELETE ON fonts 
+                CREATE TRIGGER ${TRIGGERS.QUEUE_UPDATE} 
+                AFTER INSERT OR UPDATE OR DELETE ON ${TABLES.FONTS} 
                 FOR EACH ROW 
-                EXECUTE FUNCTION queue_single_font_update();
+                EXECUTE FUNCTION ${FUNCTIONS.QUEUE_SINGLE_FONT_UPDATE}();
             `);
             
-            const linkingTables = ['font_categories', 'font_tags', 'font_weights'];
-            for (const table of linkingTables) {
+            for (const table of TABLE_ARRAYS.LINKING_TABLES) {
                 await queryInterface.sequelize.query(`
-                    CREATE TRIGGER trigger_queue_update 
+                    CREATE TRIGGER ${TRIGGERS.QUEUE_UPDATE} 
                     AFTER INSERT OR UPDATE OR DELETE ON ${table} 
                     FOR EACH ROW 
-                    EXECUTE FUNCTION queue_linking_table_update();
+                    EXECUTE FUNCTION ${FUNCTIONS.QUEUE_LINKING_TABLE_UPDATE}();
                 `);
             }
 
-            const masterTables = ['categories', 'tags', 'users', 'files'];
-            for (const table of masterTables) {
+            for (const table of TABLE_ARRAYS.MASTER_TABLES) {
                 await queryInterface.sequelize.query(`
-                    CREATE TRIGGER trigger_queue_update 
+                    CREATE TRIGGER ${TRIGGERS.QUEUE_UPDATE} 
                     AFTER UPDATE ON ${table}
                     FOR EACH ROW
                     WHEN (current_setting('session_replication_role') <> 'replica')
-                    EXECUTE FUNCTION queue_master_table_update();
+                    EXECUTE FUNCTION ${FUNCTIONS.QUEUE_MASTER_TABLE_UPDATE}();
                 `);
             }
 
             await queryInterface.sequelize.query(`
-                CREATE TRIGGER trigger_notify_new_task
-                AFTER INSERT ON ${QUEUE_TABLE}
+                CREATE TRIGGER ${TRIGGERS.NOTIFY_NEW_TASK}
+                AFTER INSERT ON ${TABLES.QUEUE}
                 FOR EACH ROW
-                EXECUTE FUNCTION notify_new_queue_task();
+                EXECUTE FUNCTION ${FUNCTIONS.NOTIFY_NEW_QUEUE_TASK}();
             `);
 
             // --- PHASE 10: CREATE CONVENIENCE FUNCTIONS ---
             console.log('\n📋 Phase 10: Creating convenience functions...');
             
             await queryInterface.sequelize.query(`
-                CREATE FUNCTION run_queue_processor()
+                CREATE FUNCTION ${FUNCTIONS.RUN_QUEUE_PROCESSOR}()
                 RETURNS jsonb LANGUAGE plpgsql AS $$
                 BEGIN
-                    RETURN process_font_update_queue_enhanced(200);
+                    RETURN ${FUNCTIONS.PROCESS_QUEUE_ENHANCED}(200);
                 END;
                 $$;
             `);
 
             await queryInterface.sequelize.query(`
-                CREATE FUNCTION emergency_queue_reset()
+                CREATE FUNCTION ${FUNCTIONS.EMERGENCY_QUEUE_RESET}()
                 RETURNS jsonb LANGUAGE plpgsql AS $$
                 DECLARE
                     v_reset_count integer;
                 BEGIN
-                    UPDATE ${QUEUE_TABLE} 
+                    UPDATE ${TABLES.QUEUE} 
                     SET processing = false, 
                         worker_id = NULL,
                         retry_count = 0,
-                        last_error = 'Emergency reset'
+                        last_error = '${SYSTEM_VALUES.EMERGENCY_RESET_ERROR}'
                     WHERE processing = true;
                     
                     GET DIAGNOSTICS v_reset_count = ROW_COUNT;
@@ -921,7 +1001,7 @@ module.exports = {
             console.log('\n📋 Phase 11: Initial data synchronization...');
 
             const fontIdsResult = await queryInterface.sequelize.query(
-                'SELECT id FROM fonts WHERE "isActive" = true',
+                `SELECT id FROM ${TABLES.FONTS} WHERE "isActive" = true AND "deletedAt" IS NULL`,
                 { type: queryInterface.sequelize.QueryTypes.SELECT }
             );
             
@@ -937,7 +1017,7 @@ module.exports = {
                 for (let i = 0; i < allFontIds.length; i += SYNC_BATCH_SIZE) {
                     const batch = allFontIds.slice(i, i + SYNC_BATCH_SIZE);
                     const formattedIds = `{${batch.join(',')}}`;
-                    await queryInterface.sequelize.query(`SELECT ${UPSERT_FUNCTION}(:fontIds)`, {
+                    await queryInterface.sequelize.query(`SELECT ${FUNCTIONS.UPSERT_FONT_SEARCH_INDEX}(:fontIds)`, {
                         replacements: { fontIds: formattedIds },
                         type: queryInterface.sequelize.QueryTypes.SELECT,
                     });
@@ -956,20 +1036,19 @@ module.exports = {
     async down(queryInterface) {
         console.log('=== REMOVING PRODUCTION FONT SEARCH SYSTEM ===');
         try {
-            const tablesWithTriggers = ['fonts', 'font_categories', 'font_tags', 'font_weights', 'categories', 'tags', 'users', 'files'];
-            for (const table of tablesWithTriggers) {
-                await queryInterface.sequelize.query(`DROP TRIGGER IF EXISTS trigger_queue_update ON ${table};`);
+            for (const table of TABLE_ARRAYS.ALL_TRIGGER_TABLES) {
+                await queryInterface.sequelize.query(`DROP TRIGGER IF EXISTS ${TRIGGERS.QUEUE_UPDATE} ON ${table};`);
             }
-            await queryInterface.sequelize.query(`DROP TRIGGER IF EXISTS trigger_notify_new_task ON ${QUEUE_TABLE};`);
+            await queryInterface.sequelize.query(`DROP TRIGGER IF EXISTS ${TRIGGERS.NOTIFY_NEW_TASK} ON ${TABLES.QUEUE};`);
             const functions = [
-                `${UPSERT_FUNCTION}(uuid[])`, `process_font_update_queue_enhanced(integer)`, `get_queue_health()`,
-                `cleanup_failed_tasks()`, `run_queue_processor()`, `emergency_queue_reset()`,
-                `queue_single_font_update()`, `queue_linking_table_update()`, `queue_master_table_update()`, `notify_new_queue_task()`,
+                `${FUNCTIONS.UPSERT_FONT_SEARCH_INDEX}(uuid[])`, `${FUNCTIONS.PROCESS_QUEUE_ENHANCED}(integer)`, `${FUNCTIONS.GET_QUEUE_HEALTH}()`,
+                `${FUNCTIONS.CLEANUP_FAILED_TASKS}()`, `${FUNCTIONS.RUN_QUEUE_PROCESSOR}()`, `${FUNCTIONS.EMERGENCY_QUEUE_RESET}()`,
+                `${FUNCTIONS.QUEUE_SINGLE_FONT_UPDATE}()`, `${FUNCTIONS.QUEUE_LINKING_TABLE_UPDATE}()`, `${FUNCTIONS.QUEUE_MASTER_TABLE_UPDATE}()`, `${FUNCTIONS.NOTIFY_NEW_QUEUE_TASK}()`,
             ];
             for (const func of functions) {
                 await queryInterface.sequelize.query(`DROP FUNCTION IF EXISTS ${func} CASCADE;`);
             }
-            await queryInterface.sequelize.query(`DROP TABLE IF EXISTS ${QUEUE_TABLE} CASCADE;`);
+            await queryInterface.sequelize.query(`DROP TABLE IF EXISTS ${TABLES.QUEUE} CASCADE;`);
             console.log('✅ Production font search system removed successfully');
         } catch (error) {
             console.error('❌ Error during rollback:', error);

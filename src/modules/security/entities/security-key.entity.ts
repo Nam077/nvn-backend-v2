@@ -1,13 +1,25 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-import { Column, CreatedAt, DataType, Model, PrimaryKey, Table, UpdatedAt, Index } from 'sequelize-typescript';
+import {
+    Column,
+    CreatedAt,
+    DataType,
+    DeletedAt,
+    Index,
+    Model,
+    PrimaryKey,
+    Table,
+    UpdatedAt,
+} from 'sequelize-typescript';
 
 import { DateUtils } from '@/common/utils';
 
 import { KeyType, KeyAlgorithm, KeyStatus } from '../types/key.types';
 
 @Table({
-    tableName: 'security_keys',
+    tableName: 'nvn_security_keys',
+    timestamps: true,
+    paranoid: true,
     indexes: [{ fields: ['keyType', 'status'] }, { fields: ['status', 'expiresAt'] }, { fields: ['createdAt'] }],
 })
 export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
@@ -162,6 +174,10 @@ export class SecurityKey extends Model<SecurityKey, SecurityKeyCreationAttrs> {
     @UpdatedAt
     @Column({ field: 'updatedAt' })
     declare updatedAt: Date;
+
+    @DeletedAt
+    @Column({ field: 'deletedAt' })
+    declare deletedAt: Date;
 
     // Virtual properties
     @ApiProperty({ description: 'Is key currently active' })

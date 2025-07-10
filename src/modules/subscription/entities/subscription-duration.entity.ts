@@ -17,7 +17,7 @@ import { SubscriptionPlan } from '@/modules/subscription/entities/subscription-p
 import { UserSubscription } from '@/modules/subscription/entities/user-subscription.entity';
 
 @Table({
-    tableName: 'subscription_durations',
+    tableName: 'nvn_subscription_durations',
 })
 export class SubscriptionDuration extends Model<SubscriptionDuration, SubscriptionDurationCreationAttrs> {
     @ApiProperty({ description: 'Duration ID', example: '123e4567-e89b-12d3-a456-426614174000' })

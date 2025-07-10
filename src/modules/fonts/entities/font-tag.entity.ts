@@ -4,7 +4,7 @@ import { Font } from '@/modules/fonts/entities/font.entity';
 import { Tag } from '@/modules/tags/entities/tag.entity';
 
 @Table({
-    tableName: 'font_tags',
+    tableName: 'nvn_font_tags',
     timestamps: false,
 })
 export class FontTag extends Model<FontTag> {
