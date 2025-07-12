@@ -53,7 +53,8 @@ const TASK_TYPES = {
     RESYNC_BY_TAG: 'RESYNC_BY_TAG',
     RESYNC_BY_USER: 'RESYNC_BY_USER',
     RESYNC_BY_FILE: 'RESYNC_BY_FILE',
-    RESYNC_BY_FONT_WEIGHT: 'RESYNC_BY_FONT_WEIGHT'
+    RESYNC_BY_FONT_WEIGHT: 'RESYNC_BY_FONT_WEIGHT',
+    FULL_RESYNC: 'FULL_RESYNC'
 };
 
 // Constants for operations
@@ -185,7 +186,8 @@ module.exports = {
                     -- Constraints
                     CONSTRAINT chk_task_payload CHECK (
                         (task_type = '${TASK_TYPES.SINGLE_FONT_UPDATE}' AND font_id IS NOT NULL) OR
-                        (task_type != '${TASK_TYPES.SINGLE_FONT_UPDATE}' AND target_id IS NOT NULL)
+                        (task_type IN ('${TASK_TYPES.RESYNC_BY_CATEGORY}', '${TASK_TYPES.RESYNC_BY_TAG}', '${TASK_TYPES.RESYNC_BY_USER}', '${TASK_TYPES.RESYNC_BY_FILE}', '${TASK_TYPES.RESYNC_BY_FONT_WEIGHT}') AND target_id IS NOT NULL) OR
+                        (task_type = '${TASK_TYPES.FULL_RESYNC}')
                     ),
                     CONSTRAINT chk_priority_range CHECK (priority >= 0 AND priority <= 10),
                     CONSTRAINT chk_retry_count CHECK (retry_count >= 0 AND retry_count <= max_retries)
@@ -224,7 +226,7 @@ module.exports = {
                     "categoryIds" uuid[],
                     "tagIds" uuid[],
                     "weightIds" uuid[],
-                    document tsvector,
+                    document tsvector, 
                     "deletedAt" timestamptz, -- Add deletedAt column
                     last_updated timestamptz DEFAULT now()
                 );
@@ -644,50 +646,81 @@ module.exports = {
                             
                             v_processed_task_ids := array_append(v_processed_task_ids, v_batch.id);
 
-                            IF v_batch.task_type = '${TASK_TYPES.SINGLE_FONT_UPDATE}' THEN
-                                IF v_batch.operation = '${OPERATIONS.DELETE}' THEN
-                                    v_all_font_ids_to_delete := array_append(v_all_font_ids_to_delete, v_batch.font_id);
-                                ELSE
-                                    v_all_font_ids_to_upsert := array_append(v_all_font_ids_to_upsert, v_batch.font_id);
-                                END IF;
-                            ELSE
-                                v_temp_font_ids := '{}';
-                                CASE v_batch.task_type
-                                    WHEN '${TASK_TYPES.RESYNC_BY_CATEGORY}' THEN
-                                        SELECT array_agg(DISTINCT fc."fontId") INTO v_temp_font_ids 
-                                        FROM ${TABLES.FONT_CATEGORIES} fc
-                                        JOIN ${TABLES.FONTS} f ON fc."fontId" = f.id AND f."deletedAt" IS NULL
-                                        WHERE fc."categoryId" = v_batch.target_id;
-                                        
-                                    WHEN '${TASK_TYPES.RESYNC_BY_TAG}' THEN
-                                        SELECT array_agg(DISTINCT ft."fontId") INTO v_temp_font_ids 
-                                        FROM ${TABLES.FONT_TAGS} ft
-                                        JOIN ${TABLES.FONTS} f ON ft."fontId" = f.id AND f."deletedAt" IS NULL
-                                        WHERE ft."tagId" = v_batch.target_id;
-                                        
-                                    WHEN '${TASK_TYPES.RESYNC_BY_USER}' THEN
-                                        SELECT array_agg(DISTINCT id) INTO v_temp_font_ids 
-                                        FROM ${TABLES.FONTS} 
-                                        WHERE "creatorId" = v_batch.target_id AND "deletedAt" IS NULL;
-                                        
-                                    WHEN '${TASK_TYPES.RESYNC_BY_FILE}' THEN
-                                        SELECT array_agg(DISTINCT id) INTO v_temp_font_ids 
-                                        FROM ${TABLES.FONTS} 
-                                        WHERE "thumbnailFileId" = v_batch.target_id AND "deletedAt" IS NULL;
-                                        
+                            CASE v_batch.task_type
+                                WHEN '${TASK_TYPES.SINGLE_FONT_UPDATE}' THEN
+                                    IF v_batch.operation = '${OPERATIONS.DELETE}' THEN
+                                        v_all_font_ids_to_delete := array_append(v_all_font_ids_to_delete, v_batch.font_id);
                                     ELSE
-                                        RAISE WARNING 'Unknown task type: %', v_batch.task_type;
-                                END CASE;
-
-                                IF v_temp_font_ids IS NOT NULL AND array_length(v_temp_font_ids, 1) > 0 THEN
-                                    v_all_font_ids_to_upsert := array_cat(v_all_font_ids_to_upsert, v_temp_font_ids);
-                                    
-                                    IF array_length(v_temp_font_ids, 1) > 1000 THEN
-                                        RAISE NOTICE 'Large aggregate task: % affecting % fonts', 
-                                            v_batch.task_type, array_length(v_temp_font_ids, 1);
+                                        v_all_font_ids_to_upsert := array_append(v_all_font_ids_to_upsert, v_batch.font_id);
                                     END IF;
-                                END IF;
-                            END IF;
+
+                                WHEN '${TASK_TYPES.FULL_RESYNC}' THEN
+                                    DECLARE
+                                        v_all_font_ids uuid[];
+                                        v_total_fonts integer;
+                                        v_sync_batch_size constant integer := 5000;
+                                        i integer;
+                                        v_processed_count integer := 0;
+                                    BEGIN
+                                        RAISE NOTICE 'FULL_RESYNC: Starting task. This is a long-running operation.';
+                                        
+                                        SELECT array_agg(id) INTO v_all_font_ids FROM ${TABLES.FONTS} WHERE "isActive" = true AND "deletedAt" IS NULL;
+                                        v_total_fonts := COALESCE(array_length(v_all_font_ids, 1), 0);
+                                        
+                                        IF v_total_fonts > 0 THEN
+                                            RAISE NOTICE 'FULL_RESYNC: Found % active fonts to synchronize in batches of %.', v_total_fonts, v_sync_batch_size;
+                                            
+                                            FOR i IN 1..v_total_fonts BY v_sync_batch_size LOOP
+                                                PERFORM ${FUNCTIONS.UPSERT_FONT_SEARCH_INDEX}(v_all_font_ids[i:LEAST(i + v_sync_batch_size - 1, v_total_fonts)]);
+                                                v_processed_count := v_processed_count + v_sync_batch_size;
+                                                RAISE NOTICE 'FULL_RESYNC Progress: %/% fonts synchronized.', LEAST(v_processed_count, v_total_fonts), v_total_fonts;
+                                            END LOOP;
+                                        END IF;
+
+                                        RAISE NOTICE 'FULL_RESYNC: Cleaning up orphaned entries from search index...';
+                                        DELETE FROM ${TABLES.SEARCH_INDEX} s
+                                        WHERE NOT EXISTS (SELECT 1 FROM ${TABLES.FONTS} f WHERE f.id = s.id);
+                                        RAISE NOTICE 'FULL_RESYNC: Cleanup complete.';
+                                    END;
+
+                                ELSE -- This handles RESYNC_BY_CATEGORY, RESYNC_BY_TAG etc.
+                                    v_temp_font_ids := '{}';
+                                    CASE v_batch.task_type
+                                        WHEN '${TASK_TYPES.RESYNC_BY_CATEGORY}' THEN
+                                            SELECT array_agg(DISTINCT fc."fontId") INTO v_temp_font_ids 
+                                            FROM ${TABLES.FONT_CATEGORIES} fc
+                                            JOIN ${TABLES.FONTS} f ON fc."fontId" = f.id AND f."deletedAt" IS NULL
+                                            WHERE fc."categoryId" = v_batch.target_id;
+                                            
+                                        WHEN '${TASK_TYPES.RESYNC_BY_TAG}' THEN
+                                            SELECT array_agg(DISTINCT ft."fontId") INTO v_temp_font_ids 
+                                            FROM ${TABLES.FONT_TAGS} ft
+                                            JOIN ${TABLES.FONTS} f ON ft."fontId" = f.id AND f."deletedAt" IS NULL
+                                            WHERE ft."tagId" = v_batch.target_id;
+                                            
+                                        WHEN '${TASK_TYPES.RESYNC_BY_USER}' THEN
+                                            SELECT array_agg(DISTINCT id) INTO v_temp_font_ids 
+                                            FROM ${TABLES.FONTS} 
+                                            WHERE "creatorId" = v_batch.target_id AND "deletedAt" IS NULL;
+                                            
+                                        WHEN '${TASK_TYPES.RESYNC_BY_FILE}' THEN
+                                            SELECT array_agg(DISTINCT id) INTO v_temp_font_ids 
+                                            FROM ${TABLES.FONTS} 
+                                            WHERE "thumbnailFileId" = v_batch.target_id AND "deletedAt" IS NULL;
+                                            
+                                        ELSE
+                                            RAISE WARNING 'Unknown task type: %', v_batch.task_type;
+                                    END CASE;
+
+                                    IF v_temp_font_ids IS NOT NULL AND array_length(v_temp_font_ids, 1) > 0 THEN
+                                        v_all_font_ids_to_upsert := array_cat(v_all_font_ids_to_upsert, v_temp_font_ids);
+                                        
+                                        IF array_length(v_temp_font_ids, 1) > 1000 THEN
+                                            RAISE NOTICE 'Large aggregate task: % affecting % fonts', 
+                                                v_batch.task_type, array_length(v_temp_font_ids, 1);
+                                        END IF;
+                                    END IF;
+                            END CASE;
                             
                         EXCEPTION
                             WHEN OTHERS THEN
@@ -769,28 +802,28 @@ module.exports = {
                         v_operation := '${OPERATIONS.UPSERT}';
                     END IF;
 
-                    INSERT INTO ${TABLES.QUEUE} (
-                        task_type, font_id, operation, priority, estimated_fonts, 
-                        metadata, created_by
-                    )
-                    VALUES (
+                        INSERT INTO ${TABLES.QUEUE} (
+                            task_type, font_id, operation, priority, estimated_fonts,
+                            metadata, created_by
+                        )
+                        VALUES (
                         '${TASK_TYPES.SINGLE_FONT_UPDATE}', v_font_record.id, v_operation, 
                         -- Give deletes higher priority
                         CASE WHEN v_operation = '${OPERATIONS.DELETE}' THEN 1 ELSE 0 END, 
                         1,
                         jsonb_build_object('font_name', v_font_record.name, 'op', TG_OP),
-                        '${SYSTEM_VALUES.TRIGGER_FONTS_CREATOR}'
-                    )
-                    ON CONFLICT (font_id) WHERE ((task_type = '${TASK_TYPES.SINGLE_FONT_UPDATE}'::text) AND (NOT processing)) DO UPDATE SET
+                            '${SYSTEM_VALUES.TRIGGER_FONTS_CREATOR}'
+                        )
+                        ON CONFLICT (font_id) WHERE ((task_type = '${TASK_TYPES.SINGLE_FONT_UPDATE}'::text) AND (NOT processing)) DO UPDATE SET
                         -- If a delete comes in for a queued upsert, it becomes a delete. A delete is final.
                         operation = CASE WHEN ${TABLES.QUEUE}.operation = '${OPERATIONS.DELETE}' OR EXCLUDED.operation = '${OPERATIONS.DELETE}'
                                     THEN '${OPERATIONS.DELETE}'
                                     ELSE '${OPERATIONS.UPSERT}'
                                     END,
-                        priority = GREATEST(EXCLUDED.priority, ${TABLES.QUEUE}.priority),
-                        queued_at = now(),
-                        processing = false,
-                        retry_count = 0;
+                            priority = GREATEST(EXCLUDED.priority, ${TABLES.QUEUE}.priority),
+                            queued_at = now(),
+                            processing = false,
+                            retry_count = 0;
                         
                     RETURN v_font_record;
                 END;

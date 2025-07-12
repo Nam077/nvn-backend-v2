@@ -2,10 +2,11 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InjectModel } from '@nestjs/sequelize';
 
 import { Promise } from 'bluebird';
-import { isEmpty, join, map, size, toLower, words } from 'lodash';
+import { isEmpty, join, map, size, toLower, words, keyBy, forEach, get } from 'lodash';
 import { FindOptions, Op, Transaction } from 'sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import slugify from 'slugify';
+import { v4 as uuidv4 } from 'uuid';
 
 import { IApiResponse } from '@/common/dto/api.response.dto';
 import { IApiPaginatedResponse } from '@/common/dto/paginated.response.dto';
@@ -17,6 +18,8 @@ import { CategoriesService } from '@/modules/categories/categories.service';
 import { Category } from '@/modules/categories/entities/category.entity';
 import { File } from '@/modules/files/entities/file.entity';
 import { FileService } from '@/modules/files/services/file.service';
+import { FontCategory } from '@/modules/fonts/entities/font-category.entity';
+import { FontTag } from '@/modules/fonts/entities/font-tag.entity';
 import { FontWeight } from '@/modules/fonts/entities/font-weight.entity';
 import { Tag } from '@/modules/tags/entities/tag.entity';
 import { User } from '@/modules/users/entities/user.entity';
@@ -55,6 +58,114 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
     }
 
     // --- Entity-Returning Methods for Internal Use ---
+
+    async bulkCreate(createFontDtos: CreateFontDto[]): Promise<{ id: string }[]> {
+        if (isEmpty(createFontDtos)) {
+            return [];
+        }
+
+        // eslint-disable-next-line sonarjs/cognitive-complexity
+        return this.sequelize.transaction(async (transaction) => {
+            // 1. Collect all related IDs and data from all DTOs
+            const allCreatorIds = new Set<string>();
+            const allThumbnailFileIds = new Set<string>();
+            const allGalleryFileIds = new Set<string>();
+            const allCategoryIds = new Set<string>();
+            const allTags = new Set<string>();
+            const initialSlugs: string[] = [];
+
+            for (const dto of createFontDtos) {
+                initialSlugs.push(slugify(dto.name, { lower: true, strict: true }));
+                allCreatorIds.add(dto.creatorId);
+                if (dto.thumbnailFileId) allThumbnailFileIds.add(dto.thumbnailFileId);
+                if (dto.galleryImages) {
+                    for (const image of dto.galleryImages) {
+                        if (image.fileId) allGalleryFileIds.add(image.fileId);
+                    }
+                }
+                if (dto.categoryIds) forEach(dto.categoryIds, (id) => allCategoryIds.add(id));
+                if (dto.tags) forEach(dto.tags, (tag) => allTags.add(tag));
+            }
+
+            // Combine all file IDs for a single query
+            const allFileIds = new Set([...allThumbnailFileIds, ...allGalleryFileIds]);
+
+            // 2. Slug conflict resolution
+            const existingSlugsSet = new Set(
+                map(
+                    await this.fontModel.findAll({
+                        where: { slug: { [Op.in]: initialSlugs } },
+                        attributes: ['slug'],
+                        raw: true,
+                        transaction,
+                    }),
+                    'slug',
+                ),
+            );
+
+            const resolvedSlugs = map(initialSlugs, (slug) => {
+                if (existingSlugsSet.has(slug)) {
+                    return `${slug}-${uuidv4().substring(0, 4)}`;
+                }
+                return slug;
+            });
+
+            // 3. Validate existence of all related entities in parallel
+
+            const [users, files, categories, tagIds] = await Promise.all([
+                this.userService.findByIds([...allCreatorIds], transaction),
+                this.fileService.findByIds([...allFileIds], transaction),
+                this.categoriesService.findByIds([...allCategoryIds], transaction),
+                this.tagsService.getTagIdsFromMixedArray([...allTags], transaction),
+            ]);
+
+            const usersById = keyBy(users, 'id');
+            const filesById = keyBy(files, 'id');
+            const categoriesById = keyBy(categories, 'id');
+            keyBy(await this.tagsService.findByIds(tagIds, transaction), 'id');
+
+            // 4. Prepare data for bulk creation
+            const fontsToCreate: any[] = [];
+            const fontCategoriesToCreate: any[] = [];
+            const fontTagsToCreate: any[] = [];
+
+            for (const [index, dto] of createFontDtos.entries()) {
+                // Validate foreign keys for this DTO
+                if (!usersById[dto.creatorId]) throw new NotFoundException(`User with ID ${dto.creatorId} not found.`);
+                if (dto.thumbnailFileId && !filesById[dto.thumbnailFileId])
+                    throw new NotFoundException(`Thumbnail file with ID ${dto.thumbnailFileId} not found.`);
+                forEach(dto.galleryImages, (img) => {
+                    if (img.fileId && !filesById[img.fileId])
+                        throw new NotFoundException(`Gallery file with ID ${img.fileId} not found.`);
+                });
+                forEach(dto.categoryIds, (id) => {
+                    if (!get(categoriesById, id)) throw new NotFoundException(`Category with ID ${id} not found.`);
+                });
+
+                const newFontId = uuidv4();
+                fontsToCreate.push({
+                    id: newFontId,
+                    ...dto,
+                    slug: get(resolvedSlugs, index),
+                });
+
+                forEach(dto.categoryIds, (categoryId) => {
+                    fontCategoriesToCreate.push({ fontId: newFontId, categoryId });
+                });
+
+                forEach(tagIds, (tagId) => {
+                    fontTagsToCreate.push({ fontId: newFontId, tagId });
+                });
+            }
+
+            // 5. Execute bulk inserts
+            await this.fontModel.bulkCreate(fontsToCreate, { transaction });
+            await FontCategory.bulkCreate(fontCategoriesToCreate, { transaction });
+            await FontTag.bulkCreate(fontTagsToCreate, { transaction });
+
+            return map(fontsToCreate, (f) => ({ id: get(f, 'id') as string }));
+        });
+    }
 
     async create(createFontDto: CreateFontDto): Promise<Font> {
         const { categoryIds, tags, ...fontData } = createFontDto;
@@ -241,6 +352,16 @@ export class FontsService implements ICrudService<Font, FontResponseDto, CreateF
             data: new FontResponseDto(newFont),
         };
     }
+
+    async bulkCreateApi(createFontDtos: CreateFontDto[]): Promise<IApiResponse<{ id: string }[]>> {
+        const newFonts = await this.bulkCreate(createFontDtos);
+        return {
+            statusCode: 201,
+            message: `${newFonts.length} fonts created successfully.`,
+            data: newFonts,
+        };
+    }
+
     async findOneApi(id: string): Promise<IApiResponse<FontResponseDto>> {
         const font = await this.findOne(id, {
             include: ['creator', 'weights', 'categories', 'tags', 'thumbnailFile'],

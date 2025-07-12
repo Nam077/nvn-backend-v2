@@ -23,6 +23,8 @@ import { createCustomQueryDto, QueryDto } from '@/common/dto/query.dto';
 import { CaslGuard } from '@/modules/casl/guards/casl.guard';
 import { ValidateQuery } from '@/modules/query-validation/decorators/validate-query.decorator';
 
+import { BulkCreateFontDto } from './dto/bulk-create-font.dto';
+import { BulkFontResponseDto } from './dto/bulk-font.response.dto';
 import { CreateFontDto } from './dto/create-font.dto';
 import { FontResponseDto } from './dto/font.response.dto';
 import { UpdateFontDto } from './dto/update-font.dto';
@@ -49,6 +51,20 @@ export class FontsController {
     })
     async create(@Body(ValidationPipe) createFontDto: CreateFontDto): Promise<IApiResponse<FontResponseDto>> {
         return this.fontsService.createApi(createFontDto);
+    }
+
+    @Post('bulk')
+    @ApiEndpoint({
+        summary: 'Bulk create fonts',
+        description:
+            'Creates multiple fonts in a single, transactional request. Recommended for up to 1000 fonts at a time.',
+        created: true,
+        response: BulkFontResponseDto,
+        auth: { type: [AUTH_TYPE.JWT] },
+        errors: [HttpStatus.CONFLICT, HttpStatus.NOT_FOUND, HttpStatus.BAD_REQUEST],
+    })
+    async bulkCreate(@Body() bulkCreateFontDto: BulkCreateFontDto): Promise<IApiResponse<{ id: string }[]>> {
+        return this.fontsService.bulkCreateApi(bulkCreateFontDto.items);
     }
 
     @Post('query')

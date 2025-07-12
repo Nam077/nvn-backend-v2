@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/sequelize';
 
 import * as bcrypt from 'bcryptjs';
 import { map, omit, values, some, startsWith, isEmpty } from 'lodash';
-import { CreateOptions, DestroyOptions, FindOptions, UpdateOptions } from 'sequelize';
+import { CreateOptions, DestroyOptions, FindOptions, UpdateOptions, Op, Transaction } from 'sequelize';
 
 import { IApiResponse } from '@/common/dto/api.response.dto';
 import { IApiPaginatedResponse } from '@/common/dto/paginated.response.dto';
@@ -71,6 +71,20 @@ export class UsersService implements ICrudService<User, UserResponseDto, CreateU
             },
             options,
         );
+    }
+
+    async findByIds(ids: string[], transaction?: Transaction): Promise<User[]> {
+        if (isEmpty(ids)) {
+            return [];
+        }
+        return this.userModel.findAll({
+            where: {
+                id: {
+                    [Op.in]: ids,
+                },
+            },
+            transaction,
+        });
     }
 
     async findOne(id: string, options?: FindOneOptions): Promise<User> {

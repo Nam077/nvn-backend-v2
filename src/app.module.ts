@@ -16,6 +16,7 @@ import { FontsModule } from '@/modules/fonts/fonts.module';
 import { PaymentModule } from '@/modules/payment/payment.module';
 import { QueryConfigsModule } from '@/modules/query-configs/query-configs.module';
 import { QueryValidationModule } from '@/modules/query-validation/query-validation.module';
+import { QueueModule } from '@/modules/queue/queue.module';
 import { RedisModule } from '@/modules/redis/redis.module';
 import { SecurityModule } from '@/modules/security/security.module';
 import { SubscriptionModule } from '@/modules/subscription/subscription.module';
@@ -59,6 +60,7 @@ import { UsersModule } from '@/modules/users/users.module';
         TagsModule,
         QueryConfigsModule,
         QueryValidationModule,
+        QueueModule,
     ],
     controllers: [AppController],
     providers: [

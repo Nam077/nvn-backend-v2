@@ -15,6 +15,20 @@ export class FileService {
         private readonly fileModel: typeof File,
     ) {}
 
+    async findByIds(fileIds: string[], transaction?: Transaction): Promise<File[]> {
+        if (isEmpty(fileIds)) {
+            return [];
+        }
+        return this.fileModel.findAll<File>({
+            where: {
+                id: {
+                    [Op.in]: fileIds,
+                },
+            },
+            transaction,
+        });
+    }
+
     async checkFileExistsByIds(fileIds: string[], transaction?: Transaction): Promise<string[]> {
         if (isEmpty(fileIds)) {
             return [];

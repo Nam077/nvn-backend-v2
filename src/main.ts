@@ -3,16 +3,25 @@ import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
+import * as bodyParser from 'body-parser';
 import cookieParser from 'cookie-parser';
 
 import { AppModule } from '@/app.module';
 import { ConfigServiceApp } from '@/modules/config/config.service';
 
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+
 /**
  * Bootstrap the NestJS application
  */
 const bootstrap = async (): Promise<void> => {
-    const app = await NestFactory.create(AppModule);
+    const app = await NestFactory.create(AppModule, {
+        snapshot: true,
+    });
+
+    // Increase payload size limit
+    app.use(bodyParser.json({ limit: '50mb' }));
+    app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
     // Get config service
     const configService = app.get(ConfigServiceApp);
@@ -40,6 +49,8 @@ const bootstrap = async (): Promise<void> => {
 
     // Global class serializer interceptor
     app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
+    // Add HttpExceptionFilter to handle exceptions globally
+    app.useGlobalFilters(new HttpExceptionFilter(app.get(Reflector)));
 
     // Global prefix - Set BEFORE Swagger
     app.setGlobalPrefix('api');

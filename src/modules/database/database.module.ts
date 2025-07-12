@@ -18,9 +18,9 @@ import { ConfigServiceApp } from '@/modules/config/config.service';
                 // eslint-disable-next-line no-console
                 logging: configService.isDevelopment ? console.log : false,
                 pool: {
-                    max: 10,
+                    max: 50,
                     min: 0,
-                    acquire: 30000,
+                    acquire: 60000,
                     idle: 10000,
                 },
             }),

@@ -141,8 +141,8 @@ importers:
                 specifier: ^9.18.0
                 version: 9.29.0
             '@faker-js/faker':
-                specifier: ^9.8.0
-                version: 9.8.0
+                specifier: ^9.9.0
+                version: 9.9.0
             '@nestjs/cli':
                 specifier: ^11.0.0
                 version: 11.0.7(@swc/cli@0.6.0(@swc/core@1.12.5)(chokidar@4.0.3))(@swc/core@1.12.5)(@types/node@22.15.32)
@@ -197,6 +197,9 @@ importers:
             '@types/supertest':
                 specifier: ^6.0.2
                 version: 6.0.3
+            chalk:
+                specifier: ^5.4.1
+                version: 5.4.1
             change-case:
                 specifier: ^5.4.4
                 version: 5.4.4
@@ -875,10 +878,10 @@ packages:
             }
         engines: { node: ^18.18.0 || ^20.9.0 || >=21.1.0 }
 
-    '@faker-js/faker@9.8.0':
+    '@faker-js/faker@9.9.0':
         resolution:
             {
-                integrity: sha512-U9wpuSrJC93jZBxx/Qq2wPjCuYISBueyVUGK7qqdmj7r/nxaxwW8AQDCLeRO7wZnjj94sh3p246cAYjUKuqgfg==,
+                integrity: sha512-OEl393iCOoo/z8bMezRlJu+GlRGlsKbUAN7jKB6LhnKoqKve5DXRpalbItIIcwnCjs1k/FOPjFzcA6Qn+H+YbA==,
             }
         engines: { node: '>=18.0.0', npm: '>=9.0.0' }
 
@@ -9141,7 +9144,7 @@ snapshots:
             '@eslint/core': 0.15.0
             levn: 0.4.1
 
-    '@faker-js/faker@9.8.0': {}
+    '@faker-js/faker@9.9.0': {}
 
     '@hapi/hoek@9.3.0': {}
 

@@ -1,8 +1,9 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 
+import BPromise from 'bluebird';
 import * as fs from 'fs/promises';
-import { filter, forEach, get, isEmpty, keyBy, map, reduce, replace, set, split, startsWith } from 'lodash';
+import { filter, forEach, get, isEmpty, keyBy, map, reduce, replace, set, some, split, startsWith } from 'lodash';
 import * as path from 'path';
 import { Op, CreateOptions, DestroyOptions, FindOptions, Transaction, UpdateOptions } from 'sequelize';
 import slugify from 'slugify';
@@ -17,6 +18,7 @@ import { QueryBuilder } from '@/common/query-builder/query-utils';
 import { FindOneOptions } from '@/common/types/sequelize.types';
 import { FontCollection } from '@/modules/collections/entities/collection.entity';
 import { Font } from '@/modules/fonts/entities/font.entity';
+import { faker } from '@faker-js/faker';
 
 import { CategoryResponseDto } from './dto/category.response.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -551,15 +553,29 @@ export class CategoriesService
     }
 
     private async generateMockData(): Promise<MockDataResponseDto> {
-        const mockData: CreateCategoryDto[] = [];
-        for (let i = 1; i <= 100; i++) {
-            mockData.push({
-                name: `Mock Category ${i}`,
-                description: `This is the description for mock category number ${i}.`,
-            });
-        }
+        const mockData = await BPromise.map(
+            Array.from({ length: 100 }),
+            () => {
+                const name = faker.commerce.department();
+                const description = faker.lorem.sentence();
+                return { name, description };
+            },
+            { concurrency: 10 },
+        );
 
-        const payload = { items: mockData };
+        // Filter out potential duplicates that might arise from faker
+        const uniqueMockData = reduce(
+            mockData,
+            (acc, item) => {
+                if (!some(acc, (existing) => existing.name === item.name)) {
+                    acc.push(item);
+                }
+                return acc;
+            },
+            [] as CreateCategoryDto[],
+        );
+
+        const payload = { items: uniqueMockData };
         const outputDir = path.resolve(process.cwd(), 'public');
         const outputPath = path.join(outputDir, 'mock-categories.json');
 
@@ -569,7 +585,7 @@ export class CategoriesService
         const relativePath = path.relative(process.cwd(), outputPath);
 
         return {
-            message: 'Successfully generated 100 mock categories.',
+            message: `Successfully generated ${uniqueMockData.length} unique mock categories.`,
             filePath: relativePath,
         };
     }
